@@ -2317,3 +2317,183 @@ body.wallpaper-active .mode-bar { background:rgba(255,255,255,.22); }
   .space-manager-row { align-items:flex-start; }
   .space-manager-actions { max-width:180px; }
 }
+
+
+
+/* =====================================================
+   HANA v1.5 — CLEAN NAVIGATION / HAMBURGER DRAWER
+   ===================================================== */
+
+/* Header stays intentionally quiet: brand + search + menu. */
+.header-actions { gap: 7px; }
+.hamburger-button { gap: 3px; }
+.hamburger-button span {
+  display: block;
+  width: 17px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+}
+
+/* Spaces remain filters, not navigation/settings controls. */
+.mode-bar {
+  gap: 6px;
+  padding: 10px 18px 3px;
+}
+.mode-button {
+  min-width: 0 !important;
+  padding: 9px 13px;
+  font-size: 12px;
+}
+
+/* Categorized slide-over menu. */
+body.nav-drawer-open { overflow: hidden; }
+.nav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 118;
+  background: rgba(53, 39, 46, .26);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 119;
+  width: min(88vw, 390px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 250, 253, .985);
+  border-left: 1px solid var(--border);
+  box-shadow: -18px 0 48px rgba(92, 57, 72, .16);
+  padding-top: env(safe-area-inset-top);
+  animation: hanaDrawerIn .2s ease-out;
+}
+@keyframes hanaDrawerIn {
+  from { transform: translateX(28px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.nav-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 20px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.nav-drawer-header h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  letter-spacing: -.5px;
+}
+.nav-drawer-header p:last-child {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.nav-drawer-close {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+  background: var(--white);
+  border: 1px solid var(--border-soft);
+  border-radius: 13px;
+  font-size: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.nav-drawer-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 14px calc(24px + env(safe-area-inset-bottom));
+}
+.nav-drawer-group {
+  padding: 14px 0 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.nav-drawer-group:last-child { border-bottom: 0; }
+.nav-drawer-group-title {
+  padding: 0 8px 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 1.15px;
+  text-transform: uppercase;
+}
+.nav-drawer-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 8px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border-radius: 14px;
+}
+.nav-drawer-item:active { background: var(--pink-50); }
+.nav-drawer-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: var(--pink-50);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  font-size: 16px;
+}
+.nav-drawer-item > span:nth-child(2) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-drawer-item strong {
+  font-size: 13px;
+  font-weight: 780;
+}
+.nav-drawer-item small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-drawer-item b {
+  color: var(--pink-400);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+/* Secondary pages use a more compact settings presentation. */
+.settings-page-heading { margin-bottom: 8px; }
+.settings-section { margin-top: 18px; }
+.settings-section .settings-card { margin-bottom: 0; }
+
+/* Keep the four primary destinations visually balanced around the + button. */
+.bottom-nav .nav-button { font-size: 9px; }
+
+body.wallpaper-active .nav-drawer {
+  background: rgba(255, 250, 253, .96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+@media (max-width: 430px) {
+  .app-header { padding-left: 16px; padding-right: 16px; }
+  .brand-peony { width: 29px; height: 29px; flex-basis: 29px; }
+  .brand-name { font-size: 23px; }
+  .mode-bar { padding-left: 15px; padding-right: 15px; }
+  .mode-button { padding: 8px 12px; }
+  .nav-drawer { width: min(91vw, 380px); }
+  .nav-drawer-header { padding-left: 17px; padding-right: 17px; }
+  .nav-drawer-scroll { padding-left: 11px; padding-right: 11px; }
+}

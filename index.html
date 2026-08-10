@@ -29,8 +29,9 @@
 
       <div class="header-actions">
         <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>
-        <button id="notificationButton" class="icon-button" aria-label="Enable notifications" title="Enable notifications">🔔</button>
-        <button id="quickCaptureHeader" class="icon-button" aria-label="Quick capture" title="Quick capture">✨</button>
+        <button id="menuButton" class="icon-button hamburger-button" aria-label="Open Hana menu" title="Menu" aria-controls="navDrawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </header>
 
@@ -40,14 +41,61 @@
 
     <button id="mainAddButton" class="floating-add" aria-label="Add">+</button>
 
-    <nav class="bottom-nav">
+    <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-button active" data-page="today"><span class="nav-icon">🌸</span><span>Today</span></button>
       <button class="nav-button" data-page="tasks"><span class="nav-icon">✓</span><span>Tasks</span></button>
       <button class="nav-button nav-center-placeholder" aria-hidden="true"><span></span></button>
+      <button class="nav-button" data-page="lists"><span class="nav-icon">☑️</span><span>Lists</span></button>
       <button class="nav-button" data-page="notes"><span class="nav-icon">📝</span><span>Notes</span></button>
-      <button class="nav-button" data-page="more"><span class="nav-icon">•••</span><span>More</span></button>
     </nav>
   </div>
+
+  <!-- HANA NAVIGATION DRAWER -->
+  <div id="navDrawerBackdrop" class="nav-drawer-backdrop hidden" data-close-nav-drawer></div>
+  <aside id="navDrawer" class="nav-drawer hidden" aria-label="Hana menu" aria-hidden="true">
+    <div class="nav-drawer-header">
+      <div>
+        <p class="eyebrow">HANA MENU</p>
+        <h2>Everything else</h2>
+        <p>Useful tools, tucked away until you need them.</p>
+      </div>
+      <button class="nav-drawer-close" type="button" data-close-nav-drawer aria-label="Close menu">×</button>
+    </div>
+
+    <div class="nav-drawer-scroll">
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Plan &amp; Focus</div>
+        <button class="nav-drawer-item" data-goto="agenda"><span class="nav-drawer-icon">📅</span><span><strong>Agenda</strong><small>Tasks and reminders together</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="rescue"><span class="nav-drawer-icon">🛟</span><span><strong>Rescue My Day</strong><small>Shrink an overloaded day</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="time-pockets"><span class="nav-drawer-icon">⏱</span><span><strong>Time Pockets</strong><small>Find work that fits your time and energy</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="bloom"><span class="nav-drawer-icon">🌸</span><span><strong>Bloom View</strong><small>See progress without pressure</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="daily-close"><span class="nav-drawer-icon">🌙</span><span><strong>Daily Close</strong><small>Wrap up unfinished things gently</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Organize</div>
+        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="inbox"><span class="nav-drawer-icon">🧠</span><span><strong>Brain Dump</strong><small>Sort thoughts later</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="templates"><span class="nav-drawer-icon">🧩</span><span><strong>Templates</strong><small>Reusable starting points</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="pinboard"><span class="nav-drawer-icon">📌</span><span><strong>Pinboard</strong><small>Keep quick references handy</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="someday"><span class="nav-drawer-icon">🌱</span><span><strong>Someday</strong><small>Ideas without urgency</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Review</div>
+        <button class="nav-drawer-item" data-goto="history"><span class="nav-drawer-icon">🕰️</span><span><strong>History</strong><small>See what you already finished</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="trash"><span class="nav-drawer-icon">🗑️</span><span><strong>Trash</strong><small>Restore recently deleted things</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Customize &amp; Settings</div>
+        <button class="nav-drawer-item" data-goto="settings"><span class="nav-drawer-icon">⚙️</span><span><strong>Settings &amp; Spaces</strong><small>Edit spaces, planning defaults and backups</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-open-appearance><span class="nav-drawer-icon">🎨</span><span><strong>Appearance</strong><small>Themes and wallpaper</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-enable-notifications><span class="nav-drawer-icon">🔔</span><span><strong>Enable Notifications</strong><small>Allow Hana to send local reminders</small></span><b>›</b></button>
+      </section>
+    </div>
+  </aside>
 
   <!-- GLOBAL SEARCH -->
   <div id="searchModal" class="modal-overlay hidden">

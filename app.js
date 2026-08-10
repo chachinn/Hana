@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.4
-   Fully Editable Spaces + Peony Header + Stable Space Fallbacks
+   HANA 🌸 v1.5
+   Clean Navigation + Categorized Hamburger Drawer
    Local-first PWA
    ===================================================== */
 
@@ -519,7 +519,7 @@ function refreshSpaceSelects() {
 function renderModeBar() {
   const bar = document.getElementById("modeBar");
   if (!bar) return;
-  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}<button class="mode-button mode-manage-button" data-manage-spaces>⚙️ Edit spaces</button>`;
+  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}`;
 }
 function statusLabel(status) { return ({ todo:"To Do", doing:"Doing", waiting:"Waiting", blocked:"Blocked", done:"Done" })[status] || status; }
 
@@ -764,6 +764,28 @@ function resetDailyFocusIfNeeded() {
   }
 }
 
+function openNavDrawer() {
+  const drawer = document.getElementById("navDrawer");
+  const backdrop = document.getElementById("navDrawerBackdrop");
+  const button = document.getElementById("menuButton");
+  drawer?.classList.remove("hidden");
+  backdrop?.classList.remove("hidden");
+  drawer?.setAttribute("aria-hidden", "false");
+  button?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("nav-drawer-open");
+}
+
+function closeNavDrawer() {
+  const drawer = document.getElementById("navDrawer");
+  const backdrop = document.getElementById("navDrawerBackdrop");
+  const button = document.getElementById("menuButton");
+  drawer?.classList.add("hidden");
+  backdrop?.classList.add("hidden");
+  drawer?.setAttribute("aria-hidden", "true");
+  button?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("nav-drawer-open");
+}
+
 function render() {
   resetDailyFocusIfNeeded();
   renderModeBar();
@@ -787,7 +809,8 @@ function render() {
     case "templates": renderTemplates(); break;
     case "history": renderHistory(); break;
     case "trash": renderTrash(); break;
-    case "more": renderMore(); break;
+    case "settings": renderSettings(); break;
+    case "more": renderSettings(); break;
     default: renderToday(); break;
   }
   saveState();
@@ -2192,36 +2215,23 @@ function renderTrash() {
 
 /* ================= MORE / SETTINGS / BACKUP ================= */
 
-function moreCard(icon,title,description,page){return `<button class="more-card" data-goto="${page}"><span class="more-icon">${icon}</span><strong>${title}</strong><small>${description}</small></button>`;}
-function renderMore(){const c=document.getElementById("pageContent");c.innerHTML=`
-  <div class="page-heading"><p class="eyebrow">MORE OF HANA</p><h1>Your garden</h1><p>The tools that make Hana more than a checklist.</p></div>
-  <div class="more-grid">
-    ${moreCard("📅","Agenda","Tasks and reminders together for the next two weeks.","agenda")}
-    ${moreCard("🛟","Rescue My Day","Protect deadlines and shrink an overloaded day.","rescue")}
-    ${moreCard("⏱","Time Pockets","Find tasks that fit the time and energy you have.","time-pockets")}
-    ${moreCard("☑️","Lists","Groceries, things to buy, packing and custom checklists.","lists")}
-    ${moreCard("📊","Trackers","Editable rows and columns with progress, status and remarks.","tables")}
-    ${moreCard("🧠","Brain Dump","Organize messy thoughts into useful things.","inbox")}
-    ${moreCard("🔔","Reminders","Snooze, repeat and reminder chains.","reminders")}
-    <button class="more-card" data-open-appearance><span class="more-icon">🎨</span><strong>Appearance</strong><small>Themes and a private local photo wallpaper.</small></button>
-    ${moreCard("🧩","Templates","Reusable starting points for repeated workflows.","templates")}
-    ${moreCard("🌸","Bloom View","Progress as petals.","bloom")}
-    ${moreCard("📌","Pinboard","Quick references.","pinboard")}
-    ${moreCard("🌱","Someday","Ideas without urgency.","someday")}
-    ${moreCard("🌙","Daily Close","Process the day gently.","daily-close")}
-    ${moreCard("🕰️","History","See what you already completed.","history")}
-    ${moreCard("🗑️","Trash",`${state.trash.length} deleted item${state.trash.length===1?"":"s"}.`,"trash")}
-  </div>
+function renderSettings(){const c=document.getElementById("pageContent");c.innerHTML=`
+  <div class="page-heading settings-page-heading"><p class="eyebrow">MAKE HANA YOURS</p><h1>Settings & spaces</h1><p>Customization and app controls live here so your everyday screens can stay calm.</p></div>
 
-  <section id="spaceManagerSection" class="section"><div class="section-header"><h2>Your spaces</h2></div><div class="settings-card">
-    <h3>Every space is yours 🌷</h3><p>Personal, Work, Home, Errands and Wellness are only starter spaces. Rename, change the emoji, reorder or remove any of them. Hana only keeps one rule: at least one space must remain.</p>
+  <section id="spaceManagerSection" class="section settings-section"><div class="section-header"><h2>Spaces</h2></div><div class="settings-card">
+    <h3>Your categories 🌷</h3><p>Every space is yours. Rename it, change the emoji, reorder it, or remove it. Hana only keeps one rule: at least one space must remain.</p>
     <div class="space-manager-list">${state.spaces.map((space,index)=>`<div class="space-manager-row"><span class="space-manager-label">${escapeHTML(space.emoji)} <strong>${escapeHTML(space.name)}</strong></span><div class="space-manager-actions"><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="up" ${index===0?"disabled":""} aria-label="Move ${escapeHTML(space.name)} up">↑</button><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="down" ${index===state.spaces.length-1?"disabled":""} aria-label="Move ${escapeHTML(space.name)} down">↓</button><button class="text-button" data-edit-space="${escapeHTML(space.id)}">Edit</button><button class="text-button danger-text" data-delete-space="${escapeHTML(space.id)}" ${state.spaces.length===1?"disabled":""}>Remove</button></div></div>`).join("")}</div>
     <div class="space-add-row"><input id="newSpaceEmoji" type="text" maxlength="4" value="🌸" aria-label="Space icon" /><input id="newSpaceName" type="text" placeholder="New space name" /><button class="secondary-button" id="addSpaceButton">Add space</button></div>
   </div></section>
 
-  <section class="section"><div class="section-header"><h2>Planning defaults</h2></div><div class="settings-card"><h3>Your Bloom Budget 🌷</h3><p>Set how much task time you realistically want Hana to place in one day's Focus Bouquet. Tasks without an estimate count as 30 minutes.</p><div class="form-group"><label for="dailyCapacitySetting">Daily task capacity</label><div class="inline-field"><input id="dailyCapacitySetting" type="number" min="30" max="960" step="30" value="${Math.max(30,Number(state.settings.dailyCapacityMinutes||240))}" /><span>minutes</span></div></div><label class="check-row"><input id="overloadGuardrailSetting" type="checkbox" ${state.settings.overloadGuardrail!==false?"checked":""}/><span>Warn me before I overfill today's bouquet<small>You can still override Hana when a day genuinely needs to be full.</small></span></label><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting">${spaceOptionsHTML(state.settings.defaultSpace)}</select></div></div></section>
-  <section class="section"><div class="section-header"><h2>Boundary Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>Choose whichever space represents work, study or another area you want Hana to hide outside its schedule. Renaming that space will not break the firewall.</p><div class="form-group"><label for="workFirewallSpaceSetting">Protected space</label><select id="workFirewallSpaceSetting"><option value="">None</option>${spaceOptionsHTML(state.settings.workFirewallSpaceId)}</select></div><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Boundary Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Window starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Window ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked reminders from the protected space outside the window</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save app settings</button></div></section>
-  <section class="section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is still local-first. Export your garden regularly so your data does not live on one device only. Wallpaper photos are private device media and are not included in the JSON backup.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
+  <section class="section settings-section"><div class="section-header"><h2>Planning</h2></div><div class="settings-card"><h3>Bloom Budget 🌷</h3><p>Choose how much task time you realistically want in one day's Focus Bouquet. Tasks without an estimate count as 30 minutes.</p><div class="form-group"><label for="dailyCapacitySetting">Daily task capacity</label><div class="inline-field"><input id="dailyCapacitySetting" type="number" min="30" max="960" step="30" value="${Math.max(30,Number(state.settings.dailyCapacityMinutes||240))}" /><span>minutes</span></div></div><label class="check-row"><input id="overloadGuardrailSetting" type="checkbox" ${state.settings.overloadGuardrail!==false?"checked":""}/><span>Warn me before I overfill today's bouquet<small>You can still override Hana when a day genuinely needs to be full.</small></span></label><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting">${spaceOptionsHTML(state.settings.defaultSpace)}</select></div></div></section>
+
+  <section class="section settings-section"><div class="section-header"><h2>Boundary Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>Choose any space that Hana should hide outside its schedule.</p><div class="form-group"><label for="workFirewallSpaceSetting">Protected space</label><select id="workFirewallSpaceSetting"><option value="">None</option>${spaceOptionsHTML(state.settings.workFirewallSpaceId)}</select></div><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Boundary Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Window starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Window ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked reminders from the protected space outside the window</span></label><button id="saveSettingsButton" class="primary-button full-width">Save settings</button></div></section>
+
+  <section class="section settings-section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is local-first. Export your garden regularly so your data does not live on one device only. Wallpaper photos stay private on this device and are not included in the JSON backup.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
+
+// Legacy route kept so users who update while sitting on the old More page land safely in Settings.
+function renderMore(){ renderSettings(); }
 
 function saveSettings(){const selected=document.getElementById("defaultSpaceSetting")?.value;state.settings.defaultSpace=state.spaces.some(space=>space.id===selected)?selected:(state.spaces[0]?.id||"");state.settings.dailyCapacityMinutes=Math.max(30,Math.min(960,Number(document.getElementById("dailyCapacitySetting")?.value||240)));state.settings.overloadGuardrail=Boolean(document.getElementById("overloadGuardrailSetting")?.checked);const firewallSpace=document.getElementById("workFirewallSpaceSetting")?.value||"";state.settings.workFirewallSpaceId=state.spaces.some(space=>space.id===firewallSpace)?firewallSpace:"";state.settings.workFirewallEnabled=Boolean(document.getElementById("firewallEnabled")?.checked&&state.settings.workFirewallSpaceId);state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
 
@@ -2452,9 +2462,11 @@ installNoZoomGuards();
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
+  const closeDrawer=event.target.closest("[data-close-nav-drawer]");if(closeDrawer){closeNavDrawer();return;}
+  const enableNotifications=event.target.closest("[data-enable-notifications]");if(enableNotifications){closeNavDrawer();requestNotificationPermission();return;}
   const nav=event.target.closest("[data-page]");if(nav&&!nav.classList.contains("nav-center-placeholder")){changePage(nav.dataset.page);return;}
   if(event.target.closest("[data-undo-toast]")){if(lastUndoAction){const action=lastUndoAction;lastUndoAction=null;action();}return;}
-  const goto=event.target.closest("[data-goto]");if(goto){closeModal("addMenu");changePage(goto.dataset.goto);return;}
+  const goto=event.target.closest("[data-goto]");if(goto){closeModal("addMenu");closeNavDrawer();changePage(goto.dataset.goto);return;}
   const mode=event.target.closest("[data-mode]");if(mode){state.currentMode=mode.dataset.mode;render();return;}
   const open=event.target.closest("[data-open]");if(open){const id=open.dataset.open;if(id==="taskModal")openTaskModal();else if(id==="noteModal")openNoteModal();else if(id==="reminderModal")openReminderModal();else if(id==="tableModal")openTableModal();else openModal(id);return;}
   const close=event.target.closest("[data-close-modal]");if(close){closeModal(close.dataset.closeModal);return;}
@@ -2500,10 +2512,10 @@ document.addEventListener("click", event => {
   const clearChecked=event.target.closest("[data-clear-checked]");if(clearChecked){clearCheckedListItems(clearChecked.dataset.clearChecked);return;}
   const resetListButton=event.target.closest("[data-reset-list]");if(resetListButton){resetList(resetListButton.dataset.resetList);return;}
 
-  const openAppearance=event.target.closest("[data-open-appearance]");if(openAppearance){openAppearanceModal();return;}
+  const openAppearance=event.target.closest("[data-open-appearance]");if(openAppearance){closeNavDrawer();openAppearanceModal();return;}
   const themeChoice=event.target.closest("[data-theme-choice]");if(themeChoice){state.appearance.theme=themeChoice.dataset.themeChoice;saveState();applyAppearance();return;}
   const overlayChoice=event.target.closest("[data-overlay-strength]");if(overlayChoice){state.appearance.overlayStrength=overlayChoice.dataset.overlayStrength;saveState();applyAppearance();return;}
-  const manageSpacesButton=event.target.closest("[data-manage-spaces]");if(manageSpacesButton){changePage("more");setTimeout(()=>document.getElementById("spaceManagerSection")?.scrollIntoView({behavior:"smooth",block:"start"}),80);return;}
+  const manageSpacesButton=event.target.closest("[data-manage-spaces]");if(manageSpacesButton){changePage("settings");setTimeout(()=>document.getElementById("spaceManagerSection")?.scrollIntoView({behavior:"smooth",block:"start"}),80);return;}
   const editSpaceButton=event.target.closest("[data-edit-space]");if(editSpaceButton){editSpace(editSpaceButton.dataset.editSpace);return;}
   const moveSpaceButton=event.target.closest("[data-move-space]");if(moveSpaceButton){moveSpace(moveSpaceButton.dataset.moveSpace,moveSpaceButton.dataset.direction);return;}
   const deleteSpaceButton=event.target.closest("[data-delete-space]");if(deleteSpaceButton){deleteSpace(deleteSpaceButton.dataset.deleteSpace);return;}
@@ -2546,9 +2558,9 @@ document.addEventListener("input",event=>{if(event.target.id==="quickCaptureInpu
 document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();}}});
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
-document.getElementById("quickCaptureHeader").addEventListener("click",prepareQuickCapture);
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
-document.getElementById("notificationButton").addEventListener("click",requestNotificationPermission);
+document.getElementById("menuButton").addEventListener("click",openNavDrawer);
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();});
 document.getElementById("saveQuickCapture").addEventListener("click",saveQuickCapture);
 document.getElementById("sendToInboxButton").addEventListener("click",sendQuickCaptureToInbox);
 document.getElementById("saveTaskButton").addEventListener("click",saveTask);
