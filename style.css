@@ -2182,16 +2182,18 @@ body[data-theme="yellow"] {
   --pink-500:#c69a3d; --pink-600:#ab812e; --rose:#9f782d; --border:#eee4d1; --border-soft:#f6efe1;
 }
 
-/* HEADER — text logo + transparent line peony */
+/* HEADER — text logo + transparent watercolor peony */
 .brand-area { gap:0; min-width:0; }
 .brand-copy { min-width:0; }
 .brand-name-row { display:flex; align-items:center; gap:4px; }
-.brand-peony { width:30px; height:30px; flex:0 0 30px; color:var(--pink-500); transform:rotate(-5deg); overflow:visible; }
+.brand-peony { width:34px; height:34px; flex:0 0 34px; display:block; object-fit:contain; object-position:center; transform:rotate(-4deg); filter:drop-shadow(0 2px 4px rgba(201,79,121,.10)); }
 .brand-name { font-size:25px; }
 .brand-tagline { white-space:nowrap; }
 
 /* Custom-space mode bar */
 .mode-button { flex:0 0 auto; min-width:118px; }
+.mode-manage-button { min-width:max-content; color:var(--text-muted); border-style:dashed; background:rgba(255,255,255,.72); }
+.mode-manage-button:active { transform:scale(.98); }
 .badge-custom { color:var(--rose); background:var(--pink-50); border:1px solid var(--pink-100); }
 
 /* iOS reminder date/time sizing */
@@ -2240,6 +2242,9 @@ body[data-theme="yellow"] {
 .space-manager-list { display:flex; flex-direction:column; gap:7px; margin-bottom:12px; }
 .space-manager-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 11px; background:var(--pink-25); border:1px solid var(--border-soft); border-radius:13px; }
 .space-manager-row > div { display:flex; align-items:center; gap:2px; }
+.space-manager-actions { display:flex; align-items:center; justify-content:flex-end; gap:2px; flex-wrap:wrap; }
+.space-order-button { width:28px; height:28px; display:grid; place-items:center; color:var(--text-soft); background:var(--white); border:1px solid var(--border-soft); border-radius:9px; font-size:12px; font-weight:850; }
+.space-order-button:disabled, .space-manager-actions button:disabled { opacity:.32; cursor:default; }
 .space-manager-label { min-width:0; display:flex; align-items:center; gap:6px; font-size:12px; }
 .space-manager-label strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .space-manager-label small { padding:2px 6px; color:var(--text-muted); background:var(--white); border-radius:999px; font-size:8px; font-weight:700; }
@@ -2296,7 +2301,7 @@ body.wallpaper-active .mode-bar { background:rgba(255,255,255,.22); }
   .reminder-date-time-row { grid-template-columns:1fr; gap:0; }
   .space-add-row { grid-template-columns:58px 1fr; }
   .space-add-row button { grid-column:1 / -1; }
-  .brand-peony { width:27px; height:27px; flex-basis:27px; }
+  .brand-peony { width:31px; height:31px; flex-basis:31px; }
   .mode-button { min-width:112px; }
   .appearance-section { padding:14px; }
 }
@@ -2307,3 +2312,8 @@ body.wallpaper-active .mode-bar { background:rgba(255,255,255,.22); }
 /* v1.3 final mobile reminder fix: never squeeze native iOS date/time controls */
 .reminder-date-time-row { grid-template-columns: 1fr !important; gap: 0 !important; }
 .reminder-date-time-row .form-group + .form-group { margin-top: 2px; }
+
+@media (max-width: 430px) {
+  .space-manager-row { align-items:flex-start; }
+  .space-manager-actions { max-width:180px; }
+}

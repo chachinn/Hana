@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.3
-   Custom Spaces + Checklists + Trackers + Appearance
+   HANA 🌸 v1.4
+   Fully Editable Spaces + Peony Header + Stable Space Fallbacks
    Local-first PWA
    ===================================================== */
 
@@ -39,11 +39,11 @@ function clone(value) {
 }
 
 const DEFAULT_SPACES = [
-  { id: "personal", name: "Personal", emoji: "🎀", protected: true },
-  { id: "work", name: "Work", emoji: "💼", protected: true },
-  { id: "home", name: "Home", emoji: "🏠", protected: false },
-  { id: "errands", name: "Errands", emoji: "🛍️", protected: false },
-  { id: "wellness", name: "Wellness", emoji: "🌿", protected: false }
+  { id: "personal", name: "Personal", emoji: "🎀" },
+  { id: "work", name: "Work", emoji: "💼" },
+  { id: "home", name: "Home", emoji: "🏠" },
+  { id: "errands", name: "Errands", emoji: "🛍️" },
+  { id: "wellness", name: "Wellness", emoji: "🌿" }
 ];
 
 const LIST_TEMPLATES = {
@@ -150,6 +150,7 @@ const defaultState = {
     dailyCapacityMinutes: 240,
     overloadGuardrail: true,
     workFirewallEnabled: false,
+    workFirewallSpaceId: "work",
     workStart: "08:00",
     workEnd: "18:00",
     workDays: [1, 2, 3, 4, 5],
@@ -360,8 +361,7 @@ function normalizeSpace(space = {}) {
   return {
     id,
     name: String(space.name || "Space").trim() || "Space",
-    emoji: String(space.emoji || "🌸").trim().slice(0, 4) || "🌸",
-    protected: Boolean(space.protected || ["personal", "work"].includes(id))
+    emoji: String(space.emoji || "🌸").trim().slice(0, 4) || "🌸"
   };
 }
 
@@ -375,7 +375,7 @@ function normalizeState(data = {}) {
     ...base,
     ...data,
     settings: { ...base.settings, ...(data.settings || {}) },
-    spaces: (Array.isArray(data.spaces) && data.spaces.length ? data.spaces : base.spaces).map(normalizeSpace),
+    spaces: (Array.isArray(data.spaces) ? data.spaces : base.spaces).map(normalizeSpace),
     lists: (Array.isArray(data.lists) ? data.lists : base.lists).map(normalizeList),
     appearance: { ...base.appearance, ...(data.appearance || {}) },
     tasks: (Array.isArray(data.tasks) ? data.tasks : base.tasks).map(normalizeTask),
@@ -396,16 +396,22 @@ function normalizeState(data = {}) {
     dailyCloseHistory: Array.isArray(data.dailyCloseHistory) ? data.dailyCloseHistory : []
   };
 
-  const requiredSpaces = DEFAULT_SPACES.filter(space => ["personal", "work"].includes(space.id));
-  requiredSpaces.forEach(required => {
-    if (!normalized.spaces.some(space => space.id === required.id)) normalized.spaces.push(clone(required));
-  });
+  // Spaces are fully user-controlled. If an imported/older state has none,
+  // create one neutral fallback so Hana always has somewhere to place items.
+  if (!normalized.spaces.length) {
+    normalized.spaces = [normalizeSpace({ id: `space-general-${createId()}`, name: "General", emoji: "🌸" })];
+  }
   const validSpaceIds = new Set(normalized.spaces.map(space => space.id));
-  const fallbackSpace = validSpaceIds.has(normalized.settings.defaultSpace) ? normalized.settings.defaultSpace : "personal";
+  const firstSpaceId = normalized.spaces[0].id;
+  const fallbackSpace = validSpaceIds.has(normalized.settings.defaultSpace) ? normalized.settings.defaultSpace : firstSpaceId;
   normalized.settings.defaultSpace = fallbackSpace;
   [normalized.tasks, normalized.notes, normalized.reminders, normalized.tables, normalized.lists, normalized.pins, normalized.inbox].forEach(collection => {
     collection.forEach(item => { if (item && !validSpaceIds.has(item.space)) item.space = fallbackSpace; });
   });
+  if (!validSpaceIds.has(normalized.settings.workFirewallSpaceId)) {
+    normalized.settings.workFirewallSpaceId = validSpaceIds.has("work") ? "work" : "";
+  }
+  if (!normalized.settings.workFirewallSpaceId) normalized.settings.workFirewallEnabled = false;
   if (!normalized.activeTableId && normalized.tables[0]) normalized.activeTableId = normalized.tables[0].id;
   if (!normalized.activeListId && normalized.lists[0]) normalized.activeListId = normalized.lists[0].id;
   if (normalized.currentMode !== "all" && !validSpaceIds.has(normalized.currentMode)) normalized.currentMode = "all";
@@ -496,7 +502,7 @@ function greeting() {
 }
 
 function getSpace(spaceId) {
-  return state.spaces.find(space => space.id === spaceId) || state.spaces.find(space => space.id === "personal") || DEFAULT_SPACES[0];
+  return state.spaces.find(space => space.id === spaceId) || state.spaces[0] || { id:"fallback", name:"General", emoji:"🌸" };
 }
 function modeLabel(spaceId) { const space=getSpace(spaceId); return `${space.emoji} ${space.name}`; }
 function modeBadge(spaceId) { return spaceId === "work" ? "badge-work" : spaceId === "personal" ? "badge-personal" : "badge-custom"; }
@@ -513,7 +519,7 @@ function refreshSpaceSelects() {
 function renderModeBar() {
   const bar = document.getElementById("modeBar");
   if (!bar) return;
-  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}`;
+  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}<button class="mode-button mode-manage-button" data-manage-spaces>⚙️ Edit spaces</button>`;
 }
 function statusLabel(status) { return ({ todo:"To Do", doing:"Doing", waiting:"Waiting", blocked:"Blocked", done:"Done" })[status] || status; }
 
@@ -567,7 +573,7 @@ function nextSelectedWeekdayISO(dateString, weekdays = []) {
 function focusTasksVisible() {
   return state.focusTaskIds
     .map(id => state.tasks.find(task => task.id === id))
-    .filter(task => task && !task.completed && (!firewallIsActive() || task.space !== "work"));
+    .filter(task => task && !task.completed && (!firewallIsActive() || task.space !== state.settings.workFirewallSpaceId));
 }
 
 function capacitySnapshot(tasks = focusTasksVisible()) {
@@ -604,19 +610,27 @@ function isWorkTime(now = new Date()) {
 }
 
 function firewallIsActive() {
-  return Boolean(state.settings.workFirewallEnabled && !isWorkTime() && state.currentMode !== "work");
+  const protectedSpaceId = state.settings.workFirewallSpaceId;
+  return Boolean(
+    state.settings.workFirewallEnabled &&
+    protectedSpaceId &&
+    state.spaces.some(space => space.id === protectedSpaceId) &&
+    !isWorkTime() &&
+    state.currentMode !== protectedSpaceId
+  );
 }
 
 function filterByMode(items, { respectFirewall = true } = {}) {
   let result = items;
   if (state.currentMode !== "all") result = result.filter(item => item.space === state.currentMode);
-  if (respectFirewall && firewallIsActive()) result = result.filter(item => item.space !== "work");
+  if (respectFirewall && firewallIsActive()) result = result.filter(item => item.space !== state.settings.workFirewallSpaceId);
   return result;
 }
 
 function preferredSpace() {
   if (state.currentMode !== "all" && state.spaces.some(space => space.id === state.currentMode)) return state.currentMode;
-  return state.spaces.some(space => space.id === state.settings.defaultSpace) ? state.settings.defaultSpace : "personal";
+  if (state.spaces.some(space => space.id === state.settings.defaultSpace)) return state.settings.defaultSpace;
+  return state.spaces[0]?.id || "";
 }
 
 let lastUndoAction = null;
@@ -1415,7 +1429,7 @@ function advanceReminder(r){const base=new Date(`${r.date}T12:00:00`);if(r.repea
 
 function snoozeReminder(id,type){const r=state.reminders.find(r=>r.id===id);if(!r)return;const now=new Date();if(type==="tonight"){r.date=todayISO();r.time="19:00";}if(type==="tomorrow"){r.date=addDaysISO(todayISO(),1);r.time="08:00";}if(type==="workday"){r.date=nextWorkdayISO(now);r.time="09:00";}if(type==="week"){r.date=addDaysISO(todayISO(),7);r.time="09:00";}r.notified=false;r.chainNotified=[];showToast("Reminder snoozed 🌙");render();}
 
-function reminderCanNotify(r){if(r.space!=="work"||!state.settings.workFirewallEnabled||isWorkTime())return true;if(!state.settings.allowHighPriorityWorkReminders)return false;const t=state.tasks.find(t=>t.id===r.linkedTaskId);return t?.priority==="high";}
+function reminderCanNotify(r){const protectedSpaceId=state.settings.workFirewallSpaceId;if(!protectedSpaceId||r.space!==protectedSpaceId||!state.settings.workFirewallEnabled||isWorkTime())return true;if(!state.settings.allowHighPriorityWorkReminders)return false;const t=state.tasks.find(t=>t.id===r.linkedTaskId);return t?.priority==="high";}
 
 function checkReminders(){if(!("Notification" in window)||Notification.permission!=="granted")return;const now=Date.now();state.reminders.forEach(r=>{if(r.completed||!r.date||!reminderCanNotify(r))return;const linked=state.tasks.find(t=>t.id===r.linkedTaskId);if(linked?.completed)return;const due=new Date(`${r.date}T${r.time||"09:00"}:00`).getTime();if(r.chainEnabled){const stages=[{key:"day-before",at:due-24*3600000,label:`${r.title} is due tomorrow.`},{key:"three-hours",at:due-3*3600000,label:`${r.title} is coming up soon.`},{key:"due",at:due,label:r.title},{key:"after",at:due+2*3600000,label:`Still open: ${r.title}`}];const ready=stages.filter(s=>now>=s.at&&!r.chainNotified.includes(s.key)).sort((a,b)=>a.at-b.at).pop();if(ready){new Notification("Hana 🌸",{body:ready.label,icon:"icons/icon-192.png"});r.chainNotified=[...new Set([...r.chainNotified,...stages.filter(stage=>stage.at<=ready.at).map(stage=>stage.key)])];saveState();}}else if(now>=due&&!r.notified){new Notification("Hana 🌸",{body:r.title,icon:"icons/icon-192.png"});r.notified=true;saveState();}});}
 
@@ -1679,13 +1693,13 @@ function predictCapture(text){const value=text.trim().toLowerCase();if(!value)re
 
 function updateCapturePrediction(){const input=document.getElementById("quickCaptureInput");const p=document.getElementById("capturePrediction");if(!input||!p)return;const lines=parseLines(input.value);p.textContent=lines.length>1?`🧠 ${lines.length} items · Hana can organize these` : predictCapture(input.value).label;}
 function extractDate(text){const lower=text.toLowerCase();if(lower.includes("tomorrow"))return addDaysISO(todayISO(),1);if(lower.includes("today"))return todayISO();const days={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};for(const [name,day] of Object.entries(days)){if(lower.includes(name)){const d=new Date();let diff=(day-d.getDay()+7)%7;if(diff===0)diff=7;d.setDate(d.getDate()+diff);return localDateISO(d);}}return"";}
-function plantText(text,space="personal"){const pred=predictCapture(text);if(pred.type==="task"){const dueDate=extractDate(text);const task=normalizeTask({title:text,space,priority:"medium",status:"todo",dueDate,reminderEnabled:Boolean(dueDate),createdAt:Date.now()});state.tasks.push(task);if(task.reminderEnabled)syncTaskReminder(task);return"task";}if(pred.type==="someday"){state.someday.push({id:createId(),title:text,category:"ideas",notes:"",createdAt:Date.now()});return"someday";}if(pred.type==="table"){const table=state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);}return"table";}state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";}
+function plantText(text,space=preferredSpace()){const pred=predictCapture(text);if(pred.type==="task"){const dueDate=extractDate(text);const task=normalizeTask({title:text,space,priority:"medium",status:"todo",dueDate,reminderEnabled:Boolean(dueDate),createdAt:Date.now()});state.tasks.push(task);if(task.reminderEnabled)syncTaskReminder(task);return"task";}if(pred.type==="someday"){state.someday.push({id:createId(),title:text,category:"ideas",notes:"",createdAt:Date.now()});return"someday";}if(pred.type==="table"){const table=state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);}return"table";}state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";}
 function saveQuickCapture(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>plantText(line,space));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
 function sendQuickCaptureToInbox(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
 
 function renderInbox(){const container=document.getElementById("pageContent");const defaultSpace=preferredSpace();container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Dump first. Decide what things are later.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste or type one thing per line..."></textarea><div class="form-row brain-dump-controls" style="margin-top:9px;"><select id="brainDumpSpace">${spaceOptionsHTML(defaultSpace," default")}</select><button class="primary-button" id="brainDumpAddButton">Organize lines ✨</button></div></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
 function inboxCard(item){const p=predictCapture(item.text);return `<div class="inbox-item"><div><strong style="font-size:12px;">${escapeHTML(item.text)}</strong><div class="inbox-prediction">${p.label}</div><div class="task-meta" style="margin-top:6px;">${modeLabel(item.space)}</div></div><div class="inbox-actions"><button class="mini-icon-button" data-plant-inbox="${item.id}">🌱</button><button class="mini-icon-button" data-delete-inbox="${item.id}">×</button></div></div>`;}
-function addBrainDump(){const text=document.getElementById("brainDumpText")?.value.trim();const space=document.getElementById("brainDumpSpace")?.value||"personal";if(!text)return showToast("Add a few thoughts first 🌸");parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));showToast("Brain dump organized into the Inbox 🧠");render();}
+function addBrainDump(){const text=document.getElementById("brainDumpText")?.value.trim();const space=document.getElementById("brainDumpSpace")?.value||preferredSpace();if(!text)return showToast("Add a few thoughts first 🌸");parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));showToast("Brain dump organized into the Inbox 🧠");render();}
 function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;plantText(item.text,item.space);state.inbox=state.inbox.filter(i=>i.id!==id);showToast("Planted 🌱");render();}
 function plantAllInbox(){const items=[...state.inbox];items.forEach(i=>plantText(i.text,i.space));state.inbox=[];showToast(`${items.length} items planted 🌸`);render();}
 
@@ -1703,7 +1717,7 @@ function globalSearch(query){
   filterByMode(state.lists).forEach(list=>{const blob=[list.name,...list.items.map(item=>`${item.title} ${item.detail}`)].join(" ").toLowerCase();if(blob.includes(q))add("Checklist",list.id,`${list.icon} ${list.name}`,`${list.items.length} items`,"lists")});
   filterByMode(state.pins).forEach(p=>{if([p.title,p.content].join(" ").toLowerCase().includes(q))add("Pin",p.id,p.title,p.content,"pinboard")});
   state.someday.forEach(s=>{if([s.title,s.notes].join(" ").toLowerCase().includes(q))add("Someday",s.id,s.title,s.notes,"someday")});
-  state.inbox.filter(i=>state.currentMode==="all"||i.space===state.currentMode).filter(i=>!firewallIsActive()||i.space!=="work").forEach(i=>{if(i.text.toLowerCase().includes(q))add("Inbox",i.id,i.text,predictCapture(i.text).label,"inbox")});
+  state.inbox.filter(i=>state.currentMode==="all"||i.space===state.currentMode).filter(i=>!firewallIsActive()||i.space!==state.settings.workFirewallSpaceId).forEach(i=>{if(i.text.toLowerCase().includes(q))add("Inbox",i.id,i.text,predictCapture(i.text).label,"inbox")});
   return results.slice(0,40);
 }
 function renderGlobalSearchResults(query){const el=document.getElementById("globalSearchResults");if(!el)return;const results=globalSearch(query);el.innerHTML=query.trim()?results.length?results.map(r=>`<button class="search-result" data-search-type="${r.type}" data-search-id="${r.id}" data-search-page="${r.page}"><strong>${escapeHTML(r.title)}</strong><small>${escapeHTML(r.type)}</small><div class="search-result-snippet">${escapeHTML(String(r.snippet||"")).slice(0,140)}</div></button>`).join(""):`<div class="empty-state"><div class="empty-icon">🔎</div><h3>No matches</h3><p>Try another word.</p></div>`:`<div class="empty-state"><div class="empty-icon">🌸</div><h3>Search everything</h3><p>Tasks, notes, reminders, trackers, checklists, pins, Someday and Inbox.</p></div>`;}
@@ -2052,7 +2066,7 @@ function useTemplate(templateId) {
   if (templateId === "monthly-life-admin") {
     const task = normalizeTask({
       title: "Monthly Life Admin",
-      space: "personal",
+      space,
       priority: "medium",
       status: "todo",
       subtasks: [
@@ -2113,7 +2127,7 @@ function useTemplate(templateId) {
     const table = normalizeTable({
       id: createId(),
       name: isWork ? "Work Deliverables" : "Bills Tracker",
-      space: isWork ? "work" : "personal",
+      space: isWork && state.spaces.some(space=>space.id==="work") ? "work" : preferredSpace(),
       columns: isWork
         ? [
             { id:createId(), name:"Deliverable", type:"text" },
@@ -2199,21 +2213,22 @@ function renderMore(){const c=document.getElementById("pageContent");c.innerHTML
     ${moreCard("🗑️","Trash",`${state.trash.length} deleted item${state.trash.length===1?"":"s"}.`,"trash")}
   </div>
 
-  <section class="section"><div class="section-header"><h2>Your spaces</h2></div><div class="settings-card">
-    <h3>Organize Hana your way 🌷</h3><p>Work and Personal stay available, but you can rename them and create as many other spaces as you need.</p>
-    <div class="space-manager-list">${state.spaces.map(space=>`<div class="space-manager-row"><span class="space-manager-label">${escapeHTML(space.emoji)} <strong>${escapeHTML(space.name)}</strong>${space.protected?`<small>Built in</small>`:""}</span><div><button class="text-button" data-edit-space="${escapeHTML(space.id)}">Edit</button>${space.protected?"":`<button class="text-button danger-text" data-delete-space="${escapeHTML(space.id)}">Remove</button>`}</div></div>`).join("")}</div>
+  <section id="spaceManagerSection" class="section"><div class="section-header"><h2>Your spaces</h2></div><div class="settings-card">
+    <h3>Every space is yours 🌷</h3><p>Personal, Work, Home, Errands and Wellness are only starter spaces. Rename, change the emoji, reorder or remove any of them. Hana only keeps one rule: at least one space must remain.</p>
+    <div class="space-manager-list">${state.spaces.map((space,index)=>`<div class="space-manager-row"><span class="space-manager-label">${escapeHTML(space.emoji)} <strong>${escapeHTML(space.name)}</strong></span><div class="space-manager-actions"><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="up" ${index===0?"disabled":""} aria-label="Move ${escapeHTML(space.name)} up">↑</button><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="down" ${index===state.spaces.length-1?"disabled":""} aria-label="Move ${escapeHTML(space.name)} down">↓</button><button class="text-button" data-edit-space="${escapeHTML(space.id)}">Edit</button><button class="text-button danger-text" data-delete-space="${escapeHTML(space.id)}" ${state.spaces.length===1?"disabled":""}>Remove</button></div></div>`).join("")}</div>
     <div class="space-add-row"><input id="newSpaceEmoji" type="text" maxlength="4" value="🌸" aria-label="Space icon" /><input id="newSpaceName" type="text" placeholder="New space name" /><button class="secondary-button" id="addSpaceButton">Add space</button></div>
   </div></section>
 
   <section class="section"><div class="section-header"><h2>Planning defaults</h2></div><div class="settings-card"><h3>Your Bloom Budget 🌷</h3><p>Set how much task time you realistically want Hana to place in one day's Focus Bouquet. Tasks without an estimate count as 30 minutes.</p><div class="form-group"><label for="dailyCapacitySetting">Daily task capacity</label><div class="inline-field"><input id="dailyCapacitySetting" type="number" min="30" max="960" step="30" value="${Math.max(30,Number(state.settings.dailyCapacityMinutes||240))}" /><span>minutes</span></div></div><label class="check-row"><input id="overloadGuardrailSetting" type="checkbox" ${state.settings.overloadGuardrail!==false?"checked":""}/><span>Warn me before I overfill today's bouquet<small>You can still override Hana when a day genuinely needs to be full.</small></span></label><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting">${spaceOptionsHTML(state.settings.defaultSpace)}</select></div></div></section>
-  <section class="section"><div class="section-header"><h2>Work Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>When enabled, Hana hides the built-in Work space outside your work window. Your other custom spaces stay visible.</p><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Work Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Work starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Work ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked work reminders outside work hours</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save app settings</button></div></section>
+  <section class="section"><div class="section-header"><h2>Boundary Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>Choose whichever space represents work, study or another area you want Hana to hide outside its schedule. Renaming that space will not break the firewall.</p><div class="form-group"><label for="workFirewallSpaceSetting">Protected space</label><select id="workFirewallSpaceSetting"><option value="">None</option>${spaceOptionsHTML(state.settings.workFirewallSpaceId)}</select></div><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Boundary Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Window starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Window ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked reminders from the protected space outside the window</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save app settings</button></div></section>
   <section class="section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is still local-first. Export your garden regularly so your data does not live on one device only. Wallpaper photos are private device media and are not included in the JSON backup.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
 
-function saveSettings(){const selected=document.getElementById("defaultSpaceSetting")?.value;state.settings.defaultSpace=state.spaces.some(space=>space.id===selected)?selected:"personal";state.settings.dailyCapacityMinutes=Math.max(30,Math.min(960,Number(document.getElementById("dailyCapacitySetting")?.value||240)));state.settings.overloadGuardrail=Boolean(document.getElementById("overloadGuardrailSetting")?.checked);state.settings.workFirewallEnabled=document.getElementById("firewallEnabled").checked;state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
+function saveSettings(){const selected=document.getElementById("defaultSpaceSetting")?.value;state.settings.defaultSpace=state.spaces.some(space=>space.id===selected)?selected:(state.spaces[0]?.id||"");state.settings.dailyCapacityMinutes=Math.max(30,Math.min(960,Number(document.getElementById("dailyCapacitySetting")?.value||240)));state.settings.overloadGuardrail=Boolean(document.getElementById("overloadGuardrailSetting")?.checked);const firewallSpace=document.getElementById("workFirewallSpaceSetting")?.value||"";state.settings.workFirewallSpaceId=state.spaces.some(space=>space.id===firewallSpace)?firewallSpace:"";state.settings.workFirewallEnabled=Boolean(document.getElementById("firewallEnabled")?.checked&&state.settings.workFirewallSpaceId);state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
 
-function addCustomSpace(){const name=document.getElementById("newSpaceName")?.value.trim();const emoji=document.getElementById("newSpaceEmoji")?.value.trim()||"🌸";if(!name)return showToast("Give the space a name 🌸");const id=`space-${name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,24)||"custom"}-${Math.random().toString(36).slice(2,6)}`;state.spaces.push(normalizeSpace({id,name,emoji,protected:false}));showToast(`${emoji} ${name} added`);render();}
+function addCustomSpace(){const name=document.getElementById("newSpaceName")?.value.trim();const emoji=document.getElementById("newSpaceEmoji")?.value.trim()||"🌸";if(!name)return showToast("Give the space a name 🌸");const id=`space-${name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,24)||"custom"}-${Math.random().toString(36).slice(2,6)}`;state.spaces.push(normalizeSpace({id,name,emoji}));showToast(`${emoji} ${name} added`);render();}
 function editSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;const name=prompt("Space name",space.name);if(name===null)return;const cleanName=name.trim();if(!cleanName)return showToast("Space name can't be empty.");const emoji=prompt("Space icon / emoji",space.emoji);if(emoji===null)return;space.name=cleanName;space.emoji=(emoji.trim()||"🌸").slice(0,4);showToast("Space updated 🌷");render();}
-function deleteSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space||space.protected)return;if(!confirm(`Remove “${space.name}”? Items in it will move to Personal.`))return;[state.tasks,state.notes,state.reminders,state.tables,state.lists,state.pins,state.inbox].forEach(collection=>collection.forEach(item=>{if(item?.space===spaceId)item.space="personal";}));state.spaces=state.spaces.filter(item=>item.id!==spaceId);if(state.settings.defaultSpace===spaceId)state.settings.defaultSpace="personal";if(state.currentMode===spaceId)state.currentMode="all";showToast("Space removed; its items moved to Personal.");render();}
+function moveSpace(spaceId,direction){const index=state.spaces.findIndex(space=>space.id===spaceId);if(index<0)return;const nextIndex=direction==="up"?index-1:index+1;if(nextIndex<0||nextIndex>=state.spaces.length)return;[state.spaces[index],state.spaces[nextIndex]]=[state.spaces[nextIndex],state.spaces[index]];showToast("Space order updated 🌷");render();}
+function deleteSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;if(state.spaces.length<=1)return showToast("Keep at least one space in Hana 🌸");const replacement=state.spaces.find(item=>item.id!==spaceId);if(!replacement)return;const affected=[state.tasks,state.notes,state.reminders,state.tables,state.lists,state.pins,state.inbox].reduce((count,collection)=>count+collection.filter(item=>item?.space===spaceId).length,0);const message=affected?`Remove “${space.name}”? ${affected} item${affected===1?"":"s"} will move to ${replacement.emoji} ${replacement.name}.`:`Remove “${space.name}”?`;if(!confirm(message))return;[state.tasks,state.notes,state.reminders,state.tables,state.lists,state.pins,state.inbox].forEach(collection=>collection.forEach(item=>{if(item?.space===spaceId)item.space=replacement.id;}));state.spaces=state.spaces.filter(item=>item.id!==spaceId);if(state.settings.defaultSpace===spaceId)state.settings.defaultSpace=replacement.id;if(state.settings.workFirewallSpaceId===spaceId){state.settings.workFirewallSpaceId="";state.settings.workFirewallEnabled=false;}if(state.currentMode===spaceId)state.currentMode="all";showToast(`Space removed; its items moved to ${replacement.name}.`);render();}
 
 /* ================= APPEARANCE / WALLPAPER ================= */
 
@@ -2488,7 +2503,9 @@ document.addEventListener("click", event => {
   const openAppearance=event.target.closest("[data-open-appearance]");if(openAppearance){openAppearanceModal();return;}
   const themeChoice=event.target.closest("[data-theme-choice]");if(themeChoice){state.appearance.theme=themeChoice.dataset.themeChoice;saveState();applyAppearance();return;}
   const overlayChoice=event.target.closest("[data-overlay-strength]");if(overlayChoice){state.appearance.overlayStrength=overlayChoice.dataset.overlayStrength;saveState();applyAppearance();return;}
+  const manageSpacesButton=event.target.closest("[data-manage-spaces]");if(manageSpacesButton){changePage("more");setTimeout(()=>document.getElementById("spaceManagerSection")?.scrollIntoView({behavior:"smooth",block:"start"}),80);return;}
   const editSpaceButton=event.target.closest("[data-edit-space]");if(editSpaceButton){editSpace(editSpaceButton.dataset.editSpace);return;}
+  const moveSpaceButton=event.target.closest("[data-move-space]");if(moveSpaceButton){moveSpace(moveSpaceButton.dataset.moveSpace,moveSpaceButton.dataset.direction);return;}
   const deleteSpaceButton=event.target.closest("[data-delete-space]");if(deleteSpaceButton){deleteSpace(deleteSpaceButton.dataset.deleteSpace);return;}
 
   const plant=event.target.closest("[data-plant-inbox]");if(plant){plantInboxItem(plant.dataset.plantInbox);return;}

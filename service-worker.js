@@ -1,8 +1,8 @@
 /* =====================================================
-   HANA 🌸 Service Worker v7
+   HANA 🌸 Service Worker v8
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v7";
+const CACHE_NAME = "hana-shell-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -11,7 +11,8 @@ const APP_SHELL = [
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./icons/hana-peony.png"
 ];
 
 self.addEventListener("install", event => {
