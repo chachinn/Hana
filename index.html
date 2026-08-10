@@ -64,8 +64,15 @@
 
     <div class="nav-drawer-scroll">
       <section class="nav-drawer-group">
-        <div class="nav-drawer-group-title">Plan &amp; Focus</div>
+        <div class="nav-drawer-group-title">Plan</div>
+        <button class="nav-drawer-item" data-goto="calendar"><span class="nav-drawer-icon">🗓️</span><span><strong>Calendar</strong><small>Month, week, day and time blocks</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="projects"><span class="nav-drawer-icon">🌷</span><span><strong>Projects</strong><small>Milestones and connected work</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="garden"><span class="nav-drawer-icon">🌺</span><span><strong>Hana Garden</strong><small>See what you have been nurturing</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="agenda"><span class="nav-drawer-icon">📅</span><span><strong>Agenda</strong><small>Tasks and reminders together</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Focus &amp; Flow</div>
         <button class="nav-drawer-item" data-goto="rescue"><span class="nav-drawer-icon">🛟</span><span><strong>Rescue My Day</strong><small>Shrink an overloaded day</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="time-pockets"><span class="nav-drawer-icon">⏱</span><span><strong>Time Pockets</strong><small>Find work that fits your time and energy</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="bloom"><span class="nav-drawer-icon">🌸</span><span><strong>Bloom View</strong><small>See progress without pressure</small></span><b>›</b></button>
@@ -87,6 +94,7 @@
 
       <section class="nav-drawer-group">
         <div class="nav-drawer-group-title">Review</div>
+        <button class="nav-drawer-item" data-goto="insights"><span class="nav-drawer-icon">🌿</span><span><strong>Hana Notices</strong><small>Local planning patterns and suggestions</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="return-ritual"><span class="nav-drawer-icon">🌱</span><span><strong>Return Ritual</strong><small>Reset overdue things without panic</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="history"><span class="nav-drawer-icon">🕰️</span><span><strong>History</strong><small>See what you already finished</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="trash"><span class="nav-drawer-icon">🗑️</span><span><strong>Trash</strong><small>Restore recently deleted things</small></span><b>›</b></button>
@@ -122,7 +130,7 @@
         <div><p class="eyebrow">HANA QUICK CAPTURE</p><h2>Drop it here</h2></div>
         <button class="modal-close" data-close-modal="quickCaptureModal">×</button>
       </div>
-      <textarea id="quickCaptureInput" class="large-textarea" placeholder="One thought, or several lines.\n\nsubmit report Friday\nbuy shampoo\ndentist Aug 20\nmaybe learn pottery"></textarea>
+      <textarea id="quickCaptureInput" class="large-textarea" placeholder="One thought, or several lines.\n\nfinish report tomorrow 1h high energy !hard #Work\nevent: dentist Friday 2pm\ngroceries: milk, eggs, bread\nmaybe learn pottery"></textarea>
       <div class="capture-detection">
         <div class="capture-label">Hana sees:</div>
         <div id="capturePrediction" class="prediction-chip">🌱 Something new</div>
@@ -161,7 +169,7 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label for="taskProject">🌷 Project</label><input id="taskProject" type="text" placeholder="Campaign, Home, Wedding..." /></div>
+        <div class="form-group"><label for="taskProject">🌷 Project</label><input id="taskProject" type="text" list="hanaProjectOptions" placeholder="Campaign, Home, Wedding..." /><datalist id="hanaProjectOptions"></datalist></div>
         <div class="form-group"><label for="taskTags">🏷️ Tags</label><input id="taskTags" type="text" placeholder="urgent, calls, admin" /></div>
       </div>
 
@@ -176,6 +184,11 @@
           <div class="form-group"><label for="taskDuration">⏱ Estimate</label><select id="taskDuration"><option value="0">Not sure yet</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></div>
           <div class="form-group"><label for="taskEnergy">Energy</label><select id="taskEnergy"><option value="low">🌿 Low</option><option value="medium" selected>🌸 Medium</option><option value="high">⚡ High</option></select></div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label for="taskScheduledDate">🗓️ Scheduled day</label><input id="taskScheduledDate" type="date" /></div>
+          <div class="form-group"><label for="taskScheduledStart">Start time</label><input id="taskScheduledStart" type="time" /></div>
+        </div>
+        <div class="form-group"><label for="taskMilestone">🌷 Project milestone</label><select id="taskMilestone"><option value="">No milestone</option></select></div>
         <div class="form-group"><label for="taskDeadlineType">Date meaning</label><select id="taskDeadlineType"><option value="soft">🪶 Soft date — safe to move when plans change</option><option value="hard">🔒 Hard deadline — Hana should protect this date</option></select><small class="field-help">Hard deadlines are never moved by Rescue My Day.</small></div>
       </div>
 
@@ -269,6 +282,8 @@
         <div class="form-group"><label for="noteTags">Tags</label><input id="noteTags" type="text" placeholder="meeting, ideas, weekly" /></div>
       </div>
 
+      <div class="form-group"><label for="noteProject">🌷 Project <span class="optional-label">optional</span></label><input id="noteProject" type="text" list="hanaProjectOptions" placeholder="Link this note to a project" /></div>
+
       <div class="note-toolbar" aria-label="Note formatting shortcuts">
         <button type="button" data-note-insert="# ">H1</button>
         <button type="button" data-note-insert="## ">H2</button>
@@ -345,6 +360,7 @@
         <div class="form-group"><label for="tableName">Tracker name</label><input id="tableName" type="text" placeholder="Progress Tracker" /></div>
         <div class="form-group"><label for="tableSpace">Space</label><select id="tableSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
       </div>
+      <div class="form-group"><label for="tableProject">🌷 Project <span class="optional-label">optional</span></label><input id="tableProject" type="text" list="hanaProjectOptions" placeholder="Link this tracker to a project" /></div>
       <div class="form-group">
         <label for="tableColumns">Columns</label>
         <textarea id="tableColumns" class="large-textarea" placeholder="One per line: Name:type\nTask:text\nOwner:text\nDue:date\nStatus:status\nDone:checkbox\nAmount:money"></textarea>
@@ -463,6 +479,18 @@
     </div>
   </div>
 
+  <!-- EVENT MODAL -->
+  <div id="eventModal" class="modal-overlay hidden"><div class="modal-card modal-large"><div class="modal-header"><div><p class="eyebrow">CALENDAR EVENT</p><h2 id="eventModalTitle">Add event</h2></div><button class="modal-close" data-close-modal="eventModal">×</button></div><input id="eventEditId" type="hidden" /><div class="form-group"><label for="eventTitle">Event</label><input id="eventTitle" type="text" placeholder="Dentist, dinner, flight..." /></div><div class="form-group"><label for="eventSpace">Space</label><select id="eventSpace" data-space-select></select></div><div class="stacked-date-time"><div class="form-group"><label for="eventDate">Date</label><input id="eventDate" type="date" /></div><div class="form-row"><div class="form-group"><label for="eventStart">Starts</label><input id="eventStart" type="time" /></div><div class="form-group"><label for="eventEnd">Ends</label><input id="eventEnd" type="time" /></div></div></div><div class="form-group"><label for="eventLocation">📍 Location <span class="optional-label">optional</span></label><input id="eventLocation" type="text" placeholder="Clinic, café, Zoom..." /></div><div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" placeholder="Anything useful for the event..."></textarea></div><div class="form-row"><div class="form-group"><label for="eventRepeat">Repeat</label><select id="eventRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><label class="check-row compact-check"><input id="eventReminder" type="checkbox" /><span>Remind me when it starts</span></label></div><div class="modal-actions task-modal-actions"><button id="deleteEventButton" class="danger-button hidden" type="button">Delete</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="eventModal">Cancel</button><button id="saveEventButton" class="primary-button">Save event</button></div></div></div>
+
+  <!-- SCHEDULE TASK MODAL -->
+  <div id="scheduleTaskModal" class="modal-overlay hidden"><div class="modal-card"><div class="modal-header"><div><p class="eyebrow">TIME BLOCK</p><h2>Place this task</h2></div><button class="modal-close" data-close-modal="scheduleTaskModal">×</button></div><input id="scheduleTaskId" type="hidden" /><div class="schedule-task-name">🌷 <strong id="scheduleTaskTitle"></strong></div><div class="form-group"><label for="scheduleTaskDate">Day</label><input id="scheduleTaskDate" type="date" /></div><div class="form-group"><label for="scheduleTaskTime">Starts</label><input id="scheduleTaskTime" type="time" /></div><div class="modal-actions"><button class="secondary-button" data-close-modal="scheduleTaskModal">Cancel</button><button id="saveTaskScheduleButton" class="primary-button">Place on calendar</button></div></div></div>
+
+  <!-- PROJECT MODAL -->
+  <div id="projectModal" class="modal-overlay hidden"><div class="modal-card modal-large"><div class="modal-header"><div><p class="eyebrow">PROJECT</p><h2 id="projectModalTitle">Create project</h2></div><button class="modal-close" data-close-modal="projectModal">×</button></div><input id="projectEditId" type="hidden" /><div class="form-row"><div class="form-group"><label for="projectEmoji">Icon</label><input id="projectEmoji" type="text" maxlength="4" value="🌷" /></div><div class="form-group"><label for="projectName">Name</label><input id="projectName" type="text" placeholder="Wedding Planning" /></div></div><div class="form-group"><label for="projectSpace">Space</label><select id="projectSpace" data-space-select></select></div><div class="form-row"><div class="form-group"><label for="projectDue">Target date</label><input id="projectDue" type="date" /></div><div class="form-group"><label for="projectStatus">Status</label><select id="projectStatus"><option value="active">Active</option><option value="onhold">On hold</option><option value="done">Complete</option></select></div></div><div class="form-group"><label for="projectDescription">What is this project for?</label><textarea id="projectDescription" placeholder="A little context helps Hana keep related work together."></textarea></div><div class="modal-actions task-modal-actions"><button id="deleteProjectButton" class="danger-button hidden" type="button">Remove project</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="projectModal">Cancel</button><button id="saveProjectButton" class="primary-button">Save project</button></div></div></div>
+
+  <!-- MILESTONE MODAL -->
+  <div id="milestoneModal" class="modal-overlay hidden"><div class="modal-card"><div class="modal-header"><div><p class="eyebrow">PROJECT MILESTONE</p><h2>A meaningful stage</h2></div><button class="modal-close" data-close-modal="milestoneModal">×</button></div><input id="milestoneProjectId" type="hidden" /><input id="milestoneEditId" type="hidden" /><div class="form-group"><label for="milestoneTitle">Milestone</label><input id="milestoneTitle" type="text" placeholder="Suppliers confirmed" /></div><div class="form-group"><label for="milestoneDue">Target date</label><input id="milestoneDue" type="date" /></div><label class="check-row"><input id="milestoneCompleted" type="checkbox" /><span>Mark milestone complete</span></label><div class="modal-actions task-modal-actions"><button id="deleteMilestoneButton" class="danger-button hidden" type="button">Delete</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="milestoneModal">Cancel</button><button id="saveMilestoneButton" class="primary-button">Save milestone</button></div></div></div>
+
   <!-- FUTURE ME NOTE MODAL -->
   <div id="futureNoteModal" class="modal-overlay hidden">
     <div class="modal-card modal-large">
@@ -550,6 +578,7 @@
       <div class="action-grid">
         <button data-action="quick"><span>✨</span>Quick Capture</button>
         <button data-action="task"><span>✅</span>Task</button>
+        <button data-action="event"><span>📅</span>Event</button>
         <button data-action="note"><span>📝</span>Note</button>
         <button data-action="future"><span>💌</span>Future Me</button>
         <button data-action="reminder"><span>🔔</span>Reminder</button>

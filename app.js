@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.6
-   Life Flow: Waiting Garden + Future Me + Threads + Recovery
+   HANA 🌸 v1.7
+   Calendar + Time Blocking + Projects + Garden + Local Planning Intelligence
    Local-first PWA
    ===================================================== */
 
@@ -145,6 +145,12 @@ const defaultState = {
   doTaskIndex: 0,
   timePocketMinutes: 30,
   timePocketEnergy: "any",
+  calendarView: "month",
+  calendarCursor: todayISO(),
+  events: [],
+  projects: [],
+  activeProjectId: "",
+  calendarDragTaskId: "",
 
   settings: {
     dailyCapacityMinutes: 240,
@@ -255,6 +261,9 @@ function normalizeTask(task = {}) {
     tags: Array.isArray(task.tags) ? task.tags.map(String) : [],
     dueDate: task.dueDate || "",
     dueTime: task.dueTime || "",
+    scheduledDate: task.scheduledDate || "",
+    scheduledStart: task.scheduledStart || "",
+    milestoneId: String(task.milestoneId || ""),
     durationMinutes: Math.max(0, Number(task.durationMinutes || 0)),
     energy: ["low", "medium", "high"].includes(task.energy) ? task.energy : "medium",
     deadlineType: task.deadlineType === "hard" ? "hard" : "soft",
@@ -282,6 +291,7 @@ function normalizeTask(task = {}) {
     },
     completed: Boolean(task.completed || task.status === "done"),
     completedDate: task.completedDate || null,
+    completedAt: task.completedAt ? Number(task.completedAt) : null,
     createdAt: Number(task.createdAt || Date.now()),
     updatedAt: Number(task.updatedAt || task.createdAt || Date.now())
   };
@@ -293,6 +303,7 @@ function normalizeNote(note = {}) {
     title: String(note.title || "Untitled note"),
     type: ["note", "checklist", "meeting"].includes(note.type) ? note.type : "note",
     content: String(note.content || ""),
+    project: String(note.project || ""),
     space: String(note.space || "personal"),
     tags: Array.isArray(note.tags) ? note.tags.map(String) : [],
     checklist: Array.isArray(note.checklist)
@@ -322,6 +333,7 @@ function normalizeReminder(reminder = {}) {
     linkedTaskId: reminder.linkedTaskId || "",
     linkedTableId: reminder.linkedTableId || "",
     linkedRowId: reminder.linkedRowId || "",
+    linkedEventId: reminder.linkedEventId || "",
     createdAt: Number(reminder.createdAt || Date.now()),
     updatedAt: Number(reminder.updatedAt || reminder.createdAt || Date.now())
   };
@@ -336,6 +348,7 @@ function normalizeTable(table = {}) {
     id: table.id || createId(),
     name: String(table.name || "Untitled table"),
     space: String(table.space || "personal"),
+    project: String(table.project || ""),
     columns: cols,
     rows: Array.isArray(table.rows)
       ? table.rows.map(row => ({ id: row.id || createId(), values: row.values || {}, createdAt: Number(row.createdAt || Date.now()) }))
@@ -414,6 +427,41 @@ function normalizeSpace(space = {}) {
   };
 }
 
+
+function normalizeEvent(event = {}) {
+  return {
+    id: event.id || createId(),
+    title: String(event.title || "Untitled event"),
+    space: String(event.space || "personal"),
+    date: event.date || todayISO(),
+    startTime: event.startTime || "09:00",
+    endTime: event.endTime || "10:00",
+    location: String(event.location || ""),
+    notes: String(event.notes || ""),
+    repeatType: ["none","daily","weekly","monthly"].includes(event.repeatType) ? event.repeatType : "none",
+    reminderEnabled: Boolean(event.reminderEnabled),
+    createdAt: Number(event.createdAt || Date.now()),
+    updatedAt: Number(event.updatedAt || event.createdAt || Date.now())
+  };
+}
+
+function normalizeProject(project = {}) {
+  return {
+    id: project.id || createId(),
+    name: String(project.name || "Untitled project").trim() || "Untitled project",
+    emoji: String(project.emoji || "🌷").slice(0,4),
+    space: String(project.space || "personal"),
+    description: String(project.description || ""),
+    dueDate: project.dueDate || "",
+    status: ["active","onhold","done"].includes(project.status) ? project.status : "active",
+    milestones: Array.isArray(project.milestones) ? project.milestones.map(m => ({
+      id: m.id || createId(), title: String(m.title || "Milestone"), dueDate: m.dueDate || "", completed: Boolean(m.completed)
+    })).filter(m=>m.title) : [],
+    createdAt: Number(project.createdAt || Date.now()),
+    updatedAt: Number(project.updatedAt || project.createdAt || Date.now())
+  };
+}
+
 function normalizeState(data = {}) {
   const base = clone(defaultState);
   const migratedTables = Array.isArray(data.tables)
@@ -430,6 +478,8 @@ function normalizeState(data = {}) {
     tasks: (Array.isArray(data.tasks) ? data.tasks : base.tasks).map(normalizeTask),
     notes: (Array.isArray(data.notes) ? data.notes : base.notes).map(normalizeNote),
     reminders: (Array.isArray(data.reminders) ? data.reminders : base.reminders).map(normalizeReminder),
+    events: (Array.isArray(data.events) ? data.events : []).map(normalizeEvent),
+    projects: (Array.isArray(data.projects) ? data.projects : []).map(normalizeProject),
     tables: (migratedTables?.length ? migratedTables : base.tables).map(normalizeTable),
     pins: Array.isArray(data.pins) ? data.pins : base.pins,
     someday: Array.isArray(data.someday) ? data.someday : base.someday,
@@ -452,6 +502,10 @@ function normalizeState(data = {}) {
     doTaskIndex: Math.max(0, Number(data.doTaskIndex || 0)),
     timePocketMinutes: [10, 15, 30, 45, 60, 90].includes(Number(data.timePocketMinutes)) ? Number(data.timePocketMinutes) : 30,
     timePocketEnergy: ["any", "low", "medium", "high"].includes(data.timePocketEnergy) ? data.timePocketEnergy : "any",
+    calendarView: ["month","week","day"].includes(data.calendarView) ? data.calendarView : "month",
+    calendarCursor: data.calendarCursor || todayISO(),
+    activeProjectId: data.activeProjectId || "",
+    calendarDragTaskId: "",
     dailyCloseHistory: Array.isArray(data.dailyCloseHistory) ? data.dailyCloseHistory : []
   };
 
@@ -464,13 +518,23 @@ function normalizeState(data = {}) {
   const firstSpaceId = normalized.spaces[0].id;
   const fallbackSpace = validSpaceIds.has(normalized.settings.defaultSpace) ? normalized.settings.defaultSpace : firstSpaceId;
   normalized.settings.defaultSpace = fallbackSpace;
-  [normalized.tasks, normalized.notes, normalized.reminders, normalized.tables, normalized.lists, normalized.pins, normalized.inbox, normalized.futureNotes, normalized.threads, normalized.tinyWins].forEach(collection => {
+  [normalized.tasks, normalized.notes, normalized.reminders, normalized.events, normalized.tables, normalized.lists, normalized.pins, normalized.inbox, normalized.futureNotes, normalized.threads, normalized.tinyWins, normalized.projects].forEach(collection => {
     collection.forEach(item => { if (item && !validSpaceIds.has(item.space)) item.space = fallbackSpace; });
   });
   if (!validSpaceIds.has(normalized.settings.workFirewallSpaceId)) {
     normalized.settings.workFirewallSpaceId = validSpaceIds.has("work") ? "work" : "";
   }
   if (!normalized.settings.workFirewallSpaceId) normalized.settings.workFirewallEnabled = false;
+  // v1.7: turn legacy free-text task projects into real Project pages without changing old tasks.
+  const knownProjectNames = new Set(normalized.projects.map(p => p.name.toLowerCase()));
+  normalized.tasks.forEach(task => {
+    const name = String(task.project || "").trim();
+    if (name && !knownProjectNames.has(name.toLowerCase())) {
+      normalized.projects.push(normalizeProject({ name, space: task.space, emoji:"🌷", createdAt: task.createdAt || Date.now() }));
+      knownProjectNames.add(name.toLowerCase());
+    }
+  });
+  if (!normalized.activeProjectId || !normalized.projects.some(p=>p.id===normalized.activeProjectId)) normalized.activeProjectId = normalized.projects[0]?.id || "";
   if (!normalized.activeTableId && normalized.tables[0]) normalized.activeTableId = normalized.tables[0].id;
   if (!normalized.activeListId && normalized.lists[0]) normalized.activeListId = normalized.lists[0].id;
   if (normalized.currentMode !== "all" && !validSpaceIds.has(normalized.currentMode)) normalized.currentMode = "all";
@@ -878,6 +942,10 @@ function render() {
     case "daily-close": renderDailyClose(); break;
     case "inbox": renderInbox(); break;
     case "agenda": renderAgenda(); break;
+    case "calendar": renderCalendar(); break;
+    case "projects": renderProjects(); break;
+    case "garden": renderGarden(); break;
+    case "insights": renderPlanningInsights(); break;
     case "rescue": renderRescueDay(); break;
     case "time-pockets": renderTimePockets(); break;
     case "waiting-garden": renderWaitingGarden(); break;
@@ -916,8 +984,10 @@ function attentionItems() {
   const overdue = tasks.filter(t => t.dueDate && t.dueDate < todayISO()).slice(0, 2).map(t => ({ icon:"🔴", text:t.title }));
   const today = tasks.filter(t => t.dueDate === todayISO()).slice(0, 2).map(t => ({ icon:t.priority === "high" ? "🟠" : "🌸", text:t.title }));
   const nextReminder = reminders.filter(r => r.date >= todayISO()).sort((a,b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0];
+  const nextEvent = eventsForDate(todayISO())[0];
   const list = [...overdue, ...today];
-  if (nextReminder) list.push({ icon:"🔔", text:`${nextReminder.title} · ${formatDate(nextReminder.date)}` });
+  if (nextEvent) list.push({ icon:"📅", text:`${nextEvent.title} · ${formatTime(nextEvent.startTime)}` });
+  else if (nextReminder) list.push({ icon:"🔔", text:`${nextReminder.title} · ${formatDate(nextReminder.date)}` });
   return list.slice(0, 3);
 }
 
@@ -1163,6 +1233,10 @@ function clearTaskForm() {
   document.getElementById("taskReminderChain").checked = false;
   document.getElementById("taskFollowUpAfterCompletion").checked = false;
   document.getElementById("taskRecurrenceType").value = "none";
+  document.getElementById("taskScheduledDate").value = "";
+  document.getElementById("taskScheduledStart").value = "";
+  refreshProjectDatalist();
+  refreshTaskMilestoneOptions();
   document.getElementById("taskRecurrenceInterval").value = "1";
   document.getElementById("taskModalEyebrow").textContent = "NEW BLOOM";
   document.getElementById("taskModalTitle").textContent = "Add task";
@@ -1186,6 +1260,9 @@ function openTaskModal(taskId="") {
     document.getElementById("taskDuration").value = String(task.durationMinutes || 0);
     document.getElementById("taskEnergy").value = task.energy;
     document.getElementById("taskDeadlineType").value = task.deadlineType;
+    document.getElementById("taskScheduledDate").value = task.scheduledDate || "";
+    document.getElementById("taskScheduledStart").value = task.scheduledStart || "";
+    refreshTaskMilestoneOptions(task.project, task.milestoneId);
     document.getElementById("taskStatus").value = task.completed ? "done" : task.status;
     document.getElementById("taskSubtasks").value = task.subtasks.map(s => s.title).join("\n");
     document.getElementById("taskNotes").value = task.notes;
@@ -1242,12 +1319,16 @@ function saveTask() {
     tags: parseTags(document.getElementById("taskTags").value),
     dueDate: requestedDueDate,
     dueTime: document.getElementById("taskTime").value,
+    scheduledDate: document.getElementById("taskScheduledDate").value,
+    scheduledStart: document.getElementById("taskScheduledStart").value,
+    milestoneId: document.getElementById("taskMilestone")?.value || "",
     durationMinutes: Math.max(0, Number(document.getElementById("taskDuration").value || 0)),
     energy: document.getElementById("taskEnergy").value,
     deadlineType: document.getElementById("taskDeadlineType").value,
     status,
     completed: status === "done",
     completedDate: status === "done" ? (old?.completedDate || todayISO()) : null,
+    completedAt: status === "done" ? (old?.completedAt || Date.now()) : null,
     subtasks,
     notes: document.getElementById("taskNotes").value.trim(),
     link: document.getElementById("taskLink").value.trim(),
@@ -1274,6 +1355,7 @@ function saveTask() {
   }
   if (old) state.tasks[state.tasks.findIndex(t=>t.id===id)] = task;
   else state.tasks.push(task);
+  ensureProjectRecord(task.project, task.space);
 
   const completedNow = Boolean(old && !old.completed && task.completed);
   if (completedNow) {
@@ -1323,6 +1405,7 @@ function toggleTask(id) {
   task.completed = completing;
   task.status = completing ? "done" : "todo";
   task.completedDate = completing ? todayISO() : null;
+  task.completedAt = completing ? Date.now() : null;
   task.updatedAt = Date.now();
 
   if (completing) {
@@ -1435,7 +1518,8 @@ function renderNotes() {
 }
 
 function clearNoteForm() {
-  ["noteEditId","noteTitle","noteTags","noteContent","noteChecklist"].forEach(id=>document.getElementById(id).value="");
+  ["noteEditId","noteTitle","noteTags","noteContent","noteChecklist","noteProject"].forEach(id=>document.getElementById(id).value="");
+  refreshProjectDatalist();
   document.getElementById("noteType").value="note";
   document.getElementById("noteSpace").value=preferredSpace();
   document.getElementById("notePinned").checked=false; document.getElementById("noteResettable").checked=false;
@@ -1447,7 +1531,7 @@ function openNoteModal(noteId="") {
   clearNoteForm();
   const note = state.notes.find(n=>n.id===noteId);
   if (note) {
-    document.getElementById("noteEditId").value=note.id; document.getElementById("noteTitle").value=note.title; document.getElementById("noteType").value=note.type; document.getElementById("noteSpace").value=note.space; document.getElementById("noteTags").value=note.tags.join(", "); document.getElementById("noteContent").value=note.content; document.getElementById("noteChecklist").value=note.checklist.map(i=>i.title).join("\n"); document.getElementById("noteResettable").checked=note.resettable; document.getElementById("notePinned").checked=note.pinned;
+    document.getElementById("noteEditId").value=note.id; document.getElementById("noteTitle").value=note.title; document.getElementById("noteType").value=note.type; document.getElementById("noteSpace").value=note.space; document.getElementById("noteTags").value=note.tags.join(", "); document.getElementById("noteProject").value=note.project||""; document.getElementById("noteContent").value=note.content; document.getElementById("noteChecklist").value=note.checklist.map(i=>i.title).join("\n"); document.getElementById("noteResettable").checked=note.resettable; document.getElementById("notePinned").checked=note.pinned;
     document.getElementById("noteModalEyebrow").textContent="NOTE DETAILS"; document.getElementById("noteModalTitle").textContent="Edit note"; document.getElementById("saveNoteButton").textContent="Save changes"; document.getElementById("deleteNoteFromModal").classList.remove("hidden"); updateNoteConditionalFields();
   }
   openModal("noteModal");
@@ -1466,8 +1550,9 @@ function saveNote() {
   if (!title && !content) return showToast("Write something first 🌸");
   const oldChecks=old?.checklist||[];
   const checks=parseLines(document.getElementById("noteChecklist").value).map(title=>{ const e=oldChecks.find(i=>i.title===title); return e?{...e}:{id:createId(),title,completed:false}; });
-  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||"Untitled note",type:document.getElementById("noteType").value,space:document.getElementById("noteSpace").value,tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||"Untitled note",type:document.getElementById("noteType").value,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old) state.notes[state.notes.findIndex(n=>n.id===id)]=note; else state.notes.push(note);
+  ensureProjectRecord(note.project, note.space);
   closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
 }
 
@@ -1783,10 +1868,10 @@ function parseTableColumns(text){return parseLines(text).map(line=>{const [nameR
 
 const TABLE_TEMPLATES={progress:{name:"Progress Tracker",columns:"Item:text\nProgress:progress\nStatus:status\nDue:date\nRemarks:text\nDone:checkbox"},project:{name:"Project Tracker",columns:"Task:text\nOwner:text\nProgress:progress\nStatus:status\nDue:date\nRemarks:text"},expenses:{name:"Expense Tracker",columns:"Item:text\nAmount:money\nDate:date\nStatus:status\nRemarks:text"},blank:{name:"",columns:"Item:text"}};
 function applyTableTemplate(templateId,force=false){const template=TABLE_TEMPLATES[templateId]||TABLE_TEMPLATES.progress;const name=document.getElementById("tableName"),columns=document.getElementById("tableColumns");if(force||!name.value.trim())name.value=template.name;if(force||!columns.value.trim())columns.value=template.columns;}
-function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableColumns").value="";applyTableTemplate("progress",true);document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
-function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableColumns").value=t.columns.map(c=>`${c.name}:${c.type}`).join("\n");document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
+function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();document.getElementById("tableColumns").value="";applyTableTemplate("progress",true);document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
+function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";document.getElementById("tableColumns").value=t.columns.map(c=>`${c.name}:${c.type}`).join("\n");document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
-function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=parseTableColumns(document.getElementById("tableColumns").value);if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,columns,rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");render();}
+function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=parseTableColumns(document.getElementById("tableColumns").value);if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");render();}
 function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
 function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id])).join("");openModal("tableRowModal");}
@@ -1799,13 +1884,188 @@ function rowDate(table,row){const col=table.columns.find(c=>["date","reminder"].
 function createReminderFromTableRow(table,row){const title=rowTitle(table,row),date=rowDate(table,row);if(!date)return showToast("This row needs a date column before Hana can remind you.");const existing=state.reminders.find(r=>r.linkedTableId===table.id&&r.linkedRowId===row.id);const rem=normalizeReminder({...(existing||{}),id:existing?.id||createId(),title,space:table.space,date,time:"09:00",repeatType:"none",linkedTableId:table.id,linkedRowId:row.id,completed:false,notified:false,createdAt:existing?.createdAt||Date.now()});if(existing)state.reminders[state.reminders.findIndex(r=>r.id===existing.id)]=rem;else state.reminders.push(rem);showToast("Row reminder created 🔔");}
 function createTaskFromTableRow(table,row){const task=normalizeTask({title:rowTitle(table,row),space:table.space,priority:"medium",status:"todo",dueDate:rowDate(table,row),project:table.name,tags:["from-table"],notes:`Created from ${table.name}`,createdAt:Date.now()});state.tasks.push(task);showToast("Table row became a task 🌱");render();}
 
+
+/* ================= HANA v1.7 · CALENDAR / PROJECTS / GARDEN ================= */
+
+function isoFromDate(date){ return localDateISO(date); }
+function parseISODate(value){ return new Date(`${value || todayISO()}T12:00:00`); }
+function startOfWeekISO(value=todayISO()) { const d=parseISODate(value); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return isoFromDate(d); }
+function addMonthsISO(value, amount){ const d=parseISODate(value); d.setDate(1); d.setMonth(d.getMonth()+amount); return isoFromDate(d); }
+function monthTitle(value){ return parseISODate(value).toLocaleDateString(undefined,{month:"long",year:"numeric"}); }
+function dayTitle(value){ return parseISODate(value).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"}); }
+function shortDay(value){ return parseISODate(value).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}); }
+function minutesFromTime(time="00:00"){ const [h,m]=String(time).split(":").map(Number); return (h||0)*60+(m||0); }
+function timeFromMinutes(total){ const safe=Math.max(0,Math.min(1439,Number(total)||0)); return `${String(Math.floor(safe/60)).padStart(2,"0")}:${String(safe%60).padStart(2,"0")}`; }
+function addMinutesToTime(time, minutes){ return timeFromMinutes(minutesFromTime(time)+Number(minutes||0)); }
+
+function eventOccursOn(event,date){
+  if(!event?.date||date<event.date)return false;
+  if(event.repeatType==="none")return date===event.date;
+  const start=parseISODate(event.date), target=parseISODate(date), diff=Math.round((target-start)/86400000);
+  if(event.repeatType==="daily")return diff>=0;
+  if(event.repeatType==="weekly")return diff>=0&&diff%7===0;
+  if(event.repeatType==="monthly"){const months=(target.getFullYear()-start.getFullYear())*12+(target.getMonth()-start.getMonth());return months>=0&&addMonthsClamped(event.date,months)===date;}
+  return false;
+}
+function eventsForDate(date){ return filterByMode(state.events,{respectFirewall:false}).filter(e=>eventOccursOn(e,date)).sort((a,b)=>a.startTime.localeCompare(b.startTime)); }
+function tasksForCalendarDate(date){ return filterByMode(state.tasks,{respectFirewall:false}).filter(t=>!t.completed&&(t.scheduledDate===date||(!t.scheduledDate&&t.dueDate===date))).sort((a,b)=>(a.scheduledStart||a.dueTime||"23:59").localeCompare(b.scheduledStart||b.dueTime||"23:59")); }
+
+function openEventModal(eventId="", presets={}){
+  refreshSpaceSelects(); const old=state.events.find(e=>e.id===eventId);
+  document.getElementById("eventEditId").value=old?.id||"";
+  document.getElementById("eventTitle").value=old?.title||presets.title||"";
+  document.getElementById("eventSpace").value=old?.space||presets.space||preferredSpace();
+  document.getElementById("eventDate").value=old?.date||presets.date||state.calendarCursor||todayISO();
+  document.getElementById("eventStart").value=old?.startTime||presets.startTime||"09:00";
+  document.getElementById("eventEnd").value=old?.endTime||presets.endTime||addMinutesToTime(presets.startTime||"09:00",60);
+  document.getElementById("eventLocation").value=old?.location||"";
+  document.getElementById("eventNotes").value=old?.notes||"";
+  document.getElementById("eventRepeat").value=old?.repeatType||"none";
+  document.getElementById("eventReminder").checked=Boolean(old?.reminderEnabled);
+  document.getElementById("eventModalTitle").textContent=old?"Edit event":"Add event";
+  document.getElementById("deleteEventButton").classList.toggle("hidden",!old);
+  openModal("eventModal"); setTimeout(()=>document.getElementById("eventTitle")?.focus(),60);
+}
+function saveEvent(){
+  const id=document.getElementById("eventEditId").value, old=state.events.find(e=>e.id===id);
+  const title=document.getElementById("eventTitle").value.trim(); if(!title)return showToast("Give the event a name 🌸");
+  const start=document.getElementById("eventStart").value||"09:00", end=document.getElementById("eventEnd").value||addMinutesToTime(start,60);
+  if(minutesFromTime(end)<=minutesFromTime(start))return showToast("End time needs to be after start time.");
+  const item=normalizeEvent({...(old||{}),id:id||createId(),title,space:document.getElementById("eventSpace").value,date:document.getElementById("eventDate").value,startTime:start,endTime:end,location:document.getElementById("eventLocation").value.trim(),notes:document.getElementById("eventNotes").value.trim(),repeatType:document.getElementById("eventRepeat").value,reminderEnabled:document.getElementById("eventReminder").checked,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  if(old)state.events[state.events.findIndex(e=>e.id===id)]=item;else state.events.push(item);
+  syncEventReminder(item); closeModal("eventModal"); showToast(old?"Event updated 📅":"Event added 📅"); render();
+}
+function syncEventReminder(event){
+  const existing=state.reminders.find(r=>r.linkedEventId===event.id);
+  if(!event.reminderEnabled){ if(existing)state.reminders=state.reminders.filter(r=>r.id!==existing.id); return; }
+  const r=normalizeReminder({...(existing||{}),id:existing?.id||createId(),title:event.title,space:event.space,date:event.date,time:event.startTime,repeatType:event.repeatType,completed:false,notified:false,linkedEventId:event.id,createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()});
+  if(existing)state.reminders[state.reminders.findIndex(x=>x.id===existing.id)]=r;else state.reminders.push(r);
+}
+function deleteEvent(id){ const e=state.events.find(x=>x.id===id);if(!e||!confirm("Delete this event?"))return;state.events=state.events.filter(x=>x.id!==id);state.reminders=state.reminders.filter(r=>r.linkedEventId!==id);closeModal("eventModal");showToast("Event removed");render(); }
+
+function calendarCursorMove(direction){
+  if(state.calendarView==="month")state.calendarCursor=addMonthsISO(state.calendarCursor,direction);
+  else state.calendarCursor=addDaysISO(state.calendarCursor,direction*(state.calendarView==="week"?7:1));
+  render();
+}
+function calendarItemHTML(date){
+  const events=eventsForDate(date), tasks=tasksForCalendarDate(date); const all=[...events.map(e=>({kind:"event",id:e.id,title:e.title,time:e.startTime})),...tasks.map(t=>({kind:"task",id:t.id,title:t.title,time:t.scheduledStart||t.dueTime||""}))].sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));
+  return all.slice(0,3).map(i=>`<button class="calendar-mini-item ${i.kind}" ${i.kind==="event"?`data-edit-event="${i.id}"`:`data-edit-task="${i.id}"`}><span>${i.kind==="event"?"●":"✓"}</span>${i.time?`<b>${formatTime(i.time)}</b>`:""}<em>${escapeHTML(i.title)}</em></button>`).join("")+(all.length>3?`<small class="calendar-more">+${all.length-3} more</small>`:"");
+}
+function renderCalendarMonth(){
+  const cursor=parseISODate(state.calendarCursor);const y=cursor.getFullYear(),m=cursor.getMonth();const first=new Date(y,m,1,12);const offset=(first.getDay()+6)%7;const start=new Date(y,m,1-offset,12);let cells="";
+  for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const iso=isoFromDate(d),inMonth=d.getMonth()===m;cells+=`<div class="calendar-day ${inMonth?"":"outside"} ${iso===todayISO()?"today":""}"><button class="calendar-day-number" data-calendar-day="${iso}">${d.getDate()}</button><div class="calendar-day-items">${calendarItemHTML(iso)}</div><button class="calendar-day-add" data-add-event-date="${iso}" aria-label="Add event">+</button></div>`;}
+  return `<div class="calendar-weekdays">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(x=>`<span>${x}</span>`).join("")}</div><div class="calendar-month-grid">${cells}</div>`;
+}
+function renderCalendarWeek(){
+  const start=startOfWeekISO(state.calendarCursor);let days="";const unscheduled=filterByMode(state.tasks,{respectFirewall:false}).filter(t=>!t.completed&&!t.scheduledDate).sort(taskSort).slice(0,8);
+  for(let i=0;i<7;i++){const date=addDaysISO(start,i),ev=eventsForDate(date),ts=tasksForCalendarDate(date);days+=`<section class="calendar-week-day ${date===todayISO()?"today":""}"><button class="calendar-week-heading" data-calendar-day="${date}"><strong>${shortDay(date)}</strong><small>${ev.length+ts.length} planned</small></button>${[...ev.map(e=>({kind:"event",obj:e,time:e.startTime})),...ts.map(t=>({kind:"task",obj:t,time:t.scheduledStart||t.dueTime||"23:59"}))].sort((a,b)=>a.time.localeCompare(b.time)).map(x=>x.kind==="event"?`<button class="week-plan event" data-edit-event="${x.obj.id}"><b>${formatTime(x.obj.startTime)}</b><span>${escapeHTML(x.obj.title)}</span></button>`:`<button class="week-plan task" draggable="true" data-calendar-drag-task="${x.obj.id}" data-edit-task="${x.obj.id}"><b>${x.obj.scheduledStart?formatTime(x.obj.scheduledStart):"Anytime"}</b><span>${escapeHTML(x.obj.title)}</span></button>`).join("")||`<div class="week-empty">Open space</div>`}<div class="week-drop-row">${["09:00","13:00","17:00"].map(time=>`<div class="week-drop-slot" data-time-slot data-date="${date}" data-time="${time}">${formatTime(time)}</div>`).join("")}</div><button class="calendar-inline-add" data-add-event-date="${date}">+ Event</button></section>`;}
+  return `${unscheduled.length?`<div class="week-unscheduled-tray"><div><strong>Drag into the week</strong><small>Or tap Plan on iPhone</small></div>${unscheduled.map(t=>`<div class="week-unscheduled-task" draggable="true" data-calendar-drag-task="${t.id}"><span>${escapeHTML(t.title)}</span><button data-plan-task="${t.id}" data-plan-date="${state.calendarCursor}">Plan</button></div>`).join("")}</div>`:""}<div class="calendar-week-scroll">${days}</div>`;
+}
+function daySlotHTML(date,hour){
+  const start=`${String(hour).padStart(2,"0")}:00`;const ev=eventsForDate(date).filter(e=>Number(e.startTime.slice(0,2))===hour);const tasks=tasksForCalendarDate(date).filter(t=>t.scheduledDate===date&&Number((t.scheduledStart||"00:00").slice(0,2))===hour);
+  return `<div class="time-slot" data-time-slot data-date="${date}" data-time="${start}"><div class="time-slot-label">${formatTime(start)}</div><div class="time-slot-content">${ev.map(e=>`<button class="time-block event" data-edit-event="${e.id}"><strong>${escapeHTML(e.title)}</strong><small>${formatTime(e.startTime)}–${formatTime(e.endTime)}${e.location?` · ${escapeHTML(e.location)}`:""}</small></button>`).join("")}${tasks.map(t=>`<button class="time-block task" draggable="true" data-calendar-drag-task="${t.id}" data-edit-task="${t.id}"><strong>${escapeHTML(t.title)}</strong><small>${formatTime(t.scheduledStart)} · ${formatDuration(taskPlanningMinutes(t))}</small></button>`).join("")}<button class="slot-add" data-add-event-slot data-date="${date}" data-time="${start}">+</button></div></div>`;
+}
+function renderCalendarDay(){
+  const date=state.calendarCursor;const due=filterByMode(state.tasks,{respectFirewall:false}).filter(t=>!t.completed&&!t.scheduledDate&&(t.dueDate===date||!t.dueDate)).sort(taskSort).slice(0,10);
+  return `<div class="day-planner"><div class="day-unscheduled"><div class="section-header"><h2>Unscheduled</h2><button data-new-task-for-date="${date}">+ Task</button></div>${due.length?due.map(t=>`<div class="unscheduled-task" draggable="true" data-calendar-drag-task="${t.id}"><span><strong>${escapeHTML(t.title)}</strong><small>${formatDuration(taskPlanningMinutes(t))} · ${energyLabel(t.energy)}</small></span><button data-plan-task="${t.id}" data-plan-date="${date}">Plan</button></div>`).join(""):`<div class="day-empty">Nothing waiting for a time 🌿</div>`}</div><div class="day-timeline">${Array.from({length:15},(_,i)=>daySlotHTML(date,i+7)).join("")}</div></div>`;
+}
+function renderCalendar(){
+  const c=document.getElementById("pageContent");const title=state.calendarView==="month"?monthTitle(state.calendarCursor):(state.calendarView==="week"?`${shortDay(startOfWeekISO(state.calendarCursor))} – ${shortDay(addDaysISO(startOfWeekISO(state.calendarCursor),6))}`:dayTitle(state.calendarCursor));
+  c.innerHTML=`<div class="page-heading calendar-page-heading"><div><p class="eyebrow">PLAN TIME, NOT JUST TASKS</p><h1>Calendar</h1><p>Events and task blocks live together without turning events into chores.</p></div><div class="calendar-heading-actions">${state.calendarView==="day"?`<button class="secondary-button" data-auto-plan-day>✨ Auto-plan bouquet</button>`:""}<button class="primary-button" data-new-event>+ Event</button></div></div><div class="calendar-toolbar"><div class="segmented-control"><button class="${state.calendarView==="month"?"active":""}" data-calendar-view="month">Month</button><button class="${state.calendarView==="week"?"active":""}" data-calendar-view="week">Week</button><button class="${state.calendarView==="day"?"active":""}" data-calendar-view="day">Day</button></div><div class="calendar-nav"><button data-calendar-prev>‹</button><button data-calendar-today>Today</button><strong>${escapeHTML(title)}</strong><button data-calendar-next>›</button></div></div>${state.calendarView==="month"?renderCalendarMonth():state.calendarView==="week"?renderCalendarWeek():renderCalendarDay()}`;
+}
+
+function openScheduleTaskModal(taskId,date=state.calendarCursor,time="09:00"){
+  const task=state.tasks.find(t=>t.id===taskId);if(!task)return;document.getElementById("scheduleTaskId").value=task.id;document.getElementById("scheduleTaskTitle").textContent=task.title;document.getElementById("scheduleTaskDate").value=task.scheduledDate||date||todayISO();document.getElementById("scheduleTaskTime").value=task.scheduledStart||time||"09:00";openModal("scheduleTaskModal");
+}
+function saveTaskSchedule(){const task=state.tasks.find(t=>t.id===document.getElementById("scheduleTaskId").value);if(!task)return;task.scheduledDate=document.getElementById("scheduleTaskDate").value;task.scheduledStart=document.getElementById("scheduleTaskTime").value;task.updatedAt=Date.now();closeModal("scheduleTaskModal");showToast("Task placed on your day 🌷");render();}
+function scheduleTaskAt(taskId,date,time){const task=state.tasks.find(t=>t.id===taskId);if(!task)return;task.scheduledDate=date;task.scheduledStart=time;task.updatedAt=Date.now();state.calendarDragTaskId="";showToast(`${task.title} · ${formatTime(time)} 🌷`);render();}
+function dayOccupiedRanges(date){const ranges=[];eventsForDate(date).forEach(e=>ranges.push([minutesFromTime(e.startTime),minutesFromTime(e.endTime)]));state.tasks.filter(t=>!t.completed&&t.scheduledDate===date&&t.scheduledStart).forEach(t=>{const start=minutesFromTime(t.scheduledStart);ranges.push([start,start+taskPlanningMinutes(t)]);});return ranges.sort((a,b)=>a[0]-b[0]);}
+function rangeIsFree(start,end,ranges){return !ranges.some(([a,b])=>start<b&&end>a);}
+function autoPlanBouquet(date=state.calendarCursor){const candidates=focusTasksVisible().filter(t=>!t.scheduledDate).sort((a,b)=>recommendationScore(b)-recommendationScore(a));if(!candidates.length)return showToast("Your bouquet is already placed or empty 🌿");const ranges=dayOccupiedRanges(date);let placed=0;for(const task of candidates){const duration=Math.max(15,Math.min(180,taskPlanningMinutes(task)));let found=null;for(let start=9*60;start+duration<=18*60;start+=15){if(rangeIsFree(start,start+duration,ranges)){found=start;break;}}if(found===null)continue;task.scheduledDate=date;task.scheduledStart=timeFromMinutes(found);task.updatedAt=Date.now();ranges.push([found,found+duration]);ranges.sort((a,b)=>a[0]-b[0]);placed++;}showToast(placed?`Hana placed ${placed} bouquet task${placed===1?"":"s"} 🌷`:"No open time blocks fit the bouquet today.");render();}
+
+function refreshProjectDatalist(){const list=document.getElementById("hanaProjectOptions");if(list)list.innerHTML=state.projects.filter(p=>p.status!=="done").map(p=>`<option value="${escapeHTML(p.name)}"></option>`).join("");}
+function projectByName(name){const key=String(name||"").trim().toLowerCase();return state.projects.find(p=>p.name.toLowerCase()===key);}
+function ensureProjectRecord(name,space=preferredSpace()){const clean=String(name||"").trim();if(!clean)return null;let p=projectByName(clean);if(!p){p=normalizeProject({name:clean,space,emoji:"🌷",createdAt:Date.now(),updatedAt:Date.now()});state.projects.push(p);}return p;}
+function refreshTaskMilestoneOptions(projectName=document.getElementById("taskProject")?.value||"",selected=document.getElementById("taskMilestone")?.value||""){
+  const select=document.getElementById("taskMilestone");if(!select)return;const p=projectByName(projectName);select.innerHTML=`<option value="">No milestone</option>${p?p.milestones.map(m=>`<option value="${m.id}" ${m.id===selected?"selected":""}>${m.completed?"✓ ":""}${escapeHTML(m.title)}</option>`).join(""):""}`;select.disabled=!p||!p.milestones.length;
+}
+function projectTasks(project){return state.tasks.filter(t=>t.project.trim().toLowerCase()===project.name.toLowerCase());}
+function projectProgress(project){const ts=projectTasks(project);return ts.length?Math.round(ts.filter(t=>t.completed).length/ts.length*100):(project.status==="done"?100:0);}
+function milestoneProgress(project,m){const ts=projectTasks(project).filter(t=>t.milestoneId===m.id);return ts.length?Math.round(ts.filter(t=>t.completed).length/ts.length*100):(m.completed?100:0);}
+function openProjectModal(projectId=""){
+  refreshSpaceSelects();const p=state.projects.find(p=>p.id===projectId);document.getElementById("projectEditId").value=p?.id||"";document.getElementById("projectEmoji").value=p?.emoji||"🌷";document.getElementById("projectName").value=p?.name||"";document.getElementById("projectSpace").value=p?.space||preferredSpace();document.getElementById("projectDue").value=p?.dueDate||"";document.getElementById("projectStatus").value=p?.status||"active";document.getElementById("projectDescription").value=p?.description||"";document.getElementById("projectModalTitle").textContent=p?"Edit project":"Create project";document.getElementById("deleteProjectButton").classList.toggle("hidden",!p);openModal("projectModal");
+}
+function saveProject(){
+  const id=document.getElementById("projectEditId").value,old=state.projects.find(p=>p.id===id),name=document.getElementById("projectName").value.trim();if(!name)return showToast("Give the project a name 🌷");if(state.projects.some(p=>p.id!==id&&p.name.toLowerCase()===name.toLowerCase()))return showToast("A project already uses that name.");
+  const p=normalizeProject({...(old||{}),id:id||createId(),emoji:document.getElementById("projectEmoji").value||"🌷",name,space:document.getElementById("projectSpace").value,dueDate:document.getElementById("projectDue").value,status:document.getElementById("projectStatus").value,description:document.getElementById("projectDescription").value.trim(),milestones:old?.milestones||[],createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  if(old&&old.name!==name){state.tasks.forEach(t=>{if(t.project===old.name)t.project=name});state.notes.forEach(n=>{if(n.project===old.name)n.project=name});state.tables.forEach(t=>{if(t.project===old.name)t.project=name});}
+  if(old)state.projects[state.projects.findIndex(x=>x.id===id)]=p;else state.projects.push(p);state.activeProjectId=p.id;closeModal("projectModal");showToast(old?"Project updated 🌷":"Project planted 🌱");render();
+}
+function deleteProject(id){const p=state.projects.find(p=>p.id===id);if(!p||!confirm(`Remove project “${p.name}”? Its tasks, notes and trackers will stay, but their Project field will be cleared.`))return;state.tasks.forEach(t=>{if(t.project===p.name){t.project="";t.milestoneId="";}});state.notes.forEach(n=>{if(n.project===p.name)n.project=""});state.tables.forEach(t=>{if(t.project===p.name)t.project=""});state.projects=state.projects.filter(x=>x.id!==id);state.activeProjectId=state.projects[0]?.id||"";closeModal("projectModal");render();}
+function openMilestoneModal(projectId,milestoneId="") {const p=state.projects.find(p=>p.id===projectId);if(!p)return;const m=p.milestones.find(m=>m.id===milestoneId);document.getElementById("milestoneProjectId").value=p.id;document.getElementById("milestoneEditId").value=m?.id||"";document.getElementById("milestoneTitle").value=m?.title||"";document.getElementById("milestoneDue").value=m?.dueDate||"";document.getElementById("milestoneCompleted").checked=Boolean(m?.completed);document.getElementById("deleteMilestoneButton").classList.toggle("hidden",!m);openModal("milestoneModal");}
+function saveMilestone(){const p=state.projects.find(p=>p.id===document.getElementById("milestoneProjectId").value);if(!p)return;const id=document.getElementById("milestoneEditId").value,title=document.getElementById("milestoneTitle").value.trim();if(!title)return showToast("Give the milestone a name 🌷");const old=p.milestones.find(m=>m.id===id),m={id:id||createId(),title,dueDate:document.getElementById("milestoneDue").value,completed:document.getElementById("milestoneCompleted").checked};if(old)p.milestones[p.milestones.findIndex(x=>x.id===id)]=m;else p.milestones.push(m);p.updatedAt=Date.now();closeModal("milestoneModal");render();}
+function deleteMilestone(projectId,milestoneId){const p=state.projects.find(p=>p.id===projectId);if(!p||!confirm("Delete this milestone? Tasks will stay in the project."))return;p.milestones=p.milestones.filter(m=>m.id!==milestoneId);state.tasks.forEach(t=>{if(t.milestoneId===milestoneId)t.milestoneId=""});closeModal("milestoneModal");render();}
+
+function renderProjectDetail(p){
+  const ts=projectTasks(p),open=ts.filter(t=>!t.completed),waiting=open.filter(t=>t.status==="waiting"),notes=state.notes.filter(n=>n.project===p.name),tables=state.tables.filter(t=>t.project===p.name),progress=projectProgress(p),links=ts.filter(t=>t.link),activity=[...ts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)).slice(0,8);
+  return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📊</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(t.link)}" target="_blank" rel="noopener"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
+}
+function renderProjects(){const c=document.getElementById("pageContent");const projects=filterByMode(state.projects,{respectFirewall:false});if(!projects.some(p=>p.id===state.activeProjectId))state.activeProjectId=projects[0]?.id||"";const active=projects.find(p=>p.id===state.activeProjectId);c.innerHTML=`<div class="page-heading projects-heading"><div><p class="eyebrow">FROM TASK LIST TO REAL PROJECT</p><h1>Projects</h1><p>Milestones, tasks, waiting items, notes and trackers stay together.</p></div><button class="primary-button" data-new-project>+ Project</button></div>${projects.length?`<div class="project-tabs">${projects.map(p=>`<button class="${p.id===state.activeProjectId?"active":""}" data-select-project="${p.id}">${escapeHTML(p.emoji)} ${escapeHTML(p.name)}</button>`).join("")}</div>${active?renderProjectDetail(active):""}`:emptyState("🌷","No projects yet","Create a project when a goal needs more than a single task.","Create project","open-project")}`;}
+
+function bloomStage(progress,activity=0){if(progress>=100)return{icon:"🌸",label:"Blooming"};if(progress>=60||activity>=8)return{icon:"🌺",label:"Growing strong"};if(progress>=25||activity>=3)return{icon:"🌷",label:"Growing"};if(progress>0||activity>0)return{icon:"🌿",label:"Taking root"};return{icon:"🌱",label:"Ready to nurture"};}
+function recentCompletedForSpace(spaceId,days=30){const cutoff=addDaysISO(todayISO(),-days);return state.tasks.filter(t=>t.space===spaceId&&t.completedDate&&t.completedDate>=cutoff).length+state.tinyWins.filter(w=>w.space===spaceId&&w.date>=cutoff).length;}
+function renderGarden(){const c=document.getElementById("pageContent");const spaces=state.spaces.filter(s=>state.currentMode==="all"||s.id===state.currentMode);c.innerHTML=`<div class="page-heading"><p class="eyebrow">WHAT YOU HAVE BEEN NURTURING</p><h1>Hana Garden 🌺</h1><p>No streaks to break. This garden reflects progress and care, not perfect attendance.</p></div><section class="garden-section"><div class="section-header"><h2>Life flowerbeds</h2><small>Last 30 days</small></div><div class="garden-grid">${spaces.map(s=>{const all=state.tasks.filter(t=>t.space===s.id),done=all.filter(t=>t.completed).length,pct=all.length?Math.round(done/all.length*100):0,activity=recentCompletedForSpace(s.id),stage=bloomStage(pct,activity);return `<article class="garden-bed"><div class="garden-flower">${stage.icon}</div><h3>${escapeHTML(s.emoji)} ${escapeHTML(s.name)}</h3><p>${stage.label}</p><div class="garden-stat"><strong>${activity}</strong><span>things nurtured</span></div><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,pct)}%"></div></div></article>`}).join("")}</div></section><section class="garden-section"><div class="section-header"><h2>Project garden</h2><button data-goto="projects">Projects</button></div><div class="garden-projects">${filterByMode(state.projects,{respectFirewall:false}).map(p=>{const pct=projectProgress(p),stage=bloomStage(pct);return `<button class="garden-project" data-open-garden-project="${p.id}"><span>${stage.icon}</span><span><strong>${escapeHTML(p.emoji)} ${escapeHTML(p.name)}</strong><small>${pct}% · ${stage.label}</small></span></button>`}).join("")||`<div class="project-empty">Projects will grow here when you create them.</div>`}</div></section>`;}
+
+function completionRate(tasks){if(!tasks.length)return null;return Math.round(tasks.filter(t=>t.completed).length/tasks.length*100);}
+function localPlanningInsights(){
+  const visible=filterByMode(state.tasks,{respectFirewall:false}),open=visible.filter(t=>!t.completed),done=visible.filter(t=>t.completed),today=todayISO();const insights=[];
+  const planned=focusTasksVisible().reduce((s,t)=>s+taskPlanningMinutes(t),0),cap=Number(state.settings.dailyCapacityMinutes||240);if(planned>cap)insights.push({icon:"🌷",title:"Your bouquet is over capacity",text:`You planned ${formatDuration(planned)} against ${formatDuration(cap)} of capacity. Rescue My Day can make room.`});
+  const hard=open.filter(t=>t.deadlineType==="hard"&&t.dueDate&&t.dueDate<=addDaysISO(today,3));if(hard.length)insights.push({icon:"🔒",title:`${hard.length} protected deadline${hard.length===1?"":"s"} nearby`,text:`Hana will keep ${hard.slice(0,2).map(t=>t.title).join(" and ")} visible while planning.`});
+  const repeatMoves=open.filter(t=>t.rescheduleCount>=2).sort((a,b)=>b.rescheduleCount-a.rescheduleCount);if(repeatMoves.length)insights.push({icon:"🌿",title:"A task keeps moving",text:`“${repeatMoves[0].title}” has moved ${repeatMoves[0].rescheduleCount} times. It may need a smaller next step, a better day, or permission to leave.`});
+  const short=visible.filter(t=>t.durationMinutes>0&&t.durationMinutes<=15),shortRate=completionRate(short);if(short.length>=4)insights.push({icon:"⏱",title:"Small tasks tell a pattern",text:`You complete about ${shortRate}% of tasks estimated at 15 minutes or less. Use Time Pockets when you have a short gap.`});
+  const byEnergy=["low","medium","high"].map(e=>({e,n:done.filter(t=>t.energy===e).length})).sort((a,b)=>b.n-a.n)[0];if(done.length>=5&&byEnergy.n)insights.push({icon:"⚡",title:"Your completion pattern is taking shape",text:`Most of your completed estimated tasks are ${byEnergy.e}-energy. Hana will keep learning locally as you use it.`});
+  const timed=done.filter(t=>t.completedAt);if(timed.length>=5){const buckets={morning:0,afternoon:0,evening:0};timed.forEach(t=>{const h=new Date(t.completedAt).getHours();if(h<12)buckets.morning++;else if(h<18)buckets.afternoon++;else buckets.evening++;});const strongest=Object.entries(buckets).sort((a,b)=>b[1]-a[1])[0];if(strongest[1]>=2)insights.push({icon:"🕰️",title:`Your ${strongest[0]}s look productive`,text:`Most timestamped completions so far happened in the ${strongest[0]}. This is a pattern, not a rule—Hana will keep updating it.`});}
+  const byProject=state.projects.map(p=>({p,n:projectTasks(p).filter(t=>!t.completed).length})).sort((a,b)=>b.n-a.n)[0];if(byProject?.n>=5)insights.push({icon:"🌷",title:"One project is carrying a lot",text:`${byProject.p.name} has ${byProject.n} open tasks. Milestones can make that load easier to scan.`});
+  if(!insights.length)insights.push({icon:"🌱",title:"Hana is still learning your rhythm",text:"Complete, schedule and reschedule naturally. Insights appear from your local activity; nothing needs to be performed for the app."});return insights;
+}
+function renderPlanningInsights(){const c=document.getElementById("pageContent"),insights=localPlanningInsights();c.innerHTML=`<div class="page-heading"><p class="eyebrow">LOCAL PATTERNS, NOT JUDGMENT</p><h1>Hana Notices</h1><p>Planning patterns calculated only from the Hana data on this device.</p></div><div class="insight-grid">${insights.map(i=>`<article class="insight-card"><span>${i.icon}</span><div><h3>${escapeHTML(i.title)}</h3><p>${escapeHTML(i.text)}</p></div></article>`).join("")}</div><div class="card soft-card insight-privacy"><strong>🌿 Private by design</strong><p>These observations use simple local rules, not cloud AI. They become more useful as Hana gets real completion and scheduling history.</p></div>`;}
+
+function parseCaptureMeta(text,defaultSpace=preferredSpace()){
+  let clean=String(text||"").trim(),space=defaultSpace,tags=[],duration=0,energy="medium",deadlineType="soft",project="",time="",date=extractDate(clean);
+  const dur=clean.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes)\b/i);if(dur){duration=Math.round(Number(dur[1])*(dur[2].toLowerCase().startsWith("h")?60:1));clean=clean.replace(dur[0]," ");}
+  const en=clean.match(/\b(low|medium|high)\s+energy\b/i);if(en){energy=en[1].toLowerCase();clean=clean.replace(en[0],"");}
+  if(/!hard\b|\bhard deadline\b/i.test(clean)){deadlineType="hard";clean=clean.replace(/!hard\b|\bhard deadline\b/ig,"");}
+  const tm=clean.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)||clean.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);if(tm){if(tm[3]){let h=Number(tm[1])%12;if(tm[3].toLowerCase()==="pm")h+=12;time=`${String(h).padStart(2,"0")}:${tm[2]||"00"}`;}else time=`${String(tm[1]).padStart(2,"0")}:${tm[2]}`;clean=clean.replace(tm[0],"");}
+  state.spaces.forEach(s=>{const re=new RegExp(`#${s.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\s+/g,"\\s+")}\\b`,"i");if(re.test(clean)){space=s.id;clean=clean.replace(re,"");}});
+  const pMatch=clean.match(/\bproject:\s*([^#@!]+?)(?=\s+#|\s+!|$)/i);if(pMatch){project=pMatch[1].trim();clean=clean.replace(pMatch[0],"");}
+  tags=[...clean.matchAll(/#([\w-]+)/g)].map(m=>m[1]);clean=clean.replace(/#[\w-]+/g,"");
+  clean=clean.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/ig,"").replace(/\s+/g," ").trim().replace(/^[-–—:,]+|[-–—:,]+$/g,"").trim();
+  return{title:clean||String(text).trim(),space,tags,duration,energy,deadlineType,project,time,date};
+}
+
+
 /* ================= BRAIN DUMP / INBOX ================= */
 
-function predictCapture(text){const value=text.trim().toLowerCase();if(!value)return{type:"unknown",label:"🌱 Something new"};if(/\b(remind|appointment|dentist|doctor|meeting|due|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}:\d{2}|\d+\s?(am|pm))\b/.test(value))return{type:"task",label:"✅ Task + date/reminder candidate"};if(value.includes("|")||value.startsWith("table:"))return{type:"table",label:"📋 Table item"};if(/\b(maybe|someday|one day|want to|learn|visit|try)\b/.test(value))return{type:"someday",label:"🌱 Someday"};if(/^(buy|send|finish|submit|call|email|book|pay|check|clean|prepare|review|ask|follow up)\b/.test(value))return{type:"task",label:"✅ Task"};return{type:"note",label:"📝 Note"};}
+function predictCapture(text){const value=text.trim().toLowerCase();if(!value)return{type:"unknown",label:"🌱 Something new"};if(value.startsWith("event:")||value.startsWith("appointment:"))return{type:"event",label:"📅 Event"};if(value.startsWith("list:")||value.startsWith("groceries:"))return{type:"list",label:"☑️ Checklist"};if(/\b(remind|due|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}:\d{2}|\d+\s?(am|pm)|\d+\s?(min|mins|m|h|hr|hrs))\b/.test(value))return{type:"task",label:"✅ Smart task · Hana sees planning details"};if(value.includes("|")||value.startsWith("table:"))return{type:"table",label:"📋 Table item"};if(/\b(maybe|someday|one day|want to|learn|visit|try)\b/.test(value))return{type:"someday",label:"🌱 Someday"};if(/^(buy|send|finish|submit|call|email|book|pay|check|clean|prepare|review|ask|follow up)\b/.test(value))return{type:"task",label:"✅ Task"};return{type:"note",label:"📝 Note"};}
 
 function updateCapturePrediction(){const input=document.getElementById("quickCaptureInput");const p=document.getElementById("capturePrediction");if(!input||!p)return;const lines=parseLines(input.value);p.textContent=lines.length>1?`🧠 ${lines.length} items · Hana can organize these` : predictCapture(input.value).label;}
 function extractDate(text){const lower=text.toLowerCase();if(lower.includes("tomorrow"))return addDaysISO(todayISO(),1);if(lower.includes("today"))return todayISO();const days={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};for(const [name,day] of Object.entries(days)){if(lower.includes(name)){const d=new Date();let diff=(day-d.getDay()+7)%7;if(diff===0)diff=7;d.setDate(d.getDate()+diff);return localDateISO(d);}}return"";}
-function plantText(text,space=preferredSpace()){const pred=predictCapture(text);if(pred.type==="task"){const dueDate=extractDate(text);const task=normalizeTask({title:text,space,priority:"medium",status:"todo",dueDate,reminderEnabled:Boolean(dueDate),createdAt:Date.now()});state.tasks.push(task);if(task.reminderEnabled)syncTaskReminder(task);return"task";}if(pred.type==="someday"){state.someday.push({id:createId(),title:text,category:"ideas",notes:"",createdAt:Date.now()});return"someday";}if(pred.type==="table"){const table=state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);}return"table";}state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";}
+function plantText(text,space=preferredSpace()){
+  const pred=predictCapture(text),meta=parseCaptureMeta(text,space);
+  if(pred.type==="event"){
+    const raw=text.replace(/^\s*(event|appointment):\s*/i,"");const m=parseCaptureMeta(raw,space);const e=normalizeEvent({title:m.title,space:m.space,date:m.date||todayISO(),startTime:m.time||"09:00",endTime:addMinutesToTime(m.time||"09:00",60),createdAt:Date.now()});state.events.push(e);return"event";
+  }
+  if(pred.type==="list"){
+    const raw=text.replace(/^\s*(list|groceries):\s*/i,"");const parts=raw.split(/[,;]+/).map(x=>x.trim()).filter(Boolean);const name=/^groceries:/i.test(text)?"Groceries":"Quick List";state.lists.push(normalizeList({name,icon:name==="Groceries"?"🛒":"☑️",space,items:parts.map(title=>({id:createId(),title,completed:false,createdAt:Date.now()}))}));return"list";
+  }
+  if(pred.type==="task"){
+    const task=normalizeTask({title:meta.title,space:meta.space,priority:"medium",status:"todo",dueDate:meta.date,dueTime:meta.time,durationMinutes:meta.duration,energy:meta.energy,deadlineType:meta.deadlineType,project:meta.project,tags:meta.tags,reminderEnabled:Boolean(meta.date&&meta.time),createdAt:Date.now()});state.tasks.push(task);if(task.reminderEnabled)syncTaskReminder(task);return"task";
+  }
+  if(pred.type==="someday"){state.someday.push({id:createId(),title:meta.title,category:"ideas",notes:"",createdAt:Date.now()});return"someday";}
+  if(pred.type==="table"){const table=state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);}return"table";}
+  state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";
+}
 function saveQuickCapture(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>plantText(line,space));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
 function sendQuickCaptureToInbox(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
 
@@ -2028,6 +2288,8 @@ function globalSearch(query){
   const results=[];
   const add=(type,id,title,snippet,page)=>results.push({type,id,title,snippet,page});
   filterByMode(state.tasks).forEach(t=>{if([t.title,t.project,t.notes,t.waitingOn,...t.tags,...t.subtasks.map(s=>s.title)].join(" ").toLowerCase().includes(q))add("Task",t.id,t.title,t.project||t.notes,"tasks")});
+  filterByMode(state.events,{respectFirewall:false}).forEach(e=>{if([e.title,e.location,e.notes].join(" ").toLowerCase().includes(q))add("Event",e.id,e.title,`${e.date} ${e.location||""}`,"calendar")});
+  filterByMode(state.projects,{respectFirewall:false}).forEach(p=>{if([p.name,p.description,...p.milestones.map(m=>m.title)].join(" ").toLowerCase().includes(q))add("Project",p.id,p.name,p.description,"projects")});
   filterByMode(state.notes).forEach(n=>{if([n.title,n.content,...n.tags,...n.checklist.map(i=>i.title)].join(" ").toLowerCase().includes(q))add("Note",n.id,n.title,n.content,"notes")});
   filterByMode(state.reminders).forEach(r=>{if(r.title.toLowerCase().includes(q))add("Reminder",r.id,r.title,`${formatDate(r.date)} ${formatTime(r.time)}`,"reminders")});
   filterByMode(state.tables).forEach(t=>{if(t.name.toLowerCase().includes(q))add("Table",t.id,t.name,`${t.rows.length} rows`,"tables");t.rows.forEach(row=>{const blob=Object.values(row.values).join(" ").toLowerCase();if(blob.includes(q))add("Table row",`${t.id}:${row.id}`,rowTitle(t,row),t.name,"tables")})});
@@ -2039,8 +2301,8 @@ function globalSearch(query){
   filterByMode(state.threads,{respectFirewall:false}).forEach(t=>{if([t.title,t.description].join(" ").toLowerCase().includes(q))add("Memory Thread",t.id,t.title,t.description,"threads")});
   return results.slice(0,50);
 }
-function renderGlobalSearchResults(query){const el=document.getElementById("globalSearchResults");if(!el)return;const results=globalSearch(query);el.innerHTML=query.trim()?results.length?results.map(r=>`<button class="search-result" data-search-type="${r.type}" data-search-id="${r.id}" data-search-page="${r.page}"><strong>${escapeHTML(r.title)}</strong><small>${escapeHTML(r.type)}</small><div class="search-result-snippet">${escapeHTML(String(r.snippet||"")).slice(0,140)}</div></button>`).join(""):`<div class="empty-state"><div class="empty-icon">🔎</div><h3>No matches</h3><p>Try another word.</p></div>`:`<div class="empty-state"><div class="empty-icon">🌸</div><h3>Search everything</h3><p>Tasks, notes, reminders, Future Me, Memory Threads, trackers, checklists, pins, Someday and Inbox.</p></div>`;}
-function openSearchResult(type,id,page){closeModal("searchModal");if(type==="Task")return openTaskModal(id);if(type==="Note")return openNoteModal(id);if(type==="Reminder")return openReminderModal(id);if(type==="Table"){state.activeTableId=id;return changePage("tables");}if(type==="Checklist"){state.activeListId=id;return changePage("lists");}if(type==="Future note")return openFutureNoteModal(id);if(type==="Memory Thread"){state.activeThreadId=id;return changePage("threads");}if(type==="Table row"){const[tid,rid]=id.split(":");state.activeTableId=tid;changePage("tables");return setTimeout(()=>openTableRowModal(tid,rid),50);}changePage(page);}
+function renderGlobalSearchResults(query){const el=document.getElementById("globalSearchResults");if(!el)return;const results=globalSearch(query);el.innerHTML=query.trim()?results.length?results.map(r=>`<button class="search-result" data-search-type="${r.type}" data-search-id="${r.id}" data-search-page="${r.page}"><strong>${escapeHTML(r.title)}</strong><small>${escapeHTML(r.type)}</small><div class="search-result-snippet">${escapeHTML(String(r.snippet||"")).slice(0,140)}</div></button>`).join(""):`<div class="empty-state"><div class="empty-icon">🔎</div><h3>No matches</h3><p>Try another word.</p></div>`:`<div class="empty-state"><div class="empty-icon">🌸</div><h3>Search everything</h3><p>Tasks, events, projects, notes, reminders, Future Me, Memory Threads, trackers, checklists, pins, Someday and Inbox.</p></div>`;}
+function openSearchResult(type,id,page){closeModal("searchModal");if(type==="Task")return openTaskModal(id);if(type==="Note")return openNoteModal(id);if(type==="Reminder")return openReminderModal(id);if(type==="Event")return openEventModal(id);if(type==="Project"){state.activeProjectId=id;return changePage("projects");}if(type==="Table"){state.activeTableId=id;return changePage("tables");}if(type==="Checklist"){state.activeListId=id;return changePage("lists");}if(type==="Future note")return openFutureNoteModal(id);if(type==="Memory Thread"){state.activeThreadId=id;return changePage("threads");}if(type==="Table row"){const[tid,rid]=id.split(":");state.activeTableId=tid;changePage("tables");return setTimeout(()=>openTableRowModal(tid,rid),50);}changePage(page);}
 
 /* ================= RESCUE MY DAY + TIME POCKETS ================= */
 
@@ -2213,10 +2475,13 @@ function renderAgendaReminder(reminder) {
   </button>`;
 }
 
+function renderAgendaEvent(event,date=event.date) { return `<button class="agenda-item agenda-event" data-edit-event="${event.id}"><span class="agenda-icon">📅</span><span class="agenda-copy"><strong>${escapeHTML(event.title)}</strong><small>${modeLabel(event.space)} · ${formatTime(event.startTime)}–${formatTime(event.endTime)}${event.location?` · ${escapeHTML(event.location)}`:""}</small></span><span class="badge badge-custom">Event</span></button>`; }
+
 function renderAgenda() {
   const c = document.getElementById("pageContent");
   const tasks = filterByMode(state.tasks).filter(task => !task.completed);
   const reminders = filterByMode(state.reminders).filter(reminder => !reminder.completed);
+  const events = filterByMode(state.events,{respectFirewall:false});
   const overdueTasks = tasks.filter(task => task.dueDate && task.dueDate < todayISO()).sort(taskSort);
   const datedTasks = tasks.filter(task => task.dueDate && task.dueDate >= todayISO());
   const datedReminders = reminders.filter(reminder => reminder.date && reminder.date >= todayISO());
@@ -2228,8 +2493,9 @@ function renderAgenda() {
     const reminderItems = datedReminders
       .filter(reminder => reminder.date === date)
       .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+    const eventItems = events.filter(event=>eventOccursOn(event,date)).sort((a,b)=>a.startTime.localeCompare(b.startTime));
 
-    if (!taskItems.length && !reminderItems.length) return "";
+    if (!taskItems.length && !reminderItems.length && !eventItems.length) return "";
 
     const heading = date === todayISO()
       ? `Today · ${formatFullDate(date)}`
@@ -2240,20 +2506,21 @@ function renderAgenda() {
     return `<section class="agenda-day">
       <div class="agenda-day-heading">
         <h2>${escapeHTML(heading)}</h2>
-        <span>${taskItems.length + reminderItems.length}</span>
+        <span>${taskItems.length + reminderItems.length + eventItems.length}</span>
       </div>
       <div class="agenda-list">
+        ${eventItems.map(event=>renderAgendaEvent(event,date)).join("")}
         ${taskItems.map(renderAgendaTask).join("")}
-        ${reminderItems.map(renderAgendaReminder).join("")}
+        ${reminderItems.filter(r=>!r.linkedEventId).map(renderAgendaReminder).join("")}
       </div>
     </section>`;
   }).join("");
 
   c.innerHTML = `
     <div class="page-heading">
-      <p class="eyebrow">THE NEXT TWO WEEKS, WITHOUT A FULL CALENDAR</p>
+      <p class="eyebrow">THE NEXT TWO WEEKS AT A GLANCE</p>
       <h1>Agenda</h1>
-      <p>Tasks and reminders in one chronological view. Tap anything to edit it.</p>
+      <p>Events, tasks and reminders in one chronological view. Tap anything to edit it.</p>
     </div>
 
     ${overdueTasks.length ? `<section class="agenda-day agenda-overdue">
@@ -2575,7 +2842,7 @@ function saveSettings(){const selected=document.getElementById("defaultSpaceSett
 function addCustomSpace(){const name=document.getElementById("newSpaceName")?.value.trim();const emoji=document.getElementById("newSpaceEmoji")?.value.trim()||"🌸";if(!name)return showToast("Give the space a name 🌸");const id=`space-${name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,24)||"custom"}-${Math.random().toString(36).slice(2,6)}`;state.spaces.push(normalizeSpace({id,name,emoji}));showToast(`${emoji} ${name} added`);render();}
 function editSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;const name=prompt("Space name",space.name);if(name===null)return;const cleanName=name.trim();if(!cleanName)return showToast("Space name can't be empty.");const emoji=prompt("Space icon / emoji",space.emoji);if(emoji===null)return;space.name=cleanName;space.emoji=(emoji.trim()||"🌸").slice(0,4);showToast("Space updated 🌷");render();}
 function moveSpace(spaceId,direction){const index=state.spaces.findIndex(space=>space.id===spaceId);if(index<0)return;const nextIndex=direction==="up"?index-1:index+1;if(nextIndex<0||nextIndex>=state.spaces.length)return;[state.spaces[index],state.spaces[nextIndex]]=[state.spaces[nextIndex],state.spaces[index]];showToast("Space order updated 🌷");render();}
-function deleteSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;if(state.spaces.length<=1)return showToast("Keep at least one space in Hana 🌸");const replacement=state.spaces.find(item=>item.id!==spaceId);if(!replacement)return;const affected=[state.tasks,state.notes,state.reminders,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins].reduce((count,collection)=>count+collection.filter(item=>item?.space===spaceId).length,0);const message=affected?`Remove “${space.name}”? ${affected} item${affected===1?"":"s"} will move to ${replacement.emoji} ${replacement.name}.`:`Remove “${space.name}”?`;if(!confirm(message))return;[state.tasks,state.notes,state.reminders,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins].forEach(collection=>collection.forEach(item=>{if(item?.space===spaceId)item.space=replacement.id;}));state.spaces=state.spaces.filter(item=>item.id!==spaceId);if(state.settings.defaultSpace===spaceId)state.settings.defaultSpace=replacement.id;if(state.settings.workFirewallSpaceId===spaceId){state.settings.workFirewallSpaceId="";state.settings.workFirewallEnabled=false;}if(state.currentMode===spaceId)state.currentMode="all";showToast(`Space removed; its items moved to ${replacement.name}.`);render();}
+function deleteSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;if(state.spaces.length<=1)return showToast("Keep at least one space in Hana 🌸");const replacement=state.spaces.find(item=>item.id!==spaceId);if(!replacement)return;const affected=[state.tasks,state.notes,state.reminders,state.events,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins,state.projects].reduce((count,collection)=>count+collection.filter(item=>item?.space===spaceId).length,0);const message=affected?`Remove “${space.name}”? ${affected} item${affected===1?"":"s"} will move to ${replacement.emoji} ${replacement.name}.`:`Remove “${space.name}”?`;if(!confirm(message))return;[state.tasks,state.notes,state.reminders,state.events,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins,state.projects].forEach(collection=>collection.forEach(item=>{if(item?.space===spaceId)item.space=replacement.id;}));state.spaces=state.spaces.filter(item=>item.id!==spaceId);if(state.settings.defaultSpace===spaceId)state.settings.defaultSpace=replacement.id;if(state.settings.workFirewallSpaceId===spaceId){state.settings.workFirewallSpaceId="";state.settings.workFirewallEnabled=false;}if(state.currentMode===spaceId)state.currentMode="all";showToast(`Space removed; its items moved to ${replacement.name}.`);render();}
 
 /* ================= APPEARANCE / WALLPAPER ================= */
 
@@ -2808,6 +3075,28 @@ document.addEventListener("click", event => {
   const open=event.target.closest("[data-open]");if(open){const id=open.dataset.open;if(id==="taskModal")openTaskModal();else if(id==="noteModal")openNoteModal();else if(id==="reminderModal")openReminderModal();else if(id==="tableModal")openTableModal();else openModal(id);return;}
   const close=event.target.closest("[data-close-modal]");if(close){closeModal(close.dataset.closeModal);return;}
 
+  if(event.target.closest("[data-new-event]")){openEventModal();return;}
+  const editEvent=event.target.closest("[data-edit-event]");if(editEvent){openEventModal(editEvent.dataset.editEvent);return;}
+  const addEventDate=event.target.closest("[data-add-event-date]");if(addEventDate){openEventModal("",{date:addEventDate.dataset.addEventDate});return;}
+  const addEventSlot=event.target.closest("[data-add-event-slot]");if(addEventSlot){openEventModal("",{date:addEventSlot.dataset.date,startTime:addEventSlot.dataset.time});return;}
+  const calDay=event.target.closest("[data-calendar-day]");if(calDay){state.calendarCursor=calDay.dataset.calendarDay;state.calendarView="day";render();return;}
+  const calView=event.target.closest("[data-calendar-view]");if(calView){state.calendarView=calView.dataset.calendarView;render();return;}
+  if(event.target.closest("[data-calendar-prev]")){calendarCursorMove(-1);return;}
+  if(event.target.closest("[data-calendar-next]")){calendarCursorMove(1);return;}
+  if(event.target.closest("[data-calendar-today]")){state.calendarCursor=todayISO();render();return;}
+  if(event.target.closest("[data-auto-plan-day]")){autoPlanBouquet();return;}
+  const planTask=event.target.closest("[data-plan-task]");if(planTask){openScheduleTaskModal(planTask.dataset.planTask,planTask.dataset.planDate);return;}
+  const newDateTask=event.target.closest("[data-new-task-for-date]");if(newDateTask){openTaskModal();setTimeout(()=>{document.getElementById("taskDate").value=newDateTask.dataset.newTaskForDate;document.getElementById("taskScheduledDate").value=newDateTask.dataset.newTaskForDate;},20);return;}
+  if(event.target.closest("[data-new-project]")){openProjectModal();return;}
+  const selectProject=event.target.closest("[data-select-project]");if(selectProject){state.activeProjectId=selectProject.dataset.selectProject;render();return;}
+  const editProject=event.target.closest("[data-edit-project]");if(editProject){openProjectModal(editProject.dataset.editProject);return;}
+  const newMilestone=event.target.closest("[data-new-milestone]");if(newMilestone){openMilestoneModal(newMilestone.dataset.newMilestone);return;}
+  const editMilestone=event.target.closest("[data-edit-milestone]");if(editMilestone){openMilestoneModal(editMilestone.dataset.projectId,editMilestone.dataset.editMilestone);return;}
+  const newProjectTask=event.target.closest("[data-new-project-task]");if(newProjectTask){openTaskModal();setTimeout(()=>{document.getElementById("taskProject").value=newProjectTask.dataset.newProjectTask;refreshTaskMilestoneOptions(newProjectTask.dataset.newProjectTask);},20);return;}
+  const newProjectNote=event.target.closest("[data-new-project-note]");if(newProjectNote){openNoteModal();setTimeout(()=>document.getElementById("noteProject").value=newProjectNote.dataset.newProjectNote,20);return;}
+  const newProjectTable=event.target.closest("[data-new-project-table]");if(newProjectTable){openTableModal();setTimeout(()=>document.getElementById("tableProject").value=newProjectTable.dataset.newProjectTable,20);return;}
+  const openProjectTable=event.target.closest("[data-open-project-table]");if(openProjectTable){state.activeTableId=openProjectTable.dataset.openProjectTable;changePage("tables");return;}
+  const gardenProject=event.target.closest("[data-open-garden-project]");if(gardenProject){state.activeProjectId=gardenProject.dataset.openGardenProject;changePage("projects");return;}
   const editTask=event.target.closest("[data-edit-task]");if(editTask){openTaskModal(editTask.dataset.editTask);return;}
   const toggleTaskBtn=event.target.closest("[data-toggle-task]");if(toggleTaskBtn){toggleTask(toggleTaskBtn.dataset.toggleTask);return;}
   const cycle=event.target.closest("[data-cycle-task]");if(cycle){cycleTaskStatus(cycle.dataset.cycleTask);return;}
@@ -2902,9 +3191,9 @@ document.addEventListener("click", event => {
   const delPin=event.target.closest("[data-delete-pin]");if(delPin){deletePin(delPin.dataset.deletePin);return;}
   const delSomeday=event.target.closest("[data-delete-someday]");if(delSomeday){deleteSomeday(delSomeday.dataset.deleteSomeday);return;}
 
-  const empty=event.target.closest("[data-empty-action]");if(empty){const a=empty.dataset.emptyAction;if(a==="open-task")openTaskModal();else if(a==="open-note")openNoteModal();else if(a==="open-reminder")openReminderModal();else if(a==="open-table")openTableModal();else if(a==="open-list")openListModal();else if(a==="open-pin")openModal("pinModal");else if(a==="open-someday")openModal("somedayModal");return;}
+  const empty=event.target.closest("[data-empty-action]");if(empty){const a=empty.dataset.emptyAction;if(a==="open-task")openTaskModal();else if(a==="open-note")openNoteModal();else if(a==="open-reminder")openReminderModal();else if(a==="open-table")openTableModal();else if(a==="open-list")openListModal();else if(a==="open-pin")openModal("pinModal");else if(a==="open-someday")openModal("somedayModal");else if(a==="open-project")openProjectModal();return;}
 
-  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table")openTableModal();else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
+  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="event")openEventModal();else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table")openTableModal();else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
 
   if(event.target.id==="brainDumpAddButton"){addBrainDump();return;}
   if(event.target.id==="addSpaceButton"){addCustomSpace();return;}
@@ -2916,14 +3205,26 @@ document.addEventListener("click", event => {
   if(event.target.id==="importDataButton"){document.getElementById("importBackupInput").click();return;}
 });
 
-document.addEventListener("input",event=>{if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
+document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
 document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();}}});
+
+document.addEventListener("dragstart",event=>{const card=event.target.closest("[data-calendar-drag-task]");if(!card)return;state.calendarDragTaskId=card.dataset.calendarDragTask;event.dataTransfer?.setData("text/plain",state.calendarDragTaskId);if(event.dataTransfer)event.dataTransfer.effectAllowed="move";});
+document.addEventListener("dragover",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.add("drag-over");});
+document.addEventListener("dragleave",event=>{event.target.closest("[data-time-slot]")?.classList.remove("drag-over");});
+document.addEventListener("drop",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.remove("drag-over");const id=event.dataTransfer?.getData("text/plain")||state.calendarDragTaskId;if(id)scheduleTaskAt(id,slot.dataset.date,slot.dataset.time);});
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}});
+document.getElementById("saveEventButton").addEventListener("click",saveEvent);
+document.getElementById("deleteEventButton").addEventListener("click",()=>{const id=document.getElementById("eventEditId").value;if(id)deleteEvent(id);});
+document.getElementById("saveTaskScheduleButton").addEventListener("click",saveTaskSchedule);
+document.getElementById("saveProjectButton").addEventListener("click",saveProject);
+document.getElementById("deleteProjectButton").addEventListener("click",()=>{const id=document.getElementById("projectEditId").value;if(id)deleteProject(id);});
+document.getElementById("saveMilestoneButton").addEventListener("click",saveMilestone);
+document.getElementById("deleteMilestoneButton").addEventListener("click",()=>{const pid=document.getElementById("milestoneProjectId").value,id=document.getElementById("milestoneEditId").value;if(pid&&id)deleteMilestone(pid,id);});
 document.getElementById("saveQuickCapture").addEventListener("click",saveQuickCapture);
 document.getElementById("sendToInboxButton").addEventListener("click",sendQuickCaptureToInbox);
 document.getElementById("saveTaskButton").addEventListener("click",saveTask);
