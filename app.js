@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.0
-   Usable MVP + Signature Features
+   HANA 🌸 v1.1
+   Daily-use Polish + Agenda + Templates + History + Trash
    Local-first PWA
    ===================================================== */
 
@@ -38,6 +38,66 @@ function clone(value) {
     : JSON.parse(JSON.stringify(value));
 }
 
+
+const STARTER_TEMPLATES = [
+  {
+    id: "weekly-review",
+    icon: "🌸",
+    title: "Weekly Review",
+    description: "A recurring work review with a short checklist.",
+    kind: "task"
+  },
+  {
+    id: "monthly-life-admin",
+    icon: "🏡",
+    title: "Monthly Life Admin",
+    description: "Recurring personal admin for bills, documents and loose ends.",
+    kind: "task"
+  },
+  {
+    id: "meeting-note",
+    icon: "👥",
+    title: "Meeting Notes",
+    description: "Agenda + decisions + action items that can become tasks.",
+    kind: "note"
+  },
+  {
+    id: "grocery-list",
+    icon: "🛒",
+    title: "Grocery List",
+    description: "A resettable checklist you can use again and again.",
+    kind: "note"
+  },
+  {
+    id: "packing-list",
+    icon: "🧳",
+    title: "Packing List",
+    description: "A reusable personal packing checklist.",
+    kind: "note"
+  },
+  {
+    id: "work-deliverables",
+    icon: "💼",
+    title: "Work Deliverables",
+    description: "A Living Table for owner, due date, status and completion.",
+    kind: "table"
+  },
+  {
+    id: "bills-tracker",
+    icon: "💳",
+    title: "Bills Tracker",
+    description: "A Living Table for amount, due date and paid status.",
+    kind: "table"
+  },
+  {
+    id: "weekly-reset",
+    icon: "🌷",
+    title: "Weekly Reset",
+    description: "A gentle reset checklist for home and personal planning.",
+    kind: "note"
+  }
+];
+
 const defaultState = {
   currentPage: "today",
   currentMode: "all",
@@ -53,7 +113,8 @@ const defaultState = {
     workStart: "08:00",
     workEnd: "18:00",
     workDays: [1, 2, 3, 4, 5],
-    allowHighPriorityWorkReminders: true
+    allowHighPriorityWorkReminders: true,
+    defaultSpace: "personal"
   },
 
   tasks: [
@@ -119,6 +180,7 @@ const defaultState = {
   pins: [],
   someday: [],
   inbox: [],
+  trash: [],
   dailyCloseHistory: []
 };
 
@@ -239,6 +301,7 @@ function normalizeState(data = {}) {
     pins: Array.isArray(data.pins) ? data.pins : base.pins,
     someday: Array.isArray(data.someday) ? data.someday : base.someday,
     inbox: Array.isArray(data.inbox) ? data.inbox : [],
+    trash: Array.isArray(data.trash) ? data.trash.filter(entry => Number(entry.deletedAt || 0) > Date.now() - (30 * 24 * 60 * 60 * 1000)) : [],
     focusTaskIds: Array.isArray(data.focusTaskIds) ? data.focusTaskIds : [],
     focusDate: data.focusDate || todayISO(),
     dailyCloseHistory: Array.isArray(data.dailyCloseHistory) ? data.dailyCloseHistory : []
@@ -352,12 +415,126 @@ function filterByMode(items, { respectFirewall = true } = {}) {
   return result;
 }
 
+function preferredSpace() {
+  if (state.currentMode === "work" || state.currentMode === "personal") return state.currentMode;
+  return state.settings.defaultSpace === "work" ? "work" : "personal";
+}
+
+let lastUndoAction = null;
+
 function showToast(message) {
   const toast = document.getElementById("toast");
   toast.textContent = message;
+  toast.classList.remove("toast-action");
   toast.classList.remove("hidden");
   clearTimeout(window.hanaToastTimer);
-  window.hanaToastTimer = setTimeout(() => toast.classList.add("hidden"), 2400);
+  window.hanaToastTimer = setTimeout(() => {
+    toast.classList.add("hidden");
+    lastUndoAction = null;
+  }, 2400);
+}
+
+function showUndoToast(message, undoAction) {
+  const toast = document.getElementById("toast");
+  lastUndoAction = undoAction;
+  toast.classList.add("toast-action");
+  toast.innerHTML = `<span>${escapeHTML(message)}</span><button type="button" data-undo-toast>Undo</button>`;
+  toast.classList.remove("hidden");
+  clearTimeout(window.hanaToastTimer);
+  window.hanaToastTimer = setTimeout(() => {
+    toast.classList.add("hidden");
+    toast.classList.remove("toast-action");
+    lastUndoAction = null;
+  }, 6000);
+}
+
+function trashLabel(type) {
+  return ({
+    task: "Task",
+    note: "Note",
+    reminder: "Reminder",
+    table: "Table",
+    tableRow: "Table row",
+    pin: "Pin",
+    someday: "Someday item",
+    inbox: "Inbox item"
+  })[type] || "Item";
+}
+
+function moveToTrash(type, item, context = {}) {
+  if (!item) return;
+  const entry = {
+    id: createId(),
+    type,
+    item: clone(item),
+    context: clone(context),
+    deletedAt: Date.now()
+  };
+  state.trash.unshift(entry);
+  saveState();
+  showUndoToast(`${trashLabel(type)} moved to Trash`, () => restoreTrashItem(entry.id, { quiet: true }));
+}
+
+function restoreTrashItem(entryId, options = {}) {
+  const entry = state.trash.find(item => item.id === entryId);
+  if (!entry) return false;
+  const { type, item, context = {} } = entry;
+  let restored = true;
+
+  if (type === "task") {
+    state.tasks.push(normalizeTask(item));
+    (context.linkedReminders || []).forEach(reminder => state.reminders.push(normalizeReminder(reminder)));
+  } else if (type === "note") {
+    state.notes.push(normalizeNote(item));
+  } else if (type === "reminder") {
+    state.reminders.push(normalizeReminder(item));
+  } else if (type === "table") {
+    state.tables.push(normalizeTable(item));
+    (context.linkedReminders || []).forEach(reminder => state.reminders.push(normalizeReminder(reminder)));
+    state.activeTableId = item.id;
+  } else if (type === "tableRow") {
+    const table = state.tables.find(table => table.id === context.tableId);
+    if (table) {
+      table.rows.push(clone(item));
+      (context.linkedReminders || []).forEach(reminder => state.reminders.push(normalizeReminder(reminder)));
+      state.activeTableId = table.id;
+    } else {
+      restored = false;
+    }
+  } else if (type === "pin") {
+    state.pins.push(clone(item));
+  } else if (type === "someday") {
+    state.someday.push(clone(item));
+  } else if (type === "inbox") {
+    state.inbox.push(clone(item));
+  } else {
+    restored = false;
+  }
+
+  if (!restored) {
+    if (!options.quiet) showToast("Restore the parent table first.");
+    return false;
+  }
+
+  state.trash = state.trash.filter(item => item.id !== entryId);
+  saveState();
+  if (!options.quiet) showToast(`${trashLabel(type)} restored 🌱`);
+  render();
+  return true;
+}
+
+function permanentlyDeleteTrashItem(entryId) {
+  if (!confirm("Delete this item permanently? This cannot be undone.")) return;
+  state.trash = state.trash.filter(item => item.id !== entryId);
+  render();
+}
+
+function emptyTrash() {
+  if (!state.trash.length) return;
+  if (!confirm("Empty Trash permanently? This cannot be undone.")) return;
+  state.trash = [];
+  showToast("Trash emptied.");
+  render();
 }
 
 function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); }
@@ -385,6 +562,10 @@ function render() {
     case "someday": renderSomeday(); break;
     case "daily-close": renderDailyClose(); break;
     case "inbox": renderInbox(); break;
+    case "agenda": renderAgenda(); break;
+    case "templates": renderTemplates(); break;
+    case "history": renderHistory(); break;
+    case "trash": renderTrash(); break;
     case "more": renderMore(); break;
     default: renderToday(); break;
   }
@@ -569,7 +750,7 @@ function renderTasks() {
 
 function clearTaskForm() {
   ["taskEditId","taskTitle","taskProject","taskTags","taskDate","taskTime","taskSubtasks","taskNotes","taskLink","taskWaitingOn","taskFollowUpDate"].forEach(id => document.getElementById(id).value = "");
-  document.getElementById("taskSpace").value = state.currentMode === "work" ? "work" : "personal";
+  document.getElementById("taskSpace").value = preferredSpace();
   document.getElementById("taskPriority").value = "medium";
   document.getElementById("taskStatus").value = "todo";
   document.getElementById("taskReminderEnabled").checked = false;
@@ -787,11 +968,15 @@ function cycleTaskStatus(id) {
 }
 
 function deleteTask(id) {
-  if (!confirm("Delete this task?")) return;
-  state.tasks = state.tasks.filter(t=>t.id!==id);
-  state.reminders = state.reminders.filter(r=>r.linkedTaskId!==id);
-  state.focusTaskIds = state.focusTaskIds.filter(x=>x!==id);
-  closeModal("taskModal"); render();
+  const task = state.tasks.find(t => t.id === id);
+  if (!task || !confirm("Move this task to Trash?")) return;
+  const linkedReminders = state.reminders.filter(r => r.linkedTaskId === id);
+  moveToTrash("task", task, { linkedReminders });
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  state.reminders = state.reminders.filter(r => r.linkedTaskId !== id);
+  state.focusTaskIds = state.focusTaskIds.filter(x => x !== id);
+  closeModal("taskModal");
+  render();
 }
 
 /* ================= NOTES ================= */
@@ -827,7 +1012,7 @@ function renderNotes() {
 function clearNoteForm() {
   ["noteEditId","noteTitle","noteTags","noteContent","noteChecklist"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("noteType").value="note";
-  document.getElementById("noteSpace").value=state.currentMode==="work"?"work":"personal";
+  document.getElementById("noteSpace").value=preferredSpace();
   document.getElementById("notePinned").checked=false; document.getElementById("noteResettable").checked=false;
   document.getElementById("noteModalEyebrow").textContent="NEW NOTE"; document.getElementById("noteModalTitle").textContent="Capture a thought"; document.getElementById("saveNoteButton").textContent="Save note";
   document.getElementById("deleteNoteFromModal").classList.add("hidden"); updateNoteConditionalFields();
@@ -861,7 +1046,7 @@ function saveNote() {
   closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
 }
 
-function deleteNote(id) { if(!confirm("Delete this note?")) return; state.notes=state.notes.filter(n=>n.id!==id); closeModal("noteModal"); render(); }
+function deleteNote(id) { const note=state.notes.find(n=>n.id===id); if(!note||!confirm("Move this note to Trash?"))return; moveToTrash("note",note); state.notes=state.notes.filter(n=>n.id!==id); closeModal("noteModal"); render(); }
 
 function toggleNoteCheck(noteId,itemId) { const n=state.notes.find(n=>n.id===noteId); const i=n?.checklist.find(i=>i.id===itemId); if(!i)return; i.completed=!i.completed; n.updatedAt=Date.now(); render(); }
 
@@ -904,7 +1089,7 @@ function renderReminders() {
 
 function clearReminderForm() {
   ["reminderEditId","reminderTitle","reminderDate","reminderTime"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("reminderSpace").value=state.currentMode==="work"?"work":"personal"; document.getElementById("reminderRepeat").value="none"; document.getElementById("reminderRepeatInterval").value="1"; document.getElementById("reminderChainEnabled").checked=false;
+  document.getElementById("reminderSpace").value=preferredSpace(); document.getElementById("reminderRepeat").value="none"; document.getElementById("reminderRepeatInterval").value="1"; document.getElementById("reminderChainEnabled").checked=false;
   document.getElementById("reminderModalEyebrow").textContent="GENTLE NUDGE"; document.getElementById("reminderModalTitle").textContent="Add reminder"; document.getElementById("saveReminderButton").textContent="Add reminder"; document.getElementById("deleteReminderFromModal").classList.add("hidden"); updateReminderConditionalFields();
 }
 
@@ -923,7 +1108,7 @@ function saveReminder() {
   if(old)state.reminders[state.reminders.findIndex(x=>x.id===id)]=r;else state.reminders.push(r);closeModal("reminderModal");showToast(old?"Reminder updated 🔔":"Reminder planted 🔔");render();
 }
 
-function deleteReminder(id){if(!confirm("Delete this reminder?"))return;state.reminders=state.reminders.filter(r=>r.id!==id);closeModal("reminderModal");render();}
+function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if(!reminder||!confirm("Move this reminder to Trash?"))return;moveToTrash("reminder",reminder);state.reminders=state.reminders.filter(r=>r.id!==id);closeModal("reminderModal");render();}
 
 function completeReminder(id){const r=state.reminders.find(r=>r.id===id);if(!r)return;if(r.linkedTaskId){const t=state.tasks.find(t=>t.id===r.linkedTaskId);if(t&&!t.completed)showToast("Reminder cleared; task is still open.");} if(r.repeatType!=="none"&&!r.linkedTaskId){advanceReminder(r);}else r.completed=true;render();}
 
@@ -954,17 +1139,17 @@ function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")retur
 
 function parseTableColumns(text){return parseLines(text).map(line=>{const [nameRaw,typeRaw]=line.split(":");const name=(nameRaw||"Column").trim();const type=validColumnType((typeRaw||"text").trim().toLowerCase());return{id:createId(),name,type};});}
 
-function clearTableForm(){document.getElementById("tableEditId").value="";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=state.currentMode==="work"?"work":"personal";document.getElementById("tableColumns").value="Item:text\nDue:date\nStatus:status";document.getElementById("tableModalEyebrow").textContent="LIVING TABLE";document.getElementById("tableModalTitle").textContent="Create table";document.getElementById("saveTableButton").textContent="Create table";document.getElementById("deleteTableFromModal").classList.add("hidden");}
+function clearTableForm(){document.getElementById("tableEditId").value="";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableColumns").value="Item:text\nDue:date\nStatus:status";document.getElementById("tableModalEyebrow").textContent="LIVING TABLE";document.getElementById("tableModalTitle").textContent="Create table";document.getElementById("saveTableButton").textContent="Create table";document.getElementById("deleteTableFromModal").classList.add("hidden");}
 function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableColumns").value=t.columns.map(c=>`${c.name}:${c.type}`).join("\n");document.getElementById("tableModalTitle").textContent="Edit table";document.getElementById("saveTableButton").textContent="Save table";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
 function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=parseTableColumns(document.getElementById("tableColumns").value);if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,columns,rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");render();}
-function deleteTable(id){if(!confirm("Delete this table and all its rows?"))return;state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
+function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
 function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id])).join("");openModal("tableRowModal");}
 function tableFieldHTML(col,value){const id=`rowField_${col.id}`;if(col.type==="checkbox")return `<label class="check-row"><input id="${id}" data-row-field="${col.id}" data-col-type="checkbox" type="checkbox" ${value?"checked":""}/><span>${escapeHTML(col.name)}</span></label>`;if(col.type==="status")return `<div class="form-group"><label>${escapeHTML(col.name)}</label><select id="${id}" data-row-field="${col.id}" data-col-type="status"><option value="upcoming" ${value==="upcoming"?"selected":""}>Upcoming</option><option value="todo" ${value==="todo"?"selected":""}>To Do</option><option value="doing" ${value==="doing"?"selected":""}>Doing</option><option value="waiting" ${value==="waiting"?"selected":""}>Waiting</option><option value="done" ${value==="done"?"selected":""}>Done</option><option value="paid" ${value==="paid"?"selected":""}>Paid</option></select></div>`;const inputType=["date","reminder"].includes(col.type)?"date":(["number","money"].includes(col.type)?"number":col.type==="link"?"url":"text");return `<div class="form-group"><label>${escapeHTML(col.name)}</label><input id="${id}" data-row-field="${col.id}" data-col-type="${col.type}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} value="${escapeHTML(value??"")}" /></div>`;}
 
 function saveTableRow(){const table=state.tables.find(t=>t.id===document.getElementById("tableRowTableId").value);if(!table)return;const rowId=document.getElementById("tableRowEditId").value;const old=table.rows.find(r=>r.id===rowId);const values={};document.querySelectorAll("[data-row-field]").forEach(el=>{const type=el.dataset.colType;values[el.dataset.rowField]=type==="checkbox"?el.checked:(["number","money"].includes(type)?Number(el.value||0):el.value);});const row={id:rowId||createId(),values,createdAt:old?.createdAt||Date.now()};if(old)table.rows[table.rows.findIndex(r=>r.id===rowId)]=row;else table.rows.push(row);if(document.getElementById("tableRowReminder").checked)createReminderFromTableRow(table,row);closeModal("tableRowModal");showToast("Row saved 📋");render();}
-function deleteTableRow(tableId,rowId){const t=state.tables.find(t=>t.id===tableId);if(!t)return;if(!confirm("Delete this row?"))return;t.rows=t.rows.filter(r=>r.id!==rowId);state.reminders=state.reminders.filter(r=>!(r.linkedTableId===tableId&&r.linkedRowId===rowId));closeModal("tableRowModal");render();}
+function deleteTableRow(tableId,rowId){const t=state.tables.find(t=>t.id===tableId);const row=t?.rows.find(r=>r.id===rowId);if(!t||!row||!confirm("Move this row to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===tableId&&r.linkedRowId===rowId);moveToTrash("tableRow",row,{tableId,tableName:t.name,linkedReminders});t.rows=t.rows.filter(r=>r.id!==rowId);state.reminders=state.reminders.filter(r=>!(r.linkedTableId===tableId&&r.linkedRowId===rowId));closeModal("tableRowModal");render();}
 function rowTitle(table,row){const col=table.columns.find(c=>["text","tag"].includes(c.type));return String(row.values[col?.id]||`${table.name} row`);}
 function rowDate(table,row){const col=table.columns.find(c=>["date","reminder"].includes(c.type));return row.values[col?.id]||"";}
 function createReminderFromTableRow(table,row){const title=rowTitle(table,row),date=rowDate(table,row);if(!date)return showToast("This row needs a date column before Hana can remind you.");const existing=state.reminders.find(r=>r.linkedTableId===table.id&&r.linkedRowId===row.id);const rem=normalizeReminder({...(existing||{}),id:existing?.id||createId(),title,space:table.space,date,time:"09:00",repeatType:"none",linkedTableId:table.id,linkedRowId:row.id,completed:false,notified:false,createdAt:existing?.createdAt||Date.now()});if(existing)state.reminders[state.reminders.findIndex(r=>r.id===existing.id)]=rem;else state.reminders.push(rem);showToast("Row reminder created 🔔");}
@@ -980,7 +1165,7 @@ function plantText(text,space="personal"){const pred=predictCapture(text);if(pre
 function saveQuickCapture(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>plantText(line,space));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
 function sendQuickCaptureToInbox(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
 
-function renderInbox(){const container=document.getElementById("pageContent");container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Dump first. Decide what things are later.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste or type one thing per line..."></textarea><div class="form-row" style="margin-top:9px;"><select id="brainDumpSpace"><option value="personal">🎀 Personal default</option><option value="work">💼 Work default</option></select><button class="primary-button" id="brainDumpAddButton">Organize lines ✨</button></div></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
+function renderInbox(){const container=document.getElementById("pageContent");const defaultSpace=preferredSpace();container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Dump first. Decide what things are later.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste or type one thing per line..."></textarea><div class="form-row" style="margin-top:9px;"><select id="brainDumpSpace"><option value="personal" ${defaultSpace==="personal"?"selected":""}>🎀 Personal default</option><option value="work" ${defaultSpace==="work"?"selected":""}>💼 Work default</option></select><button class="primary-button" id="brainDumpAddButton">Organize lines ✨</button></div></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
 function inboxCard(item){const p=predictCapture(item.text);return `<div class="inbox-item"><div><strong style="font-size:12px;">${escapeHTML(item.text)}</strong><div class="inbox-prediction">${p.label}</div><div class="task-meta" style="margin-top:6px;">${modeLabel(item.space)}</div></div><div class="inbox-actions"><button class="mini-icon-button" data-plant-inbox="${item.id}">🌱</button><button class="mini-icon-button" data-delete-inbox="${item.id}">×</button></div></div>`;}
 function addBrainDump(){const text=document.getElementById("brainDumpText")?.value.trim();const space=document.getElementById("brainDumpSpace")?.value||"personal";if(!text)return showToast("Add a few thoughts first 🌸");parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));showToast("Brain dump organized into the Inbox 🧠");render();}
 function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;plantText(item.text,item.space);state.inbox=state.inbox.filter(i=>i.id!==id);showToast("Planted 🌱");render();}
@@ -1010,26 +1195,399 @@ function openSearchResult(type,id,page){closeModal("searchModal");if(type==="Tas
 function renderBloom(){const container=document.getElementById("pageContent");const tasks=filterByMode(state.tasks);const completed=tasks.filter(t=>t.completed).length;const open=tasks.filter(t=>!t.completed).length;const work=state.tasks.filter(t=>t.space==="work"&&!t.completed).length;const personal=state.tasks.filter(t=>t.space==="personal"&&!t.completed).length;const notes=filterByMode(state.notes).length;container.innerHTML=`<div class="page-heading"><p class="eyebrow">YOUR GARDEN</p><h1>Bloom View</h1><p>Progress as petals, not pressure.</p></div><div class="card bloom-view"><div class="bloom-flower"><div class="petal petal-1"><span>💼 ${work}</span></div><div class="petal petal-2"><span>🎀 ${personal}</span></div><div class="petal petal-3"><span>📝 ${notes}</span></div><div class="petal petal-4"><span>🌱 ${open}</span></div><div class="petal petal-5"><span>✨ ${completed}</span></div><div class="bloom-center"><strong>${completed}</strong><span>BLOOMS</span></div></div><h3>Small steps. Beautiful results. 🌸</h3></div>`;}
 function renderPinboard(){const c=document.getElementById("pageContent");const pins=filterByMode(state.pins);c.innerHTML=`<div class="page-heading"><p class="eyebrow">KEEP IT HANDY</p><h1>Pinboard</h1><p>Quick references that don't need to become tasks.</p></div>${pins.length?`<div class="pin-grid">${pins.map(p=>`<article class="pin"><h3>${escapeHTML(p.title)}</h3><p>${escapeHTML(p.content)}</p><button class="text-button" style="position:absolute;bottom:7px;right:7px;" data-delete-pin="${p.id}">×</button></article>`).join("")}</div>`:emptyState("📌","Nothing pinned","Keep quick references here.","Add pin","open-pin")}<div style="margin-top:14px;"><button class="primary-button full-width" data-open="pinModal">+ Add pin</button></div>`;}
 function savePin(){const title=document.getElementById("pinTitle").value.trim();if(!title)return showToast("Give your pin a title 🌸");state.pins.push({id:createId(),title,content:document.getElementById("pinContent").value.trim(),space:document.getElementById("pinSpace").value,createdAt:Date.now()});document.getElementById("pinTitle").value="";document.getElementById("pinContent").value="";closeModal("pinModal");render();}
-function deletePin(id){if(confirm("Delete this pin?")){state.pins=state.pins.filter(p=>p.id!==id);render();}}
+function deletePin(id){const pin=state.pins.find(p=>p.id===id);if(pin&&confirm("Move this pin to Trash?")){moveToTrash("pin",pin);state.pins=state.pins.filter(p=>p.id!==id);render();}}
 function somedayIcon(category){return({ideas:"💡",places:"📍",project:"🌱",books:"📚",learning:"🎓",other:"🌸"})[category]||"🌸";}
 function renderSomeday(){const c=document.getElementById("pageContent");c.innerHTML=`<div class="page-heading"><p class="eyebrow">NOT NOW DOESN'T MEAN NEVER</p><h1>Someday</h1><p>Ideas without fake urgency.</p></div>${state.someday.length?state.someday.map(i=>`<article class="someday-card"><div class="someday-symbol">${somedayIcon(i.category)}</div><div style="flex:1;"><h3>${escapeHTML(i.title)}</h3><p>${escapeHTML(i.notes||"")}</p><span class="badge badge-personal">${escapeHTML(i.category)}</span></div><button class="mini-icon-button" data-delete-someday="${i.id}">×</button></article>`).join(""):emptyState("🌱","Your someday garden is empty","Ideas can wait here without becoming chores.","Save an idea","open-someday")}<div style="margin-top:14px;"><button class="primary-button full-width" data-open="somedayModal">+ Save for someday</button></div>`;}
 function saveSomeday(){const title=document.getElementById("somedayTitle").value.trim();if(!title)return showToast("Save an idea first 🌱");state.someday.push({id:createId(),title,category:document.getElementById("somedayCategory").value,notes:document.getElementById("somedayNotes").value.trim(),createdAt:Date.now()});document.getElementById("somedayTitle").value="";document.getElementById("somedayNotes").value="";closeModal("somedayModal");render();}
-function deleteSomeday(id){if(confirm("Remove this someday item?")){state.someday=state.someday.filter(s=>s.id!==id);render();}}
+function deleteSomeday(id){const item=state.someday.find(s=>s.id===id);if(item&&confirm("Move this someday item to Trash?")){moveToTrash("someday",item);state.someday=state.someday.filter(s=>s.id!==id);render();}}
 
 /* ================= DAILY CLOSE ================= */
 
 function renderDailyClose(){const c=document.getElementById("pageContent");const unfinished=filterByMode(state.tasks).filter(t=>!t.completed&&t.dueDate&&t.dueDate<=todayISO());const completedToday=state.tasks.filter(t=>t.completedDate===todayISO()).length;c.innerHTML=`<div class="page-heading"><p class="eyebrow">CLEAR THE GARDEN</p><h1>Daily Close</h1><p>Process unfinished things instead of waking up to a pile of accidental overdue tasks.</p></div><section class="daily-close-hero"><div class="daily-close-icon">🌙</div><h2>You did enough for one day.</h2><p style="color:var(--text-soft);font-size:12px;">${formatLongToday()}</p><div class="stat-grid"><div class="stat-card"><span class="stat-number">${completedToday}</span><span class="stat-label">Completed</span></div><div class="stat-card"><span class="stat-number">${unfinished.length}</span><span class="stat-label">Process</span></div><div class="stat-card"><span class="stat-number">${state.someday.length}</span><span class="stat-label">Someday</span></div></div></section><section class="section"><div class="section-header"><h2>Unfinished</h2></div>${unfinished.length?`<div class="daily-task-review">${unfinished.map(t=>`<div class="daily-task-row"><strong>${escapeHTML(t.title)}</strong><div class="daily-task-actions"><button data-daily-task-action="tomorrow" data-task-id="${t.id}">Tomorrow</button><button data-daily-task-action="week" data-task-id="${t.id}">Next week</button><button data-daily-task-action="someday" data-task-id="${t.id}">Someday</button><button data-daily-task-action="edit" data-task-id="${t.id}">Schedule</button><button data-daily-task-action="delete" data-task-id="${t.id}">Delete</button></div></div>`).join("")}</div>`:`<div class="card soft-card"><strong>Nothing needs processing 🌸</strong></div>`}<button class="primary-button full-width" style="margin-top:15px;" data-close-action="finish">All set for today ✨</button></section>`;}
-function dailyTaskAction(taskId,action){const t=state.tasks.find(t=>t.id===taskId);if(!t)return;if(action==="tomorrow")t.dueDate=addDaysISO(todayISO(),1);if(action==="week")t.dueDate=addDaysISO(todayISO(),7);if(action==="someday"){state.someday.push({id:createId(),title:t.title,category:"ideas",notes:t.notes,createdAt:Date.now()});deleteTaskSilent(taskId);}if(action==="delete")deleteTaskSilent(taskId);if(action==="edit")return openTaskModal(taskId);if(t&&!t.completed)syncTaskReminder(t);render();}
+function dailyTaskAction(taskId,action){const t=state.tasks.find(t=>t.id===taskId);if(!t)return;if(action==="tomorrow")t.dueDate=addDaysISO(todayISO(),1);if(action==="week")t.dueDate=addDaysISO(todayISO(),7);if(action==="someday"){state.someday.push({id:createId(),title:t.title,category:"ideas",notes:t.notes,createdAt:Date.now()});deleteTaskSilent(taskId);}if(action==="delete"){const linkedReminders=state.reminders.filter(r=>r.linkedTaskId===taskId);moveToTrash("task",t,{linkedReminders});deleteTaskSilent(taskId);}if(action==="edit")return openTaskModal(taskId);if(t&&!t.completed)syncTaskReminder(t);render();}
 function deleteTaskSilent(id){state.tasks=state.tasks.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTaskId!==id);state.focusTaskIds=state.focusTaskIds.filter(x=>x!==id);}
 function finishDailyClose(){state.dailyCloseHistory.push({date:todayISO(),completedAt:Date.now()});saveState();showToast("The garden is closed for today 🌙");}
+
+
+/* ================= AGENDA / HISTORY / TEMPLATES / TRASH ================= */
+
+function agendaItemTime(item) {
+  return item.time ? formatTime(item.time) : "";
+}
+
+function renderAgendaTask(task) {
+  return `<button class="agenda-item agenda-task" data-edit-task="${task.id}">
+    <span class="agenda-icon">✅</span>
+    <span class="agenda-copy">
+      <strong>${escapeHTML(task.title)}</strong>
+      <small>${modeLabel(task.space)}${task.project ? ` · 🌷 ${escapeHTML(task.project)}` : ""}${task.dueTime ? ` · ${formatTime(task.dueTime)}` : ""}</small>
+    </span>
+    <span class="badge badge-${task.status}">${statusLabel(task.status)}</span>
+  </button>`;
+}
+
+function renderAgendaReminder(reminder) {
+  return `<button class="agenda-item agenda-reminder" data-edit-reminder="${reminder.id}">
+    <span class="agenda-icon">🔔</span>
+    <span class="agenda-copy">
+      <strong>${escapeHTML(reminder.title)}</strong>
+      <small>${modeLabel(reminder.space)}${reminder.time ? ` · ${formatTime(reminder.time)}` : ""}</small>
+    </span>
+    ${reminder.chainEnabled ? `<span class="badge chain-badge">Chain</span>` : ""}
+  </button>`;
+}
+
+function renderAgenda() {
+  const c = document.getElementById("pageContent");
+  const tasks = filterByMode(state.tasks).filter(task => !task.completed);
+  const reminders = filterByMode(state.reminders).filter(reminder => !reminder.completed);
+  const overdueTasks = tasks.filter(task => task.dueDate && task.dueDate < todayISO()).sort(taskSort);
+  const datedTasks = tasks.filter(task => task.dueDate && task.dueDate >= todayISO());
+  const datedReminders = reminders.filter(reminder => reminder.date && reminder.date >= todayISO());
+  const unscheduled = tasks.filter(task => !task.dueDate).sort(taskSort).slice(0, 12);
+
+  const days = Array.from({ length: 14 }, (_, index) => addDaysISO(todayISO(), index));
+  const daySections = days.map(date => {
+    const taskItems = datedTasks.filter(task => task.dueDate === date).sort(taskSort);
+    const reminderItems = datedReminders
+      .filter(reminder => reminder.date === date)
+      .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+
+    if (!taskItems.length && !reminderItems.length) return "";
+
+    const heading = date === todayISO()
+      ? `Today · ${formatFullDate(date)}`
+      : date === addDaysISO(todayISO(), 1)
+        ? `Tomorrow · ${formatFullDate(date)}`
+        : formatFullDate(date);
+
+    return `<section class="agenda-day">
+      <div class="agenda-day-heading">
+        <h2>${escapeHTML(heading)}</h2>
+        <span>${taskItems.length + reminderItems.length}</span>
+      </div>
+      <div class="agenda-list">
+        ${taskItems.map(renderAgendaTask).join("")}
+        ${reminderItems.map(renderAgendaReminder).join("")}
+      </div>
+    </section>`;
+  }).join("");
+
+  c.innerHTML = `
+    <div class="page-heading">
+      <p class="eyebrow">THE NEXT TWO WEEKS, WITHOUT A FULL CALENDAR</p>
+      <h1>Agenda</h1>
+      <p>Tasks and reminders in one chronological view. Tap anything to edit it.</p>
+    </div>
+
+    ${overdueTasks.length ? `<section class="agenda-day agenda-overdue">
+      <div class="agenda-day-heading"><h2>⚠️ Overdue</h2><span>${overdueTasks.length}</span></div>
+      <div class="agenda-list">${overdueTasks.map(renderAgendaTask).join("")}</div>
+    </section>` : ""}
+
+    ${daySections || `<div class="card soft-card"><strong>Your next two weeks are quiet 🌸</strong></div>`}
+
+    ${unscheduled.length ? `<section class="section">
+      <div class="section-header"><h2>Unscheduled</h2><button data-goto="tasks">All tasks</button></div>
+      <div class="agenda-list">${unscheduled.map(renderAgendaTask).join("")}</div>
+    </section>` : ""}
+  `;
+}
+
+function historyTimestamp(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  const parsed = new Date(`${value}T23:59:59`).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function renderHistory() {
+  const c = document.getElementById("pageContent");
+  const completedTasks = filterByMode(state.tasks, { respectFirewall: false })
+    .filter(task => task.completed)
+    .map(task => ({
+      kind: "task",
+      id: task.id,
+      icon: "🌸",
+      title: task.title,
+      meta: `${modeLabel(task.space)} · Completed ${task.completedDate ? formatDate(task.completedDate) : "earlier"}`,
+      time: historyTimestamp(task.completedDate) || task.updatedAt || task.createdAt
+    }));
+
+  const completedReminders = filterByMode(state.reminders, { respectFirewall: false })
+    .filter(reminder => reminder.completed)
+    .map(reminder => ({
+      kind: "reminder",
+      id: reminder.id,
+      icon: "🔔",
+      title: reminder.title,
+      meta: `${modeLabel(reminder.space)} · Cleared ${reminder.date ? formatDate(reminder.date) : ""}`,
+      time: reminder.updatedAt || reminder.createdAt
+    }));
+
+  const closes = state.dailyCloseHistory.map((entry, index) => ({
+    kind: "close",
+    id: String(index),
+    icon: "🌙",
+    title: "Daily Close",
+    meta: entry.date ? formatFullDate(entry.date) : "Completed",
+    time: entry.completedAt || historyTimestamp(entry.date)
+  }));
+
+  const items = [...completedTasks, ...completedReminders, ...closes]
+    .sort((a, b) => b.time - a.time)
+    .slice(0, 75);
+
+  c.innerHTML = `
+    <div class="page-heading">
+      <p class="eyebrow">WHAT YOU'VE ALREADY CARRIED</p>
+      <h1>History</h1>
+      <p>A calm record of completed tasks, cleared reminders and Daily Close sessions.</p>
+    </div>
+
+    <div class="history-summary">
+      <div class="stat-card"><span class="stat-number">${completedTasks.length}</span><span class="stat-label">Tasks</span></div>
+      <div class="stat-card"><span class="stat-number">${completedReminders.length}</span><span class="stat-label">Reminders</span></div>
+      <div class="stat-card"><span class="stat-number">${closes.length}</span><span class="stat-label">Daily Closes</span></div>
+    </div>
+
+    ${items.length ? `<div class="history-list">${items.map(item => `
+      <div class="history-item">
+        <span class="history-icon">${item.icon}</span>
+        <div>
+          <strong>${escapeHTML(item.title)}</strong>
+          <small>${escapeHTML(item.meta)}</small>
+        </div>
+        ${item.kind === "task" ? `<button data-reopen-task="${item.id}">Reopen</button>` : ""}
+        ${item.kind === "reminder" ? `<button data-reopen-reminder="${item.id}">Reopen</button>` : ""}
+      </div>
+    `).join("")}</div>` : emptyState("🌸", "No history yet", "Completed things will gather here.", "", "")}
+  `;
+}
+
+function reopenTask(id) {
+  const task = state.tasks.find(task => task.id === id);
+  if (!task) return;
+  task.completed = false;
+  task.completedDate = null;
+  task.status = "todo";
+  task.updatedAt = Date.now();
+  syncTaskReminder(task);
+  showToast("Task reopened 🌱");
+  render();
+}
+
+function reopenReminder(id) {
+  const reminder = state.reminders.find(reminder => reminder.id === id);
+  if (!reminder) return;
+  reminder.completed = false;
+  reminder.notified = false;
+  reminder.chainNotified = [];
+  reminder.updatedAt = Date.now();
+  showToast("Reminder reopened 🔔");
+  render();
+}
+
+function renderTemplates() {
+  const c = document.getElementById("pageContent");
+
+  c.innerHTML = `
+    <div class="page-heading">
+      <p class="eyebrow">DON'T REBUILD THE SAME THING TWICE</p>
+      <h1>Templates</h1>
+      <p>Starter structures for things Hana users are likely to repeat.</p>
+    </div>
+
+    <div class="template-grid">
+      ${STARTER_TEMPLATES.map(template => `
+        <article class="template-card">
+          <div class="template-icon">${template.icon}</div>
+          <div>
+            <h3>${escapeHTML(template.title)}</h3>
+            <p>${escapeHTML(template.description)}</p>
+            <span class="badge badge-personal">${escapeHTML(template.kind)}</span>
+          </div>
+          <button class="secondary-button" data-use-template="${template.id}">Use</button>
+        </article>
+      `).join("")}
+    </div>
+
+    <div class="card soft-card" style="margin-top:16px;">
+      <strong>Why templates belong in Hana 🌸</strong>
+      <p style="margin:6px 0 0;color:var(--text-soft);font-size:12px;line-height:1.5;">
+        Grocery lists, packing lists, meeting notes, recurring reviews and tracking tables should feel reusable instead of disposable.
+      </p>
+    </div>
+  `;
+}
+
+function useTemplate(templateId) {
+  const space = preferredSpace();
+
+  if (templateId === "weekly-review") {
+    const task = normalizeTask({
+      title: "Weekly Review",
+      space: state.currentMode === "personal" ? "personal" : "work",
+      priority: "medium",
+      status: "todo",
+      subtasks: [
+        { id:createId(), title:"Review open tasks", completed:false },
+        { id:createId(), title:"Check Waiting On / follow-ups", completed:false },
+        { id:createId(), title:"Choose next week's priorities", completed:false }
+      ],
+      recurrence: { type:"weekly", interval:1 },
+      createdAt: Date.now()
+    });
+    state.tasks.push(task);
+    showToast("Weekly Review template planted 🌱");
+    return openTaskModal(task.id);
+  }
+
+  if (templateId === "monthly-life-admin") {
+    const task = normalizeTask({
+      title: "Monthly Life Admin",
+      space: "personal",
+      priority: "medium",
+      status: "todo",
+      subtasks: [
+        { id:createId(), title:"Review bills and subscriptions", completed:false },
+        { id:createId(), title:"Check documents / renewals", completed:false },
+        { id:createId(), title:"Clear personal loose ends", completed:false }
+      ],
+      recurrence: { type:"monthly", interval:1 },
+      createdAt: Date.now()
+    });
+    state.tasks.push(task);
+    showToast("Monthly Life Admin planted 🌱");
+    return openTaskModal(task.id);
+  }
+
+  if (templateId === "meeting-note") {
+    const note = normalizeNote({
+      title: "Meeting Notes",
+      type: "meeting",
+      space: state.currentMode === "personal" ? "personal" : "work",
+      tags: ["meeting"],
+      content: "## Agenda\n\n## Decisions\n\n## Notes",
+      checklist: [
+        { id:createId(), title:"Action item", completed:false }
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    state.notes.push(note);
+    showToast("Meeting note created 👥");
+    return openNoteModal(note.id);
+  }
+
+  if (templateId === "grocery-list" || templateId === "packing-list" || templateId === "weekly-reset") {
+    const configs = {
+      "grocery-list": {
+        title: "Grocery List",
+        tags: ["home","shopping"],
+        items: ["Produce", "Protein", "Pantry", "Household"]
+      },
+      "packing-list": {
+        title: "Packing List",
+        tags: ["travel"],
+        items: ["Documents", "Clothes", "Toiletries", "Chargers", "Medicine"]
+      },
+      "weekly-reset": {
+        title: "Weekly Reset",
+        tags: ["weekly","home"],
+        items: ["Review calendar", "Reset important spaces", "Plan meals / errands", "Choose personal priorities"]
+      }
+    };
+    const config = configs[templateId];
+    const note = normalizeNote({
+      title: config.title,
+      type: "checklist",
+      space: "personal",
+      tags: config.tags,
+      checklist: config.items.map(title => ({ id:createId(), title, completed:false })),
+      resettable: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    state.notes.push(note);
+    showToast(`${config.title} created 🌷`);
+    return openNoteModal(note.id);
+  }
+
+  if (templateId === "work-deliverables" || templateId === "bills-tracker") {
+    const isWork = templateId === "work-deliverables";
+    const table = normalizeTable({
+      id: createId(),
+      name: isWork ? "Work Deliverables" : "Bills Tracker",
+      space: isWork ? "work" : "personal",
+      columns: isWork
+        ? [
+            { id:createId(), name:"Deliverable", type:"text" },
+            { id:createId(), name:"Owner", type:"text" },
+            { id:createId(), name:"Due", type:"date" },
+            { id:createId(), name:"Status", type:"status" },
+            { id:createId(), name:"Done", type:"checkbox" }
+          ]
+        : [
+            { id:createId(), name:"Bill", type:"text" },
+            { id:createId(), name:"Amount", type:"money" },
+            { id:createId(), name:"Due", type:"date" },
+            { id:createId(), name:"Paid", type:"checkbox" }
+          ],
+      rows: [],
+      createdAt: Date.now()
+    });
+    state.tables.push(table);
+    state.activeTableId = table.id;
+    showToast(`${table.name} created 📋`);
+    return changePage("tables");
+  }
+
+  showToast("Template not found.");
+}
+
+function renderTrash() {
+  const c = document.getElementById("pageContent");
+  const entries = [...state.trash].sort((a, b) => b.deletedAt - a.deletedAt);
+
+  c.innerHTML = `
+    <div class="page-heading">
+      <p class="eyebrow">A SAFETY NET FOR LOCAL-FIRST HANA</p>
+      <h1>Trash</h1>
+      <p>Deleted items stay here for up to 30 days. Restore them or remove them permanently.</p>
+    </div>
+
+    ${entries.length ? `
+      <div class="section-header"><h2>${entries.length} item${entries.length === 1 ? "" : "s"}</h2><button data-empty-trash>Empty Trash</button></div>
+      <div class="trash-list">
+        ${entries.map(entry => {
+          const title = entry.item?.title || entry.item?.name || entry.item?.text || (entry.type === "tableRow" ? (entry.context?.tableName || "Table row") : "Untitled");
+          return `<div class="trash-item">
+            <span class="trash-icon">${({task:"✅",note:"📝",reminder:"🔔",table:"📋",tableRow:"↔️",pin:"📌",someday:"🌱",inbox:"🧠"})[entry.type] || "🌸"}</span>
+            <div>
+              <strong>${escapeHTML(String(title))}</strong>
+              <small>${escapeHTML(trashLabel(entry.type))} · deleted ${new Date(entry.deletedAt).toLocaleDateString()}</small>
+            </div>
+            <div class="trash-actions">
+              <button data-restore-trash="${entry.id}">Restore</button>
+              <button class="danger-text" data-delete-trash="${entry.id}">Delete</button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>
+    ` : emptyState("🗑️", "Trash is empty", "Deleted things can rest here before they're gone for good.", "", "")}
+  `;
+}
+
 
 /* ================= MORE / SETTINGS / BACKUP ================= */
 
 function moreCard(icon,title,description,page){return `<button class="more-card" data-goto="${page}"><span class="more-icon">${icon}</span><strong>${title}</strong><small>${description}</small></button>`;}
-function renderMore(){const c=document.getElementById("pageContent");c.innerHTML=`<div class="page-heading"><p class="eyebrow">MORE OF HANA</p><h1>Your garden</h1><p>The tools that make Hana more than a checklist.</p></div><div class="more-grid">${moreCard("🧠","Brain Dump","Organize messy thoughts into useful things.","inbox")}${moreCard("🔔","Reminders","Snooze, repeat and reminder chains.","reminders")}${moreCard("📋","Living Tables","Custom tables whose rows can act.","tables")}${moreCard("🌸","Bloom View","Progress as petals.","bloom")}${moreCard("📌","Pinboard","Quick references.","pinboard")}${moreCard("🌱","Someday","Ideas without urgency.","someday")}${moreCard("🌙","Daily Close","Process the day gently.","daily-close")}</div>
-    <section class="section"><div class="section-header"><h2>Work / Personal Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>When enabled, Hana hides Work from All/Personal outside your work window. You can still explicitly switch to Work whenever you want.</p><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Work Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Work starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Work ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked work reminders outside work hours</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save firewall settings</button></div></section>
+function renderMore(){const c=document.getElementById("pageContent");c.innerHTML=`<div class="page-heading"><p class="eyebrow">MORE OF HANA</p><h1>Your garden</h1><p>The tools that make Hana more than a checklist.</p></div><div class="more-grid">${moreCard("📅","Agenda","Tasks and reminders together for the next two weeks.","agenda")}${moreCard("🧠","Brain Dump","Organize messy thoughts into useful things.","inbox")}${moreCard("🔔","Reminders","Snooze, repeat and reminder chains.","reminders")}${moreCard("📋","Living Tables","Custom tables whose rows can act.","tables")}${moreCard("🧩","Templates","Reusable starting points for repeated workflows.","templates")}${moreCard("🌸","Bloom View","Progress as petals.","bloom")}${moreCard("📌","Pinboard","Quick references.","pinboard")}${moreCard("🌱","Someday","Ideas without urgency.","someday")}${moreCard("🌙","Daily Close","Process the day gently.","daily-close")}${moreCard("🕰️","History","See what you already completed.","history")}${moreCard("🗑️","Trash",`${state.trash.length} deleted item${state.trash.length===1?"":"s"}.`,"trash")}</div>
+    <section class="section"><div class="section-header"><h2>Defaults</h2></div><div class="settings-card"><h3>Make quick capture faster 🌷</h3><p>When you're in All mode, Hana can default new items to the space you use most.</p><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting"><option value="personal" ${state.settings.defaultSpace!=="work"?"selected":""}>🎀 Personal</option><option value="work" ${state.settings.defaultSpace==="work"?"selected":""}>💼 Work</option></select></div></div></section>
+    <section class="section"><div class="section-header"><h2>Work / Personal Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>When enabled, Hana hides Work from All/Personal outside your work window. You can still explicitly switch to Work whenever you want.</p><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Work Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Work starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Work ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked work reminders outside work hours</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save app settings</button></div></section>
     <section class="section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is still local-first. Export your garden regularly so your data does not live on one device only.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
-function saveSettings(){state.settings.workFirewallEnabled=document.getElementById("firewallEnabled").checked;state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Firewall settings saved 🌙");render();}
+function saveSettings(){state.settings.defaultSpace=document.getElementById("defaultSpaceSetting")?.value==="work"?"work":"personal";state.settings.workFirewallEnabled=document.getElementById("firewallEnabled").checked;state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
 function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`hana-backup-${todayISO()}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast("Hana backup exported 🌸");}
 async function importData(file){if(!file)return;try{const parsed=JSON.parse(await file.text());if(!parsed||typeof parsed!=="object")throw new Error("Invalid backup");if(!confirm("Replace the current local Hana data with this backup?"))return;state=normalizeState(parsed);saveState();showToast("Hana backup restored 🌸");render();}catch(error){console.error(error);showToast("That file doesn't look like a Hana backup.");}finally{document.getElementById("importBackupInput").value="";}}
 
@@ -1038,10 +1596,39 @@ async function importData(file){if(!file)return;try{const parsed=JSON.parse(awai
 function emptyState(icon,title,description,buttonLabel="",action=""){return `<div class="empty-state"><div class="empty-icon">${icon}</div><h3>${title}</h3><p>${description}</p>${buttonLabel?`<button class="secondary-button" data-empty-action="${action}">${buttonLabel}</button>`:""}</div>`;}
 function insertIntoTextarea(id,text){const el=document.getElementById(id);if(!el)return;const start=el.selectionStart??el.value.length,end=el.selectionEnd??start;el.value=el.value.slice(0,start)+text+el.value.slice(end);el.focus();el.setSelectionRange(start+text.length,start+text.length);}
 
+
+function prepareQuickCapture() {
+  const captureSpace = document.getElementById("captureSpace");
+  if (captureSpace) captureSpace.value = preferredSpace();
+  openModal("quickCaptureModal");
+}
+
+/* App-like touch behavior: prevent pinch and double-tap zoom.
+   Inputs still receive normal single-touch typing/selection behavior. */
+function installNoZoomGuards() {
+  ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+    document.addEventListener(type, event => event.preventDefault(), { passive: false });
+  });
+
+  document.addEventListener("touchmove", event => {
+    if (event.touches && event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", event => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) event.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+}
+
+installNoZoomGuards();
+
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
   const nav=event.target.closest("[data-page]");if(nav&&!nav.classList.contains("nav-center-placeholder")){changePage(nav.dataset.page);return;}
+  if(event.target.closest("[data-undo-toast]")){if(lastUndoAction){const action=lastUndoAction;lastUndoAction=null;action();}return;}
   const goto=event.target.closest("[data-goto]");if(goto){closeModal("addMenu");changePage(goto.dataset.goto);return;}
   const mode=event.target.closest("[data-mode]");if(mode){state.currentMode=mode.dataset.mode;render();return;}
   const open=event.target.closest("[data-open]");if(open){const id=open.dataset.open;if(id==="taskModal")openTaskModal();else if(id==="noteModal")openNoteModal();else if(id==="reminderModal")openReminderModal();else if(id==="tableModal")openTableModal();else openModal(id);return;}
@@ -1073,7 +1660,7 @@ document.addEventListener("click", event => {
   const rowRem=event.target.closest("[data-row-remind]");if(rowRem){const t=state.tables.find(t=>t.id===rowRem.dataset.tableId),r=t?.rows.find(r=>r.id===rowRem.dataset.rowRemind);if(t&&r){createReminderFromTableRow(t,r);render();}return;}
 
   const plant=event.target.closest("[data-plant-inbox]");if(plant){plantInboxItem(plant.dataset.plantInbox);return;}
-  const delInbox=event.target.closest("[data-delete-inbox]");if(delInbox){state.inbox=state.inbox.filter(i=>i.id!==delInbox.dataset.deleteInbox);render();return;}
+  const delInbox=event.target.closest("[data-delete-inbox]");if(delInbox){const item=state.inbox.find(i=>i.id===delInbox.dataset.deleteInbox);if(item){moveToTrash("inbox",item);state.inbox=state.inbox.filter(i=>i.id!==delInbox.dataset.deleteInbox);}render();return;}
   if(event.target.closest("[data-plant-all-inbox]")){plantAllInbox();return;}
 
   const searchResult=event.target.closest("[data-search-type]");if(searchResult){openSearchResult(searchResult.dataset.searchType,searchResult.dataset.searchId,searchResult.dataset.searchPage);return;}
@@ -1081,12 +1668,19 @@ document.addEventListener("click", event => {
   const daily=event.target.closest("[data-daily-task-action]");if(daily){dailyTaskAction(daily.dataset.taskId,daily.dataset.dailyTaskAction);return;}
   const closeAction=event.target.closest("[data-close-action]");if(closeAction?.dataset.closeAction==="finish"){finishDailyClose();return;}
 
+  const template=event.target.closest("[data-use-template]");if(template){useTemplate(template.dataset.useTemplate);saveState();return;}
+  const reopenTaskButton=event.target.closest("[data-reopen-task]");if(reopenTaskButton){reopenTask(reopenTaskButton.dataset.reopenTask);return;}
+  const reopenReminderButton=event.target.closest("[data-reopen-reminder]");if(reopenReminderButton){reopenReminder(reopenReminderButton.dataset.reopenReminder);return;}
+  const restoreTrashButton=event.target.closest("[data-restore-trash]");if(restoreTrashButton){restoreTrashItem(restoreTrashButton.dataset.restoreTrash);return;}
+  const deleteTrashButton=event.target.closest("[data-delete-trash]");if(deleteTrashButton){permanentlyDeleteTrashItem(deleteTrashButton.dataset.deleteTrash);return;}
+  if(event.target.closest("[data-empty-trash]")){emptyTrash();return;}
+
   const delPin=event.target.closest("[data-delete-pin]");if(delPin){deletePin(delPin.dataset.deletePin);return;}
   const delSomeday=event.target.closest("[data-delete-someday]");if(delSomeday){deleteSomeday(delSomeday.dataset.deleteSomeday);return;}
 
   const empty=event.target.closest("[data-empty-action]");if(empty){const a=empty.dataset.emptyAction;if(a==="open-task")openTaskModal();else if(a==="open-note")openNoteModal();else if(a==="open-reminder")openReminderModal();else if(a==="open-table")openTableModal();else if(a==="open-pin")openModal("pinModal");else if(a==="open-someday")openModal("somedayModal");return;}
 
-  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="note")openNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table")openTableModal();else if(a==="quick")openModal("quickCaptureModal");else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
+  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="note")openNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table")openTableModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
 
   if(event.target.id==="brainDumpAddButton"){addBrainDump();return;}
   if(event.target.id==="saveSettingsButton"){saveSettings();return;}
@@ -1099,7 +1693,7 @@ document.addEventListener("input",event=>{if(event.target.id==="quickCaptureInpu
 document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();}}});
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
-document.getElementById("quickCaptureHeader").addEventListener("click",()=>openModal("quickCaptureModal"));
+document.getElementById("quickCaptureHeader").addEventListener("click",prepareQuickCapture);
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
 document.getElementById("notificationButton").addEventListener("click",requestNotificationPermission);
 document.getElementById("saveQuickCapture").addEventListener("click",saveQuickCapture);
@@ -1127,4 +1721,4 @@ setInterval(checkReminders,30*1000);checkReminders();
 render();
 
 const launchParams=new URLSearchParams(window.location.search);
-if(launchParams.get("action")==="capture"){setTimeout(()=>openModal("quickCaptureModal"),100);window.history.replaceState({},"",window.location.pathname+window.location.hash);}
+if(launchParams.get("action")==="capture"){setTimeout(prepareQuickCapture,100);window.history.replaceState({},"",window.location.pathname+window.location.hash);}
