@@ -18,11 +18,21 @@
   <div id="app">
     <header class="app-header">
       <div class="brand-area">
-        <div class="brand-mark">
-          <img src="icons/icon-192.png" alt="Hana" class="brand-icon" />
-        </div>
-        <div>
-          <div class="brand-name">hana</div>
+        <div class="brand-copy">
+          <div class="brand-name-row">
+            <div class="brand-name">hana</div>
+            <svg class="brand-peony" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+              <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M32 31c-8-8-15-8-19-3 5 1 9 5 10 11-7-2-12 0-14 5 7-1 13 2 17 8"/>
+                <path d="M32 31c8-8 15-8 19-3-5 1-9 5-10 11 7-2 12 0 14 5-7-1-13 2-17 8"/>
+                <path d="M32 31c-6-10-4-17 0-21 4 4 6 11 0 21Z"/>
+                <path d="M32 31c-2-8-8-12-14-11 1 6 5 11 14 11Z"/>
+                <path d="M32 31c2-8 8-12 14-11-1 6-5 11-14 11Z"/>
+                <path d="M32 31c-4 2-7 7-7 12 4-1 6-3 7-6 1 3 3 5 7 6 0-5-3-10-7-12Z"/>
+                <path d="M31 52c0 3-1 6-3 9M33 52c1 3 2 6 4 9"/>
+              </g>
+            </svg>
+          </div>
           <div class="brand-tagline">one bloom at a time</div>
         </div>
       </div>
@@ -34,11 +44,7 @@
       </div>
     </header>
 
-    <section class="mode-bar">
-      <button class="mode-button active" data-mode="all">🌸 All</button>
-      <button class="mode-button" data-mode="work">💼 Work</button>
-      <button class="mode-button" data-mode="personal">🎀 Personal</button>
-    </section>
+    <section id="modeBar" class="mode-bar" aria-label="Spaces"></section>
 
     <main id="pageContent" class="page-content"></main>
 
@@ -61,7 +67,7 @@
         <button class="modal-close" data-close-modal="searchModal">×</button>
       </div>
       <div class="search-box global-search-box">
-        <input id="globalSearchInput" type="search" placeholder="Search tasks, notes, reminders, tables, pins..." autocomplete="off" />
+        <input id="globalSearchInput" type="search" placeholder="Search tasks, notes, checklists, reminders, trackers, pins..." autocomplete="off" />
       </div>
       <div id="globalSearchResults" class="search-results"></div>
     </div>
@@ -81,7 +87,7 @@
       </div>
       <div class="form-group">
         <label for="captureSpace">Default space</label>
-        <select id="captureSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select>
+        <select id="captureSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select>
       </div>
       <div class="modal-actions wrap-actions">
         <button class="secondary-button" data-close-modal="quickCaptureModal">Cancel</button>
@@ -108,7 +114,7 @@
       <div class="form-group"><label for="taskTitle">Task</label><input id="taskTitle" type="text" placeholder="What needs to be done?" /></div>
 
       <div class="form-row">
-        <div class="form-group"><label for="taskSpace">Space</label><select id="taskSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+        <div class="form-group"><label for="taskSpace">Space</label><select id="taskSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
         <div class="form-group"><label for="taskPriority">Priority</label><select id="taskPriority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
       </div>
 
@@ -217,7 +223,7 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label for="noteSpace">Space</label><select id="noteSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+        <div class="form-group"><label for="noteSpace">Space</label><select id="noteSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
         <div class="form-group"><label for="noteTags">Tags</label><input id="noteTags" type="text" placeholder="meeting, ideas, weekly" /></div>
       </div>
 
@@ -257,8 +263,8 @@
       </div>
       <input id="reminderEditId" type="hidden" />
       <div class="form-group"><label for="reminderTitle">Reminder</label><input id="reminderTitle" type="text" placeholder="What should Hana remind you about?" /></div>
-      <div class="form-group"><label for="reminderSpace">Space</label><select id="reminderSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
-      <div class="form-row">
+      <div class="form-group"><label for="reminderSpace">Space</label><select id="reminderSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+      <div class="form-row reminder-date-time-row">
         <div class="form-group"><label for="reminderDate">Date</label><input id="reminderDate" type="date" /></div>
         <div class="form-group"><label for="reminderTime">Time</label><input id="reminderTime" type="time" /></div>
       </div>
@@ -280,24 +286,33 @@
   <div id="tableModal" class="modal-overlay hidden">
     <div class="modal-card modal-large">
       <div class="modal-header">
-        <div><p id="tableModalEyebrow" class="eyebrow">LIVING TABLE</p><h2 id="tableModalTitle">Create table</h2></div>
+        <div><p id="tableModalEyebrow" class="eyebrow">CUSTOM TRACKER</p><h2 id="tableModalTitle">Create tracker</h2></div>
         <button class="modal-close" data-close-modal="tableModal">×</button>
       </div>
       <input id="tableEditId" type="hidden" />
+      <div class="form-group">
+        <label for="tableTemplate">Start from a template</label>
+        <select id="tableTemplate">
+          <option value="progress">🌱 Progress Tracker</option>
+          <option value="project">📌 Project Tracker</option>
+          <option value="expenses">💳 Expense Tracker</option>
+          <option value="blank">✨ Blank table</option>
+        </select>
+      </div>
       <div class="form-row">
-        <div class="form-group"><label for="tableName">Table name</label><input id="tableName" type="text" placeholder="Work Deliverables" /></div>
-        <div class="form-group"><label for="tableSpace">Space</label><select id="tableSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+        <div class="form-group"><label for="tableName">Tracker name</label><input id="tableName" type="text" placeholder="Progress Tracker" /></div>
+        <div class="form-group"><label for="tableSpace">Space</label><select id="tableSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
       </div>
       <div class="form-group">
         <label for="tableColumns">Columns</label>
         <textarea id="tableColumns" class="large-textarea" placeholder="One per line: Name:type\nTask:text\nOwner:text\nDue:date\nStatus:status\nDone:checkbox\nAmount:money"></textarea>
-        <small class="field-help">Types: text, number, date, checkbox, status, money, tag, link, reminder.</small>
+        <small class="field-help">Types: text, number, progress, date, checkbox, status, money, tag, link, reminder. Add, remove, rename, or reorder one column per line.</small>
       </div>
       <div class="modal-actions task-modal-actions">
-        <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete table</button>
+        <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete tracker</button>
         <div class="modal-action-spacer"></div>
         <button class="secondary-button" data-close-modal="tableModal">Cancel</button>
-        <button id="saveTableButton" class="primary-button">Create table</button>
+        <button id="saveTableButton" class="primary-button">Create tracker</button>
       </div>
     </div>
   </div>
@@ -322,13 +337,97 @@
     </div>
   </div>
 
+  <!-- CHECKLIST / LIST MODAL -->
+  <div id="listModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div><p id="listModalEyebrow" class="eyebrow">NEW CHECKLIST</p><h2 id="listModalTitle">Create a list</h2></div>
+        <button class="modal-close" data-close-modal="listModal">×</button>
+      </div>
+      <input id="listEditId" type="hidden" />
+      <div class="form-row">
+        <div class="form-group"><label for="listIcon">Icon</label><input id="listIcon" type="text" maxlength="4" placeholder="🛒" /></div>
+        <div class="form-group"><label for="listName">List name</label><input id="listName" type="text" placeholder="Groceries" /></div>
+      </div>
+      <div class="form-group"><label for="listSpace">Space</label><select id="listSpace" data-space-select></select></div>
+      <p class="field-help list-modal-help">Each checklist item is stored as its own entry, so you can check, edit, or remove items independently.</p>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteListFromModal" class="danger-button hidden" type="button">Delete list</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="listModal">Cancel</button>
+        <button id="saveListButton" class="primary-button">Create list</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIST ITEM MODAL -->
+  <div id="listItemModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">CHECKLIST ITEM</p><h2 id="listItemModalTitle">Add item</h2></div>
+        <button class="modal-close" data-close-modal="listItemModal">×</button>
+      </div>
+      <input id="listItemListId" type="hidden" />
+      <input id="listItemEditId" type="hidden" />
+      <div class="form-group"><label for="listItemTitle">Item</label><input id="listItemTitle" type="text" placeholder="Milk, book dentist, buy charger..." /></div>
+      <div class="form-group"><label for="listItemDetail">Detail / quantity <span class="optional-label">optional</span></label><input id="listItemDetail" type="text" placeholder="2 bottles, size M, aisle 4..." /></div>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteListItemFromModal" class="danger-button hidden" type="button">Delete item</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="listItemModal">Cancel</button>
+        <button id="saveListItemButton" class="primary-button">Add item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPEARANCE MODAL -->
+  <div id="appearanceModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large appearance-modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">PERSONALIZE</p><h2>Appearance</h2></div>
+        <button class="modal-close" data-close-modal="appearanceModal">×</button>
+      </div>
+
+      <section class="appearance-section">
+        <div class="appearance-section-title"><h3>Color Theme</h3><span id="currentThemeLabel">Sakura Pink</span></div>
+        <div class="theme-list">
+          <button class="theme-choice" data-theme-choice="peach"><span class="theme-swatch theme-peach"></span><strong>Peach Pink</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="sakura"><span class="theme-swatch theme-sakura"></span><strong>Sakura Pink</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="lavender"><span class="theme-swatch theme-lavender"></span><strong>Lavender Purple</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="sky"><span class="theme-swatch theme-sky"></span><strong>Sky Blue</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="mint"><span class="theme-swatch theme-mint"></span><strong>Mint Green</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="yellow"><span class="theme-swatch theme-yellow"></span><strong>Soft Yellow</strong><span class="theme-check">✓</span></button>
+        </div>
+      </section>
+
+      <section class="appearance-section">
+        <div class="appearance-section-title"><h3>Custom Wallpaper</h3><span id="wallpaperStateLabel">Off</span></div>
+        <div id="wallpaperPreview" class="wallpaper-preview"><span>Choose a photo from this device.<br />It stays private and local to Hana.</span></div>
+        <button id="chooseWallpaperButton" class="secondary-button wallpaper-choose-button" type="button">Choose Photo</button>
+        <label class="wallpaper-toggle-row"><span><strong>Wallpaper</strong><small>Turn the saved photo background on or off.</small></span><input id="wallpaperEnabled" type="checkbox" /></label>
+        <div class="appearance-control-label">Overlay strength</div>
+        <div class="segmented-control wallpaper-overlay-options">
+          <button data-overlay-strength="light">Light</button>
+          <button data-overlay-strength="medium">Medium</button>
+          <button data-overlay-strength="strong">Strong</button>
+        </div>
+        <div class="form-group wallpaper-position-wrap"><label for="wallpaperPosition">Wallpaper position</label><select id="wallpaperPosition"><option value="center">Center</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
+        <p class="wallpaper-note"><strong>Wallpaper fit</strong><br />Hana fills the screen with your photo and keeps it behind a soft readable overlay.</p>
+      </section>
+
+      <button id="removeWallpaperButton" class="secondary-button full-width" type="button">Remove Wallpaper Photo</button>
+      <button id="resetAppearanceButton" class="secondary-button full-width appearance-reset" type="button">Reset Appearance</button>
+      <button class="primary-button full-width appearance-done" data-close-modal="appearanceModal" type="button">Done</button>
+    </div>
+  </div>
+
   <!-- PIN MODAL -->
   <div id="pinModal" class="modal-overlay hidden">
     <div class="modal-card">
       <div class="modal-header"><div><p class="eyebrow">PINBOARD</p><h2>Add a pin</h2></div><button class="modal-close" data-close-modal="pinModal">×</button></div>
       <div class="form-group"><label for="pinTitle">Title</label><input id="pinTitle" type="text" placeholder="Wi-Fi, grocery list..." /></div>
       <div class="form-group"><label for="pinContent">Content</label><textarea id="pinContent" placeholder="Keep something handy..."></textarea></div>
-      <div class="form-group"><label for="pinSpace">Space</label><select id="pinSpace"><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+      <div class="form-group"><label for="pinSpace">Space</label><select id="pinSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
       <div class="modal-actions"><button class="secondary-button" data-close-modal="pinModal">Cancel</button><button id="savePinButton" class="primary-button">Add pin</button></div>
     </div>
   </div>
@@ -354,7 +453,8 @@
         <button data-action="task"><span>✅</span>Task</button>
         <button data-action="note"><span>📝</span>Note</button>
         <button data-action="reminder"><span>🔔</span>Reminder</button>
-        <button data-action="table"><span>📋</span>Table</button>
+        <button data-action="table"><span>📋</span>Table / Tracker</button>
+        <button data-action="list"><span>☑️</span>Checklist</button>
         <button data-action="pin"><span>📌</span>Pin</button>
         <button data-action="someday"><span>🌱</span>Someday</button>
         <button data-goto="inbox"><span>🧠</span>Brain Dump</button>
@@ -365,6 +465,7 @@
 
   <div id="toast" class="toast hidden"></div>
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
+  <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="app.js"></script>
 </body>
 </html>
