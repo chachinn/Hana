@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Hana 🌸</title>
+  <meta name="description" content="Hana - Organize your life, one bloom at a time." />
+  <meta name="theme-color" content="#fff7fa" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Hana" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="brand-area">
+        <div class="brand-copy">
+          <div class="brand-name-row">
+            <div class="brand-name">hana</div>
+            <img class="brand-peony" src="icons/hana-peony.png" alt="" aria-hidden="true" />
+          </div>
+          <div class="brand-tagline">one bloom at a time</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>
+        <button id="menuButton" class="icon-button hamburger-button" aria-label="Open Hana menu" title="Menu" aria-controls="navDrawer" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </header>
+
+    <section id="modeBar" class="mode-bar" aria-label="Spaces"></section>
+
+    <main id="pageContent" class="page-content"></main>
+
+    <button id="mainAddButton" class="floating-add" aria-label="Add">+</button>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-button active" data-page="today"><span class="nav-icon">🌸</span><span>Today</span></button>
+      <button class="nav-button" data-page="tasks"><span class="nav-icon">✓</span><span>Tasks</span></button>
+      <button class="nav-button nav-center-placeholder" aria-hidden="true"><span></span></button>
+      <button class="nav-button" data-page="lists"><span class="nav-icon">☑️</span><span>Lists</span></button>
+      <button class="nav-button" data-page="notes"><span class="nav-icon">📝</span><span>Notes</span></button>
+    </nav>
+  </div>
+
+  <!-- HANA NAVIGATION DRAWER -->
+  <div id="navDrawerBackdrop" class="nav-drawer-backdrop hidden" data-close-nav-drawer></div>
+  <aside id="navDrawer" class="nav-drawer hidden" aria-label="Hana menu" aria-hidden="true">
+    <div class="nav-drawer-header">
+      <div>
+        <p class="eyebrow">HANA MENU</p>
+        <h2>Everything else</h2>
+        <p>Useful tools, tucked away until you need them.</p>
+      </div>
+      <button class="nav-drawer-close" type="button" data-close-nav-drawer aria-label="Close menu">×</button>
+    </div>
+
+    <div class="nav-drawer-scroll">
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Plan &amp; Focus</div>
+        <button class="nav-drawer-item" data-goto="agenda"><span class="nav-drawer-icon">📅</span><span><strong>Agenda</strong><small>Tasks and reminders together</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="rescue"><span class="nav-drawer-icon">🛟</span><span><strong>Rescue My Day</strong><small>Shrink an overloaded day</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="time-pockets"><span class="nav-drawer-icon">⏱</span><span><strong>Time Pockets</strong><small>Find work that fits your time and energy</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="bloom"><span class="nav-drawer-icon">🌸</span><span><strong>Bloom View</strong><small>See progress without pressure</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="daily-close"><span class="nav-drawer-icon">🌙</span><span><strong>Daily Close</strong><small>Wrap up unfinished things gently</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Organize</div>
+        <button class="nav-drawer-item" data-goto="waiting-garden"><span class="nav-drawer-icon">⏳</span><span><strong>Waiting Garden</strong><small>Things waiting on replies, approvals or deliveries</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="future-notes"><span class="nav-drawer-icon">💌</span><span><strong>Future Me</strong><small>Notes that return when you need them</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="threads"><span class="nav-drawer-icon">🧵</span><span><strong>Memory Threads</strong><small>Connect context across Hana</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="inbox"><span class="nav-drawer-icon">🧠</span><span><strong>Brain Dump</strong><small>Sort thoughts later</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="templates"><span class="nav-drawer-icon">🧩</span><span><strong>Templates</strong><small>Reusable starting points</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="pinboard"><span class="nav-drawer-icon">📌</span><span><strong>Pinboard</strong><small>Keep quick references handy</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="someday"><span class="nav-drawer-icon">🌱</span><span><strong>Someday</strong><small>Ideas without urgency</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Review</div>
+        <button class="nav-drawer-item" data-goto="return-ritual"><span class="nav-drawer-icon">🌱</span><span><strong>Return Ritual</strong><small>Reset overdue things without panic</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="history"><span class="nav-drawer-icon">🕰️</span><span><strong>History</strong><small>See what you already finished</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="trash"><span class="nav-drawer-icon">🗑️</span><span><strong>Trash</strong><small>Restore recently deleted things</small></span><b>›</b></button>
+      </section>
+
+      <section class="nav-drawer-group">
+        <div class="nav-drawer-group-title">Customize &amp; Settings</div>
+        <button class="nav-drawer-item" data-goto="settings"><span class="nav-drawer-icon">⚙️</span><span><strong>Settings &amp; Spaces</strong><small>Edit spaces, planning defaults and backups</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-open-appearance><span class="nav-drawer-icon">🎨</span><span><strong>Appearance</strong><small>Themes and wallpaper</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-enable-notifications><span class="nav-drawer-icon">🔔</span><span><strong>Enable Notifications</strong><small>Allow Hana to send local reminders</small></span><b>›</b></button>
+      </section>
+    </div>
+  </aside>
+
+  <!-- GLOBAL SEARCH -->
+  <div id="searchModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p class="eyebrow">FIND ANYTHING</p><h2>Search Hana</h2></div>
+        <button class="modal-close" data-close-modal="searchModal">×</button>
+      </div>
+      <div class="search-box global-search-box">
+        <input id="globalSearchInput" type="search" placeholder="Search tasks, notes, checklists, reminders, trackers, pins..." autocomplete="off" />
+      </div>
+      <div id="globalSearchResults" class="search-results"></div>
+    </div>
+  </div>
+
+  <!-- QUICK CAPTURE -->
+  <div id="quickCaptureModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p class="eyebrow">HANA QUICK CAPTURE</p><h2>Drop it here</h2></div>
+        <button class="modal-close" data-close-modal="quickCaptureModal">×</button>
+      </div>
+      <textarea id="quickCaptureInput" class="large-textarea" placeholder="One thought, or several lines.\n\nsubmit report Friday\nbuy shampoo\ndentist Aug 20\nmaybe learn pottery"></textarea>
+      <div class="capture-detection">
+        <div class="capture-label">Hana sees:</div>
+        <div id="capturePrediction" class="prediction-chip">🌱 Something new</div>
+      </div>
+      <div class="form-group">
+        <label for="captureSpace">Default space</label>
+        <select id="captureSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select>
+      </div>
+      <div class="modal-actions wrap-actions">
+        <button class="secondary-button" data-close-modal="quickCaptureModal">Cancel</button>
+        <button id="sendToInboxButton" class="secondary-button">Send to Inbox</button>
+        <button id="saveQuickCapture" class="primary-button">Plant now 🌱</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASK MODAL -->
+  <div id="taskModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large task-modal-card">
+      <div class="modal-header">
+        <div><p id="taskModalEyebrow" class="eyebrow">NEW BLOOM</p><h2 id="taskModalTitle">Add task</h2></div>
+        <button class="modal-close" data-close-modal="taskModal">×</button>
+      </div>
+      <input id="taskEditId" type="hidden" />
+
+      <div class="petal-editor">
+        <div class="petal-editor-title">🌸 Petal Notes</div>
+        <p>Keep the task simple on the outside. Add details only where you need them.</p>
+      </div>
+
+      <div class="form-group"><label for="taskTitle">Task</label><input id="taskTitle" type="text" placeholder="What needs to be done?" /></div>
+
+      <div class="form-row">
+        <div class="form-group"><label for="taskSpace">Space</label><select id="taskSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+        <div class="form-group"><label for="taskPriority">Priority</label><select id="taskPriority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label for="taskProject">🌷 Project</label><input id="taskProject" type="text" placeholder="Campaign, Home, Wedding..." /></div>
+        <div class="form-group"><label for="taskTags">🏷️ Tags</label><input id="taskTags" type="text" placeholder="urgent, calls, admin" /></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label for="taskDate">📅 Due date</label><input id="taskDate" type="date" /></div>
+        <div class="form-group"><label for="taskTime">🕐 Time</label><input id="taskTime" type="time" /></div>
+      </div>
+
+      <div class="petal-section planning-petal">
+        <div class="petal-section-label">🌷 Planning petal</div>
+        <div class="form-row">
+          <div class="form-group"><label for="taskDuration">⏱ Estimate</label><select id="taskDuration"><option value="0">Not sure yet</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></div>
+          <div class="form-group"><label for="taskEnergy">Energy</label><select id="taskEnergy"><option value="low">🌿 Low</option><option value="medium" selected>🌸 Medium</option><option value="high">⚡ High</option></select></div>
+        </div>
+        <div class="form-group"><label for="taskDeadlineType">Date meaning</label><select id="taskDeadlineType"><option value="soft">🪶 Soft date — safe to move when plans change</option><option value="hard">🔒 Hard deadline — Hana should protect this date</option></select><small class="field-help">Hard deadlines are never moved by Rescue My Day.</small></div>
+      </div>
+
+      <div class="form-group"><label for="taskStatus">Status</label><select id="taskStatus"><option value="todo">To Do</option><option value="doing">Doing</option><option value="waiting">Waiting</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
+
+      <div class="petal-section">
+        <div class="petal-section-label">✅ Checklist petal</div>
+        <textarea id="taskSubtasks" placeholder="One subtask per line\nDraft email\nAttach report\nSend to team"></textarea>
+        <small class="field-help">Each line becomes a checkable subtask.</small>
+      </div>
+
+      <div class="petal-section">
+        <div class="petal-section-label">📝 Notes petal</div>
+        <textarea id="taskNotes" placeholder="Details, context, instructions..."></textarea>
+      </div>
+
+      <div class="petal-section">
+        <div class="petal-section-label">🔗 Link petal</div>
+        <input id="taskLink" type="url" placeholder="https://..." />
+      </div>
+
+      <div id="waitingFields" class="petal-section waiting-fields">
+        <div class="petal-section-label">⏳ Waiting / follow-up petal</div>
+        <div class="form-row">
+          <div class="form-group"><label for="taskWaitingOn">Waiting on</label><input id="taskWaitingOn" type="text" placeholder="Finance approval, supplier reply..." /></div>
+          <div class="form-group"><label for="taskFollowUpDate">Follow up on</label><input id="taskFollowUpDate" type="date" /></div>
+        </div>
+        <label class="check-row compact-check"><input id="taskFollowUpAfterCompletion" type="checkbox" /><span>When I complete this, create a Waiting follow-up task on the follow-up date.</span></label>
+      </div>
+
+      <div class="petal-section">
+        <div class="petal-section-label">🔔 Reminder petal</div>
+        <label class="check-row"><input id="taskReminderEnabled" type="checkbox" /><span>Remind me at the due date/time<small>If no time is selected, Hana uses 9:00 AM.</small></span></label>
+        <label class="check-row"><input id="taskReminderChain" type="checkbox" /><span>Use a reminder chain<small>Hana nudges you before, at, and after the due time while the task is unfinished.</small></span></label>
+      </div>
+
+      <div class="petal-section">
+        <div class="petal-section-label">🔁 Recurrence petal</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="taskRecurrenceType">Repeat</label>
+            <select id="taskRecurrenceType">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekdays">Every weekday</option>
+              <option value="selectedWeekdays">Selected weekdays</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="custom">Every X days</option>
+              <option value="afterCompletion">X days after completion</option>
+            </select>
+          </div>
+          <div id="taskRecurrenceIntervalWrap" class="form-group hidden"><label for="taskRecurrenceInterval">Every</label><div class="inline-field"><input id="taskRecurrenceInterval" type="number" min="1" value="1" /><span>days</span></div></div>
+        </div>
+        <div id="taskRecurrenceWeekdaysWrap" class="weekday-picker hidden" aria-label="Repeat weekdays">
+          <label><input type="checkbox" data-recur-day value="1" /><span>M</span></label>
+          <label><input type="checkbox" data-recur-day value="2" /><span>T</span></label>
+          <label><input type="checkbox" data-recur-day value="3" /><span>W</span></label>
+          <label><input type="checkbox" data-recur-day value="4" /><span>T</span></label>
+          <label><input type="checkbox" data-recur-day value="5" /><span>F</span></label>
+          <label><input type="checkbox" data-recur-day value="6" /><span>S</span></label>
+          <label><input type="checkbox" data-recur-day value="0" /><span>S</span></label>
+        </div>
+      </div>
+
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteTaskFromModal" class="danger-button hidden" type="button">Delete</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="taskModal">Cancel</button>
+        <button id="saveTaskButton" class="primary-button">Add task</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTE MODAL -->
+  <div id="noteModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p id="noteModalEyebrow" class="eyebrow">NEW NOTE</p><h2 id="noteModalTitle">Capture a thought</h2></div>
+        <button class="modal-close" data-close-modal="noteModal">×</button>
+      </div>
+      <input id="noteEditId" type="hidden" />
+
+      <div class="form-row">
+        <div class="form-group"><label for="noteTitle">Title</label><input id="noteTitle" type="text" placeholder="Note title" /></div>
+        <div class="form-group"><label for="noteType">Type</label><select id="noteType"><option value="note">📝 Note</option><option value="checklist">✅ Checklist</option><option value="meeting">👥 Meeting</option></select></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label for="noteSpace">Space</label><select id="noteSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+        <div class="form-group"><label for="noteTags">Tags</label><input id="noteTags" type="text" placeholder="meeting, ideas, weekly" /></div>
+      </div>
+
+      <div class="note-toolbar" aria-label="Note formatting shortcuts">
+        <button type="button" data-note-insert="# ">H1</button>
+        <button type="button" data-note-insert="## ">H2</button>
+        <button type="button" data-note-insert="• ">• List</button>
+        <button type="button" data-note-insert="**text**">B</button>
+      </div>
+
+      <div class="form-group"><label for="noteContent">Note</label><textarea id="noteContent" class="large-textarea" placeholder="Write anything..."></textarea></div>
+
+      <div id="noteChecklistWrap" class="form-group hidden">
+        <label for="noteChecklist">Checklist / action items</label>
+        <textarea id="noteChecklist" placeholder="One item per line\nSend revised tracker\nAsk Finance about approval"></textarea>
+        <small class="field-help">Meeting notes can turn these lines into tasks.</small>
+      </div>
+
+      <label id="noteResettableWrap" class="check-row hidden"><input id="noteResettable" type="checkbox" /><span>Resettable checklist<small>Useful for groceries, packing, routines and repeatable procedures.</small></span></label>
+      <label class="check-row"><input id="notePinned" type="checkbox" /><span>Pin this note</span></label>
+
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteNoteFromModal" class="danger-button hidden" type="button">Delete</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="noteModal">Cancel</button>
+        <button id="saveNoteButton" class="primary-button">Save note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REMINDER MODAL -->
+  <div id="reminderModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p id="reminderModalEyebrow" class="eyebrow">GENTLE NUDGE</p><h2 id="reminderModalTitle">Add reminder</h2></div>
+        <button class="modal-close" data-close-modal="reminderModal">×</button>
+      </div>
+      <input id="reminderEditId" type="hidden" />
+      <div class="form-group"><label for="reminderTitle">Reminder</label><input id="reminderTitle" type="text" placeholder="What should Hana remind you about?" /></div>
+      <div class="form-group"><label for="reminderSpace">Space</label><select id="reminderSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+      <div class="form-row reminder-date-time-row">
+        <div class="form-group"><label for="reminderDate">Date</label><input id="reminderDate" type="date" /></div>
+        <div class="form-group"><label for="reminderTime">Time</label><input id="reminderTime" type="time" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label for="reminderRepeat">Repeat</label><select id="reminderRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom">Every X days</option></select></div>
+        <div id="reminderRepeatIntervalWrap" class="form-group hidden"><label for="reminderRepeatInterval">Every</label><div class="inline-field"><input id="reminderRepeatInterval" type="number" min="1" value="1" /><span>days</span></div></div>
+      </div>
+      <label class="check-row"><input id="reminderChainEnabled" type="checkbox" /><span>Reminder chain<small>Only continues while the linked task/reminder is still unresolved.</small></span></label>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteReminderFromModal" class="danger-button hidden" type="button">Delete</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="reminderModal">Cancel</button>
+        <button id="saveReminderButton" class="primary-button">Add reminder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE MODAL -->
+  <div id="tableModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p id="tableModalEyebrow" class="eyebrow">CUSTOM TRACKER</p><h2 id="tableModalTitle">Create tracker</h2></div>
+        <button class="modal-close" data-close-modal="tableModal">×</button>
+      </div>
+      <input id="tableEditId" type="hidden" />
+      <div class="form-group">
+        <label for="tableTemplate">Start from a template</label>
+        <select id="tableTemplate">
+          <option value="progress">🌱 Progress Tracker</option>
+          <option value="project">📌 Project Tracker</option>
+          <option value="expenses">💳 Expense Tracker</option>
+          <option value="blank">✨ Blank table</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label for="tableName">Tracker name</label><input id="tableName" type="text" placeholder="Progress Tracker" /></div>
+        <div class="form-group"><label for="tableSpace">Space</label><select id="tableSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+      </div>
+      <div class="form-group">
+        <label for="tableColumns">Columns</label>
+        <textarea id="tableColumns" class="large-textarea" placeholder="One per line: Name:type\nTask:text\nOwner:text\nDue:date\nStatus:status\nDone:checkbox\nAmount:money"></textarea>
+        <small class="field-help">Types: text, number, progress, date, checkbox, status, money, tag, link, reminder. Add, remove, rename, or reorder one column per line.</small>
+      </div>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete tracker</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="tableModal">Cancel</button>
+        <button id="saveTableButton" class="primary-button">Create tracker</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE ROW MODAL -->
+  <div id="tableRowModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div><p class="eyebrow">LIVING ROW</p><h2 id="tableRowModalTitle">Add row</h2></div>
+        <button class="modal-close" data-close-modal="tableRowModal">×</button>
+      </div>
+      <input id="tableRowTableId" type="hidden" />
+      <input id="tableRowEditId" type="hidden" />
+      <div id="tableRowFields"></div>
+      <label class="check-row"><input id="tableRowReminder" type="checkbox" /><span>Create a reminder from this row<small>Hana uses the first date column and first text column.</small></span></label>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteTableRowFromModal" class="danger-button hidden" type="button">Delete row</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="tableRowModal">Cancel</button>
+        <button id="saveTableRowButton" class="primary-button">Save row</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHECKLIST / LIST MODAL -->
+  <div id="listModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div><p id="listModalEyebrow" class="eyebrow">NEW CHECKLIST</p><h2 id="listModalTitle">Create a list</h2></div>
+        <button class="modal-close" data-close-modal="listModal">×</button>
+      </div>
+      <input id="listEditId" type="hidden" />
+      <div class="form-row">
+        <div class="form-group"><label for="listIcon">Icon</label><input id="listIcon" type="text" maxlength="4" placeholder="🛒" /></div>
+        <div class="form-group"><label for="listName">List name</label><input id="listName" type="text" placeholder="Groceries" /></div>
+      </div>
+      <div class="form-group"><label for="listSpace">Space</label><select id="listSpace" data-space-select></select></div>
+      <p class="field-help list-modal-help">Each checklist item is stored as its own entry, so you can check, edit, or remove items independently.</p>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteListFromModal" class="danger-button hidden" type="button">Delete list</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="listModal">Cancel</button>
+        <button id="saveListButton" class="primary-button">Create list</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIST ITEM MODAL -->
+  <div id="listItemModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">CHECKLIST ITEM</p><h2 id="listItemModalTitle">Add item</h2></div>
+        <button class="modal-close" data-close-modal="listItemModal">×</button>
+      </div>
+      <input id="listItemListId" type="hidden" />
+      <input id="listItemEditId" type="hidden" />
+      <div class="form-group"><label for="listItemTitle">Item</label><input id="listItemTitle" type="text" placeholder="Milk, book dentist, buy charger..." /></div>
+      <div class="form-group"><label for="listItemDetail">Detail / quantity <span class="optional-label">optional</span></label><input id="listItemDetail" type="text" placeholder="2 bottles, size M, aisle 4..." /></div>
+      <div class="modal-actions task-modal-actions">
+        <button id="deleteListItemFromModal" class="danger-button hidden" type="button">Delete item</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="listItemModal">Cancel</button>
+        <button id="saveListItemButton" class="primary-button">Add item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPEARANCE MODAL -->
+  <div id="appearanceModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large appearance-modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">PERSONALIZE</p><h2>Appearance</h2></div>
+        <button class="modal-close" data-close-modal="appearanceModal">×</button>
+      </div>
+
+      <section class="appearance-section">
+        <div class="appearance-section-title"><h3>Color Theme</h3><span id="currentThemeLabel">Sakura Pink</span></div>
+        <div class="theme-list">
+          <button class="theme-choice" data-theme-choice="peach"><span class="theme-swatch theme-peach"></span><strong>Peach Pink</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="sakura"><span class="theme-swatch theme-sakura"></span><strong>Sakura Pink</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="lavender"><span class="theme-swatch theme-lavender"></span><strong>Lavender Purple</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="sky"><span class="theme-swatch theme-sky"></span><strong>Sky Blue</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="mint"><span class="theme-swatch theme-mint"></span><strong>Mint Green</strong><span class="theme-check">✓</span></button>
+          <button class="theme-choice" data-theme-choice="yellow"><span class="theme-swatch theme-yellow"></span><strong>Soft Yellow</strong><span class="theme-check">✓</span></button>
+        </div>
+      </section>
+
+      <section class="appearance-section">
+        <div class="appearance-section-title"><h3>Custom Wallpaper</h3><span id="wallpaperStateLabel">Off</span></div>
+        <div id="wallpaperPreview" class="wallpaper-preview"><span>Choose a photo from this device.<br />It stays private and local to Hana.</span></div>
+        <button id="chooseWallpaperButton" class="secondary-button wallpaper-choose-button" type="button">Choose Photo</button>
+        <label class="wallpaper-toggle-row"><span><strong>Wallpaper</strong><small>Turn the saved photo background on or off.</small></span><input id="wallpaperEnabled" type="checkbox" /></label>
+        <div class="appearance-control-label">Overlay strength</div>
+        <div class="segmented-control wallpaper-overlay-options">
+          <button data-overlay-strength="light">Light</button>
+          <button data-overlay-strength="medium">Medium</button>
+          <button data-overlay-strength="strong">Strong</button>
+        </div>
+        <div class="form-group wallpaper-position-wrap"><label for="wallpaperPosition">Wallpaper position</label><select id="wallpaperPosition"><option value="center">Center</option><option value="top">Top</option><option value="bottom">Bottom</option></select></div>
+        <p class="wallpaper-note"><strong>Wallpaper fit</strong><br />Hana fills the screen with your photo and keeps it behind a soft readable overlay.</p>
+      </section>
+
+      <button id="removeWallpaperButton" class="secondary-button full-width" type="button">Remove Wallpaper Photo</button>
+      <button id="resetAppearanceButton" class="secondary-button full-width appearance-reset" type="button">Reset Appearance</button>
+      <button class="primary-button full-width appearance-done" data-close-modal="appearanceModal" type="button">Done</button>
+    </div>
+  </div>
+
+  <!-- FUTURE ME NOTE MODAL -->
+  <div id="futureNoteModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header"><div><p class="eyebrow">FOR FUTURE YOU</p><h2 id="futureNoteModalTitle">Write to Future Me</h2></div><button class="modal-close" data-close-modal="futureNoteModal">×</button></div>
+      <input id="futureNoteEditId" type="hidden" />
+      <div class="form-group"><label for="futureNoteTitle">Title <span class="optional-label">optional</span></label><input id="futureNoteTitle" type="text" placeholder="Remember why this mattered..." /></div>
+      <div class="form-group"><label for="futureNoteContent">Message</label><textarea id="futureNoteContent" class="large-textarea" placeholder="Tell Future You something worth carrying forward..."></textarea></div>
+      <div class="stacked-date-time"><div class="form-group"><label for="futureNoteDate">Bring this back on</label><input id="futureNoteDate" type="date" /></div><div class="form-group"><label for="futureNoteSpace">Space</label><select id="futureNoteSpace" data-space-select></select></div></div>
+      <div class="modal-actions task-modal-actions"><button id="deleteFutureNoteButton" class="danger-button hidden" type="button">Delete</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="futureNoteModal">Cancel</button><button id="saveFutureNoteButton" class="primary-button">Save for Future Me</button></div>
+    </div>
+  </div>
+
+  <!-- NO-GUILT RESCHEDULE MODAL -->
+  <div id="rescheduleModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large reschedule-modal-card">
+      <div class="modal-header"><div><p class="eyebrow">NO-GUILT RESCHEDULE</p><h2>This keeps moving 🌿</h2></div><button class="modal-close" data-close-modal="rescheduleModal">×</button></div>
+      <input id="rescheduleTaskId" type="hidden" />
+      <div class="reflection-task"><strong id="rescheduleTaskName"></strong><small id="rescheduleCountLabel"></small></div>
+      <p class="reflection-question">What is actually getting in the way?</p>
+      <div class="reflection-reasons"><button data-reschedule-reason="too-big">🧩 Too big</button><button data-reschedule-reason="unclear">🌫️ Not clear</button><button data-reschedule-reason="waiting">⏳ Waiting on something</button><button data-reschedule-reason="wrong-day">📅 Wrong day</button><button data-reschedule-reason="low-energy">🪫 No energy for it</button><button data-reschedule-reason="not-important">🍃 Not important anymore</button></div>
+      <div class="reflection-actions"><button class="secondary-button" data-reschedule-action="breakdown">☷ Break it down</button><button class="secondary-button" data-reschedule-action="waiting">⏳ Move to Waiting</button><button class="secondary-button" data-reschedule-action="someday">🌱 Someday</button><button class="secondary-button" data-reschedule-action="keep">Keep as planned</button><button class="danger-button" data-reschedule-action="release">Let it go</button></div>
+    </div>
+  </div>
+
+  <!-- TASK BREAKDOWN MODAL -->
+  <div id="breakdownModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header"><div><p class="eyebrow">MAKE THE NEXT STEP SMALLER</p><h2>Task Breakdown</h2></div><button class="modal-close" data-close-modal="breakdownModal">×</button></div>
+      <input id="breakdownTaskId" type="hidden" />
+      <div class="breakdown-task-title">🌱 <strong id="breakdownTaskTitle"></strong></div>
+      <div class="form-group"><label for="breakdownSteps">Mini plan</label><textarea id="breakdownSteps" class="large-textarea" placeholder="One step per line&#10;Research&#10;Outline&#10;Draft&#10;Review&#10;Send"></textarea><small class="field-help">Each line becomes a checkable step inside the task.</small></div>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="breakdownModal">Cancel</button><button id="saveBreakdownButton" class="primary-button">Save mini plan</button></div>
+    </div>
+  </div>
+
+  <!-- MEMORY THREAD MODAL -->
+  <div id="threadModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large">
+      <div class="modal-header"><div><p class="eyebrow">MEMORY THREAD</p><h2>Keep the story together</h2></div><button class="modal-close" data-close-modal="threadModal">×</button></div>
+      <input id="threadEditId" type="hidden" />
+      <div class="form-row"><div class="form-group"><label for="threadEmoji">Icon</label><input id="threadEmoji" type="text" maxlength="4" value="🧵" /></div><div class="form-group"><label for="threadTitle">Thread name</label><input id="threadTitle" type="text" placeholder="Wedding planning, Q3 launch, Japan trip..." /></div></div>
+      <div class="form-group"><label for="threadDescription">Context <span class="optional-label">optional</span></label><textarea id="threadDescription" placeholder="What ties these things together?"></textarea></div>
+      <div class="form-group"><label for="threadSpace">Space</label><select id="threadSpace" data-space-select></select></div>
+      <div class="modal-actions task-modal-actions"><button id="deleteThreadButton" class="danger-button hidden" type="button">Delete thread</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="threadModal">Cancel</button><button id="saveThreadButton" class="primary-button">Save thread</button></div>
+    </div>
+  </div>
+
+  <!-- LINK SOMETHING TO THREAD -->
+  <div id="threadLinkModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header"><div><p class="eyebrow">ADD TO MEMORY THREAD</p><h2>Link something</h2></div><button class="modal-close" data-close-modal="threadLinkModal">×</button></div>
+      <input id="threadLinkThreadId" type="hidden" />
+      <div class="form-group"><label for="threadLinkItem">Hana item</label><select id="threadLinkItem"></select></div>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="threadLinkModal">Cancel</button><button id="saveThreadLinkButton" class="primary-button">Add to thread</button></div>
+    </div>
+  </div>
+
+  <!-- PIN MODAL -->
+  <div id="pinModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header"><div><p class="eyebrow">PINBOARD</p><h2>Add a pin</h2></div><button class="modal-close" data-close-modal="pinModal">×</button></div>
+      <div class="form-group"><label for="pinTitle">Title</label><input id="pinTitle" type="text" placeholder="Wi-Fi, grocery list..." /></div>
+      <div class="form-group"><label for="pinContent">Content</label><textarea id="pinContent" placeholder="Keep something handy..."></textarea></div>
+      <div class="form-group"><label for="pinSpace">Space</label><select id="pinSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="pinModal">Cancel</button><button id="savePinButton" class="primary-button">Add pin</button></div>
+    </div>
+  </div>
+
+  <!-- SOMEDAY MODAL -->
+  <div id="somedayModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header"><div><p class="eyebrow">SOMEDAY</p><h2>Save for later</h2></div><button class="modal-close" data-close-modal="somedayModal">×</button></div>
+      <div class="form-group"><label for="somedayTitle">Idea</label><input id="somedayTitle" type="text" placeholder="Visit Hokkaido in winter..." /></div>
+      <div class="form-group"><label for="somedayCategory">Category</label><select id="somedayCategory"><option value="ideas">💡 Idea</option><option value="places">📍 Place</option><option value="project">🌱 Project</option><option value="books">📚 Book</option><option value="learning">🎓 Learning</option><option value="other">🌸 Other</option></select></div>
+      <div class="form-group"><label for="somedayNotes">Notes</label><textarea id="somedayNotes" placeholder="Why do you want to do this?"></textarea></div>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="somedayModal">Cancel</button><button id="saveSomedayButton" class="primary-button">Save for someday</button></div>
+    </div>
+  </div>
+
+  <!-- ADD MENU -->
+  <div id="addMenu" class="modal-overlay hidden">
+    <div class="action-sheet">
+      <div class="action-sheet-handle"></div>
+      <div class="action-sheet-title">What would you like to plant?</div>
+      <div class="action-grid">
+        <button data-action="quick"><span>✨</span>Quick Capture</button>
+        <button data-action="task"><span>✅</span>Task</button>
+        <button data-action="note"><span>📝</span>Note</button>
+        <button data-action="future"><span>💌</span>Future Me</button>
+        <button data-action="reminder"><span>🔔</span>Reminder</button>
+        <button data-action="table"><span>📋</span>Table / Tracker</button>
+        <button data-action="list"><span>☑️</span>Checklist</button>
+        <button data-action="pin"><span>📌</span>Pin</button>
+        <button data-action="someday"><span>🌱</span>Someday</button>
+        <button data-goto="inbox"><span>🧠</span>Brain Dump</button>
+      </div>
+      <button class="secondary-button full-width" data-close-modal="addMenu">Cancel</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
+  <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
+  <script src="app.js"></script>
+</body>
+</html>
