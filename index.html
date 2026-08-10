@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+
+  <meta name="theme-color" content="#fff7fa" />
+
+  <meta
+    name="description"
+    content="Hana - Organize your life, one bloom at a time."
+  />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Hana" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+
+  <title>Hana 🌸</title>
+</head>
+
+<body>
+
+  <!-- APP SHELL -->
+  <div id="app">
+
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="brand-area">
+        <div class="brand-mark">🌸</div>
+
+        <div>
+          <div class="brand-name">hana</div>
+          <div class="brand-tagline">one bloom at a time</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button
+          id="notificationButton"
+          class="icon-button"
+          aria-label="Notifications"
+          title="Notifications"
+        >
+          🔔
+        </button>
+
+        <button
+          id="quickCaptureHeader"
+          class="icon-button"
+          aria-label="Quick capture"
+          title="Quick capture"
+        >
+          ✨
+        </button>
+      </div>
+    </header>
+
+    <!-- MODE SWITCH -->
+    <section class="mode-bar">
+      <button class="mode-button active" data-mode="all">
+        🌸 All
+      </button>
+
+      <button class="mode-button" data-mode="work">
+        💼 Work
+      </button>
+
+      <button class="mode-button" data-mode="personal">
+        🎀 Personal
+      </button>
+    </section>
+
+    <!-- PAGE CONTENT -->
+    <main id="pageContent" class="page-content"></main>
+
+    <!-- FLOATING ADD BUTTON -->
+    <button
+      id="mainAddButton"
+      class="floating-add"
+      aria-label="Add"
+    >
+      +
+    </button>
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+
+      <button class="nav-button active" data-page="today">
+        <span class="nav-icon">🌸</span>
+        <span>Today</span>
+      </button>
+
+      <button class="nav-button" data-page="tasks">
+        <span class="nav-icon">✓</span>
+        <span>Tasks</span>
+      </button>
+
+      <button class="nav-button nav-center-placeholder" aria-hidden="true">
+        <span></span>
+      </button>
+
+      <button class="nav-button" data-page="notes">
+        <span class="nav-icon">📝</span>
+        <span>Notes</span>
+      </button>
+
+      <button class="nav-button" data-page="more">
+        <span class="nav-icon">•••</span>
+        <span>More</span>
+      </button>
+
+    </nav>
+
+  </div>
+
+  <!-- QUICK CAPTURE MODAL -->
+  <div id="quickCaptureModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">HANA QUICK CAPTURE</p>
+          <h2>What's on your mind?</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="quickCaptureModal">
+          ×
+        </button>
+      </div>
+
+      <textarea
+        id="quickCaptureInput"
+        class="large-textarea"
+        placeholder="Example:
+Submit monthly report Friday at 3 PM
+
+or
+
+Buy shampoo"
+      ></textarea>
+
+      <div class="capture-detection">
+
+        <div class="capture-label">
+          Hana thinks this is:
+        </div>
+
+        <div id="capturePrediction" class="prediction-chip">
+          🌱 Something new
+        </div>
+
+      </div>
+
+      <div class="form-group">
+        <label for="captureSpace">Space</label>
+
+        <select id="captureSpace">
+          <option value="personal">🎀 Personal</option>
+          <option value="work">💼 Work</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="quickCaptureModal"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="saveQuickCapture"
+          class="primary-button"
+        >
+          Plant it 🌱
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- TASK MODAL -->
+  <div id="taskModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">NEW BLOOM</p>
+          <h2>Add task</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="taskModal">
+          ×
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="taskTitle">Task</label>
+
+        <input
+          id="taskTitle"
+          type="text"
+          placeholder="What needs to be done?"
+        />
+      </div>
+
+      <div class="form-row">
+
+        <div class="form-group">
+          <label for="taskSpace">Space</label>
+
+          <select id="taskSpace">
+            <option value="personal">🎀 Personal</option>
+            <option value="work">💼 Work</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="taskPriority">Priority</label>
+
+          <select id="taskPriority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="form-row">
+
+        <div class="form-group">
+          <label for="taskDate">Due date</label>
+          <input id="taskDate" type="date" />
+        </div>
+
+        <div class="form-group">
+          <label for="taskTime">Time</label>
+          <input id="taskTime" type="time" />
+        </div>
+
+      </div>
+
+      <div class="form-group">
+        <label for="taskStatus">Status</label>
+
+        <select id="taskStatus">
+          <option value="todo">To Do</option>
+          <option value="doing">Doing</option>
+          <option value="waiting">Waiting</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="taskNotes">Details</label>
+
+        <textarea
+          id="taskNotes"
+          placeholder="Optional notes..."
+        ></textarea>
+      </div>
+
+      <label class="check-row">
+        <input id="taskRolling" type="checkbox" />
+
+        <span>
+          Rolling recurring task
+          <small>
+            Next due date starts from the day you complete it.
+          </small>
+        </span>
+      </label>
+
+      <div id="rollingOptions" class="form-group hidden">
+        <label for="taskRepeatDays">Repeat every</label>
+
+        <div class="inline-field">
+          <input
+            id="taskRepeatDays"
+            type="number"
+            min="1"
+            value="7"
+          />
+
+          <span>days</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="taskModal"
+        >
+          Cancel
+        </button>
+
+        <button id="saveTaskButton" class="primary-button">
+          Add task
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- NOTE MODAL -->
+  <div id="noteModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <p class="eyebrow">NEW NOTE</p>
+          <h2>Capture a thought</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="noteModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-group">
+        <label for="noteTitle">Title</label>
+        <input id="noteTitle" type="text" placeholder="Note title" />
+      </div>
+
+      <div class="form-group">
+        <label for="noteSpace">Space</label>
+
+        <select id="noteSpace">
+          <option value="personal">🎀 Personal</option>
+          <option value="work">💼 Work</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="noteContent">Note</label>
+
+        <textarea
+          id="noteContent"
+          class="large-textarea"
+          placeholder="Write anything..."
+        ></textarea>
+      </div>
+
+      <label class="check-row">
+        <input id="notePinned" type="checkbox" />
+        <span>Pin this note</span>
+      </label>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="noteModal"
+        >
+          Cancel
+        </button>
+
+        <button id="saveNoteButton" class="primary-button">
+          Save note
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- REMINDER MODAL -->
+  <div id="reminderModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <p class="eyebrow">GENTLE NUDGE</p>
+          <h2>Add reminder</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="reminderModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-group">
+        <label for="reminderTitle">Reminder</label>
+
+        <input
+          id="reminderTitle"
+          type="text"
+          placeholder="What should Hana remind you about?"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="reminderSpace">Space</label>
+
+        <select id="reminderSpace">
+          <option value="personal">🎀 Personal</option>
+          <option value="work">💼 Work</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+
+        <div class="form-group">
+          <label for="reminderDate">Date</label>
+          <input id="reminderDate" type="date" />
+        </div>
+
+        <div class="form-group">
+          <label for="reminderTime">Time</label>
+          <input id="reminderTime" type="time" />
+        </div>
+
+      </div>
+
+      <div class="form-group">
+        <label for="reminderRepeat">Repeat</label>
+
+        <select id="reminderRepeat">
+          <option value="none">Does not repeat</option>
+          <option value="daily">Every day</option>
+          <option value="weekly">Every week</option>
+          <option value="monthly">Every month</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="reminderModal"
+        >
+          Cancel
+        </button>
+
+        <button id="saveReminderButton" class="primary-button">
+          Add reminder
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- PIN MODAL -->
+  <div id="pinModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <p class="eyebrow">PINBOARD</p>
+          <h2>Add a pin</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="pinModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-group">
+        <label for="pinTitle">Title</label>
+        <input id="pinTitle" type="text" placeholder="Wi-Fi, grocery list..." />
+      </div>
+
+      <div class="form-group">
+        <label for="pinContent">Content</label>
+        <textarea id="pinContent" placeholder="Keep something handy..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="pinSpace">Space</label>
+
+        <select id="pinSpace">
+          <option value="personal">🎀 Personal</option>
+          <option value="work">💼 Work</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="pinModal"
+        >
+          Cancel
+        </button>
+
+        <button id="savePinButton" class="primary-button">
+          Add pin
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- SOMEDAY MODAL -->
+  <div id="somedayModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <p class="eyebrow">SOMEDAY</p>
+          <h2>Save for later</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="somedayModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-group">
+        <label for="somedayTitle">Idea</label>
+
+        <input
+          id="somedayTitle"
+          type="text"
+          placeholder="Visit Hokkaido in winter..."
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="somedayCategory">Category</label>
+
+        <select id="somedayCategory">
+          <option value="ideas">💡 Idea</option>
+          <option value="places">📍 Place</option>
+          <option value="project">🌱 Project</option>
+          <option value="books">📚 Book</option>
+          <option value="learning">🎓 Learning</option>
+          <option value="other">🌸 Other</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="somedayNotes">Notes</label>
+
+        <textarea
+          id="somedayNotes"
+          placeholder="Why do you want to do this?"
+        ></textarea>
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="somedayModal"
+        >
+          Cancel
+        </button>
+
+        <button id="saveSomedayButton" class="primary-button">
+          Save for someday
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- TABLE ROW MODAL -->
+  <div id="tableRowModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <p class="eyebrow">SMART TABLE</p>
+          <h2>Add row</h2>
+        </div>
+
+        <button class="modal-close" data-close-modal="tableRowModal">
+          ×
+        </button>
+
+      </div>
+
+      <div class="form-group">
+        <label for="tableItem">Item</label>
+        <input id="tableItem" type="text" placeholder="Internet bill" />
+      </div>
+
+      <div class="form-row">
+
+        <div class="form-group">
+          <label for="tableAmount">Amount</label>
+          <input id="tableAmount" type="number" step="0.01" placeholder="0" />
+        </div>
+
+        <div class="form-group">
+          <label for="tableDate">Due date</label>
+          <input id="tableDate" type="date" />
+        </div>
+
+      </div>
+
+      <div class="form-group">
+        <label for="tableStatus">Status</label>
+
+        <select id="tableStatus">
+          <option value="upcoming">Upcoming</option>
+          <option value="due">Due</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+
+      <label class="check-row">
+        <input id="tableReminder" type="checkbox" />
+        <span>Remind me about this row</span>
+      </label>
+
+      <div class="modal-actions">
+
+        <button
+          class="secondary-button"
+          data-close-modal="tableRowModal"
+        >
+          Cancel
+        </button>
+
+        <button id="saveTableRowButton" class="primary-button">
+          Add row
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ADD MENU -->
+  <div id="addMenu" class="modal-overlay hidden">
+
+    <div class="action-sheet">
+
+      <div class="action-sheet-handle"></div>
+
+      <div class="action-sheet-title">
+        What would you like to plant?
+      </div>
+
+      <div class="action-grid">
+
+        <button data-action="quick">
+          <span>✨</span>
+          Quick Capture
+        </button>
+
+        <button data-action="task">
+          <span>✅</span>
+          Task
+        </button>
+
+        <button data-action="note">
+          <span>📝</span>
+          Note
+        </button>
+
+        <button data-action="reminder">
+          <span>🔔</span>
+          Reminder
+        </button>
+
+        <button data-action="pin">
+          <span>📌</span>
+          Pin
+        </button>
+
+        <button data-action="someday">
+          <span>🌱</span>
+          Someday
+        </button>
+
+        <button data-action="table">
+          <span>📋</span>
+          Table Row
+        </button>
+
+      </div>
+
+      <button
+        class="secondary-button full-width"
+        data-close-modal="addMenu"
+      >
+        Cancel
+      </button>
+
+    </div>
+
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
