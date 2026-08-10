@@ -2041,3 +2041,107 @@ select,
     display: flex;
   }
 }
+
+/* =====================================================
+   HANA 🌸 v1.2 — Gentle Planning System
+   Plan/Do · Bloom Budget · Rescue · Time Pockets
+   ===================================================== */
+
+.day-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.day-mode-button {
+  min-height: 42px;
+  color: var(--text-soft);
+  background: transparent;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.day-mode-button.active {
+  color: var(--rose);
+  background: linear-gradient(135deg, var(--pink-100), #fff);
+  box-shadow: 0 4px 14px rgba(118,70,89,.08);
+}
+
+.capacity-card {
+  margin-top: 14px;
+  padding: 17px;
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  background: rgba(255,255,255,.92);
+  box-shadow: var(--shadow-sm);
+}
+
+.capacity-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.capacity-heading h2 { margin: 0; font-size: 18px; }
+.capacity-heading strong { color: var(--rose); font-size: 13px; white-space: nowrap; }
+.capacity-card > p { margin: 9px 0 0; color: var(--text-soft); font-size: 11px; line-height: 1.5; }
+.capacity-track { height: 10px; margin-top: 13px; background: var(--pink-75); border-radius: 999px; overflow: hidden; }
+.capacity-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--pink-300), var(--pink-500)); transition: width .25s ease; }
+.capacity-full .capacity-fill { background: linear-gradient(90deg, #e8b96a, #dc9960); }
+.capacity-overflow { border-color: var(--red-100); background: linear-gradient(145deg, var(--red-50), #fff); }
+.capacity-overflow .capacity-fill { background: var(--red-500); }
+.capacity-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 13px; }
+.capacity-actions button { min-width: 0; padding: 0 10px; }
+
+.planning-petal { background: linear-gradient(145deg, #fff9fc, #fff); }
+.weekday-picker { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; }
+.weekday-picker label { position: relative; }
+.weekday-picker input { position: absolute; opacity: 0; pointer-events: none; }
+.weekday-picker span { min-height: 38px; display: grid; place-items: center; color: var(--text-soft); background: var(--pink-50); border: 1px solid var(--border); border-radius: 11px; font-size: 11px; font-weight: 800; }
+.weekday-picker input:checked + span { color: #fff; background: var(--pink-500); border-color: var(--pink-500); }
+
+.do-mode-shell { padding-top: 8px; }
+.do-mode-count { margin-bottom: 12px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.do-task-card { min-height: 440px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 28px 20px; text-align: center; background: linear-gradient(155deg, #fff, #fff2f7); border: 1px solid var(--pink-150); border-radius: 28px; box-shadow: var(--shadow); }
+.do-task-icon { font-size: 52px; margin-bottom: 8px; }
+.do-task-card h1 { max-width: 520px; margin: 16px 0 12px; font-size: clamp(25px, 7vw, 36px); line-height: 1.15; }
+.do-task-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; color: var(--text-soft); font-size: 11px; }
+.do-task-meta span { padding: 6px 9px; background: rgba(255,255,255,.82); border: 1px solid var(--border-soft); border-radius: 999px; }
+.do-task-note { max-width: 520px; margin: 18px auto 0; color: var(--text-soft); font-size: 13px; line-height: 1.65; }
+.do-subtasks { width: min(100%, 520px); margin-top: 18px; text-align: left; }
+.do-actions { width: min(100%, 520px); display: grid; gap: 8px; margin-top: 24px; }
+.do-actions .text-button { min-height: 38px; }
+.do-empty { margin-top: 50px; }
+
+.rescue-summary { padding: 17px; background: linear-gradient(145deg, var(--green-50), #fff); border: 1px solid var(--green-100); border-radius: 18px; }
+.rescue-summary strong { display: block; margin-bottom: 5px; font-size: 14px; }
+.rescue-summary p { margin: 0; color: var(--text-soft); font-size: 12px; line-height: 1.55; }
+.rescue-warning { background: linear-gradient(145deg, var(--yellow-50), #fff); border-color: var(--yellow-100); }
+.rescue-list { display: flex; flex-direction: column; gap: 8px; }
+.rescue-task-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 13px 14px; background: #fff; border: 1px solid var(--border-soft); border-radius: 15px; box-shadow: var(--shadow-sm); }
+.rescue-task-row strong { display: block; margin-bottom: 4px; font-size: 13px; }
+.rescue-action-label { flex: 0 0 auto; padding: 5px 8px; color: var(--rose); background: var(--pink-50); border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.rescue-footer { position: sticky; bottom: calc(var(--nav-height) + env(safe-area-inset-bottom)); z-index: 8; display: grid; grid-template-columns: .7fr 1.3fr; gap: 8px; padding: 12px 0 4px; background: linear-gradient(180deg, rgba(255,250,253,0), rgba(255,250,253,.98) 30%); }
+
+.pocket-controls { display: grid; gap: 15px; padding: 16px; background: #fff; border: 1px solid var(--border-soft); border-radius: 18px; box-shadow: var(--shadow-sm); }
+.pocket-label { display: block; margin-bottom: 8px; color: var(--text-soft); font-size: 11px; font-weight: 800; }
+.pocket-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.pocket-task { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px; background: #fff; border: 1px solid var(--border-soft); border-radius: 16px; box-shadow: var(--shadow-sm); }
+.pocket-task-main { min-width: 0; cursor: pointer; }
+.pocket-task-main strong { display: block; margin-bottom: 6px; font-size: 13px; }
+
+@media (max-width: 480px) {
+  .capacity-actions { grid-template-columns: 1fr; }
+  .rescue-task-row { align-items: flex-start; }
+  .rescue-action-label { white-space: nowrap; }
+  .pocket-task { grid-template-columns: 1fr; }
+  .pocket-task .focus-add { width: 100%; }
+}

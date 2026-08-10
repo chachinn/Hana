@@ -122,6 +122,15 @@
         <div class="form-group"><label for="taskTime">🕐 Time</label><input id="taskTime" type="time" /></div>
       </div>
 
+      <div class="petal-section planning-petal">
+        <div class="petal-section-label">🌷 Planning petal</div>
+        <div class="form-row">
+          <div class="form-group"><label for="taskDuration">⏱ Estimate</label><select id="taskDuration"><option value="0">Not sure yet</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></div>
+          <div class="form-group"><label for="taskEnergy">Energy</label><select id="taskEnergy"><option value="low">🌿 Low</option><option value="medium" selected>🌸 Medium</option><option value="high">⚡ High</option></select></div>
+        </div>
+        <div class="form-group"><label for="taskDeadlineType">Date meaning</label><select id="taskDeadlineType"><option value="soft">🪶 Soft date — safe to move when plans change</option><option value="hard">🔒 Hard deadline — Hana should protect this date</option></select><small class="field-help">Hard deadlines are never moved by Rescue My Day.</small></div>
+      </div>
+
       <div class="form-group"><label for="taskStatus">Status</label><select id="taskStatus"><option value="todo">To Do</option><option value="doing">Doing</option><option value="waiting">Waiting</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
 
       <div class="petal-section">
@@ -163,7 +172,8 @@
             <select id="taskRecurrenceType">
               <option value="none">Does not repeat</option>
               <option value="daily">Daily</option>
-              <option value="weekdays">Weekdays</option>
+              <option value="weekdays">Every weekday</option>
+              <option value="selectedWeekdays">Selected weekdays</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
               <option value="custom">Every X days</option>
@@ -171,6 +181,15 @@
             </select>
           </div>
           <div id="taskRecurrenceIntervalWrap" class="form-group hidden"><label for="taskRecurrenceInterval">Every</label><div class="inline-field"><input id="taskRecurrenceInterval" type="number" min="1" value="1" /><span>days</span></div></div>
+        </div>
+        <div id="taskRecurrenceWeekdaysWrap" class="weekday-picker hidden" aria-label="Repeat weekdays">
+          <label><input type="checkbox" data-recur-day value="1" /><span>M</span></label>
+          <label><input type="checkbox" data-recur-day value="2" /><span>T</span></label>
+          <label><input type="checkbox" data-recur-day value="3" /><span>W</span></label>
+          <label><input type="checkbox" data-recur-day value="4" /><span>T</span></label>
+          <label><input type="checkbox" data-recur-day value="5" /><span>F</span></label>
+          <label><input type="checkbox" data-recur-day value="6" /><span>S</span></label>
+          <label><input type="checkbox" data-recur-day value="0" /><span>S</span></label>
         </div>
       </div>
 

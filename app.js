@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.1
-   Daily-use Polish + Agenda + Templates + History + Trash
+   HANA 🌸 v1.2
+   Plan/Do Mode + Capacity + Rescue My Day + Time Pockets
    Local-first PWA
    ===================================================== */
 
@@ -107,8 +107,14 @@ const defaultState = {
   activeTableId: "",
   focusDate: todayISO(),
   focusTaskIds: [],
+  todayViewMode: "plan",
+  doTaskIndex: 0,
+  timePocketMinutes: 30,
+  timePocketEnergy: "any",
 
   settings: {
+    dailyCapacityMinutes: 240,
+    overloadGuardrail: true,
     workFirewallEnabled: false,
     workStart: "08:00",
     workEnd: "18:00",
@@ -128,6 +134,9 @@ const defaultState = {
       tags: [],
       dueDate: todayISO(),
       dueTime: "",
+      durationMinutes: 30,
+      energy: "medium",
+      deadlineType: "soft",
       notes: "",
       link: "",
       subtasks: [],
@@ -201,6 +210,10 @@ function normalizeTask(task = {}) {
     tags: Array.isArray(task.tags) ? task.tags.map(String) : [],
     dueDate: task.dueDate || "",
     dueTime: task.dueTime || "",
+    durationMinutes: Math.max(0, Number(task.durationMinutes || 0)),
+    energy: ["low", "medium", "high"].includes(task.energy) ? task.energy : "medium",
+    deadlineType: task.deadlineType === "hard" ? "hard" : "soft",
+    rescheduleCount: Math.max(0, Number(task.rescheduleCount || 0)),
     notes: String(task.notes || ""),
     link: String(task.link || ""),
     subtasks: Array.isArray(task.subtasks)
@@ -212,8 +225,11 @@ function normalizeTask(task = {}) {
     reminderEnabled: Boolean(task.reminderEnabled),
     reminderChain: Boolean(task.reminderChain),
     recurrence: {
-      type: ["none", "daily", "weekdays", "weekly", "monthly", "custom", "afterCompletion"].includes(recurrence?.type) ? recurrence.type : "none",
-      interval: Math.max(1, Number(recurrence?.interval || 1))
+      type: ["none", "daily", "weekdays", "weekly", "monthly", "custom", "afterCompletion", "selectedWeekdays"].includes(recurrence?.type) ? recurrence.type : "none",
+      interval: Math.max(1, Number(recurrence?.interval || 1)),
+      weekdays: Array.isArray(recurrence?.weekdays)
+        ? [...new Set(recurrence.weekdays.map(Number).filter(day => day >= 0 && day <= 6))]
+        : []
     },
     completed: Boolean(task.completed || task.status === "done"),
     completedDate: task.completedDate || null,
@@ -304,6 +320,10 @@ function normalizeState(data = {}) {
     trash: Array.isArray(data.trash) ? data.trash.filter(entry => Number(entry.deletedAt || 0) > Date.now() - (30 * 24 * 60 * 60 * 1000)) : [],
     focusTaskIds: Array.isArray(data.focusTaskIds) ? data.focusTaskIds : [],
     focusDate: data.focusDate || todayISO(),
+    todayViewMode: data.todayViewMode === "do" ? "do" : "plan",
+    doTaskIndex: Math.max(0, Number(data.doTaskIndex || 0)),
+    timePocketMinutes: [10, 15, 30, 45, 60, 90].includes(Number(data.timePocketMinutes)) ? Number(data.timePocketMinutes) : 30,
+    timePocketEnergy: ["any", "low", "medium", "high"].includes(data.timePocketEnergy) ? data.timePocketEnergy : "any",
     dailyCloseHistory: Array.isArray(data.dailyCloseHistory) ? data.dailyCloseHistory : []
   };
 
@@ -394,6 +414,83 @@ function greeting() {
 function modeLabel(space) { return space === "work" ? "💼 Work" : "🎀 Personal"; }
 function modeBadge(space) { return space === "work" ? "badge-work" : "badge-personal"; }
 function statusLabel(status) { return ({ todo:"To Do", doing:"Doing", waiting:"Waiting", blocked:"Blocked", done:"Done" })[status] || status; }
+
+function formatDuration(minutes) {
+  const value = Math.max(0, Number(minutes || 0));
+  if (!value) return "No estimate";
+  if (value < 60) return `${value}m`;
+  const hours = Math.floor(value / 60);
+  const mins = value % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function taskPlanningMinutes(task) {
+  return Math.max(1, Number(task?.durationMinutes || 30));
+}
+
+function energyLabel(energy) {
+  return ({ low:"🌿 Low", medium:"🌸 Medium", high:"⚡ High" })[energy] || "🌸 Medium";
+}
+
+function deadlineLabel(task) {
+  if (!task?.dueDate) return "";
+  return task.deadlineType === "hard" ? "🔒 Hard deadline" : "🪶 Soft date";
+}
+
+function priorityWeight(priority) {
+  return ({ high:3, medium:2, low:1 })[priority] || 0;
+}
+
+function addMonthsClamped(dateString, months = 1) {
+  const base = new Date(`${dateString || todayISO()}T12:00:00`);
+  const originalDay = base.getDate();
+  const target = new Date(base.getFullYear(), base.getMonth() + Number(months || 1), 1, 12, 0, 0);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12, 0, 0).getDate();
+  target.setDate(Math.min(originalDay, lastDay));
+  return localDateISO(target);
+}
+
+function nextSelectedWeekdayISO(dateString, weekdays = []) {
+  const allowed = new Set((weekdays || []).map(Number));
+  const base = new Date(`${dateString || todayISO()}T12:00:00`);
+  if (!allowed.size) allowed.add(base.getDay());
+  for (let i = 1; i <= 14; i += 1) {
+    const next = new Date(base);
+    next.setDate(base.getDate() + i);
+    if (allowed.has(next.getDay())) return localDateISO(next);
+  }
+  return addDaysISO(dateString || todayISO(), 7);
+}
+
+function focusTasksVisible() {
+  return state.focusTaskIds
+    .map(id => state.tasks.find(task => task.id === id))
+    .filter(task => task && !task.completed && (!firewallIsActive() || task.space !== "work"));
+}
+
+function capacitySnapshot(tasks = focusTasksVisible()) {
+  const capacity = Math.max(30, Number(state.settings.dailyCapacityMinutes || 240));
+  const minutes = tasks.reduce((sum, task) => sum + taskPlanningMinutes(task), 0);
+  const ratio = capacity ? minutes / capacity : 0;
+  const level = ratio > 1 ? "overflow" : ratio >= 0.85 ? "full" : ratio >= 0.55 ? "steady" : "light";
+  return { capacity, minutes, ratio, level, remaining: Math.max(0, capacity - minutes), over: Math.max(0, minutes - capacity) };
+}
+
+function capacityLabel(level) {
+  return ({ light:"Light", steady:"Comfortable", full:"Nearly full", overflow:"Overflowing" })[level] || "Light";
+}
+
+function recurrenceLabel(task) {
+  const rec = task?.recurrence || { type:"none" };
+  if (rec.type === "selectedWeekdays") {
+    const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const days = (rec.weekdays || []).map(day => labels[Number(day)]).filter(Boolean);
+    return days.length ? `🔁 ${days.join(", ")}` : "🔁 Selected days";
+  }
+  if (rec.type === "afterCompletion") return `🔁 ${rec.interval}d after done`;
+  if (rec.type === "custom") return `🔁 Every ${rec.interval}d`;
+  return rec.type !== "none" ? `🔁 ${rec.type}` : "";
+}
 
 function isWorkTime(now = new Date()) {
   const s = state.settings;
@@ -563,6 +660,8 @@ function render() {
     case "daily-close": renderDailyClose(); break;
     case "inbox": renderInbox(); break;
     case "agenda": renderAgenda(); break;
+    case "rescue": renderRescueDay(); break;
+    case "time-pockets": renderTimePockets(); break;
     case "templates": renderTemplates(); break;
     case "history": renderHistory(); break;
     case "trash": renderTrash(); break;
@@ -604,18 +703,27 @@ function attentionItems() {
 }
 
 function renderToday() {
+  if (state.todayViewMode === "do") return renderDoMode();
+
   const container = document.getElementById("pageContent");
   const visibleTasks = filterByMode(state.tasks);
   const active = visibleTasks.filter(t => !t.completed);
   const completedToday = visibleTasks.filter(t => t.completedDate === todayISO()).length;
   const visibleReminders = filterByMode(state.reminders).filter(r => !r.completed && r.date === todayISO());
-  const focusTasks = state.focusTaskIds.map(id => state.tasks.find(t => t.id === id)).filter(t => t && !t.completed && (!firewallIsActive() || t.space !== "work"));
+  const focusTasks = focusTasksVisible();
   const suggested = active.filter(t => !state.focusTaskIds.includes(t.id)).sort(taskSort).slice(0, 5);
   const attention = attentionItems();
   const focusTotal = focusTasks.length + completedToday;
   const progress = focusTotal ? Math.round((completedToday / focusTotal) * 100) : 0;
+  const capacity = capacitySnapshot(focusTasks);
+  const capacityWidth = Math.min(100, Math.round(capacity.ratio * 100));
 
   container.innerHTML = `
+    <div class="day-mode-switch" role="group" aria-label="Today mode">
+      <button class="day-mode-button active" data-today-view="plan">🌷 Plan</button>
+      <button class="day-mode-button" data-today-view="do">▶ Do</button>
+    </div>
+
     <section class="morning-card">
       <div class="morning-title">
         <div>
@@ -637,6 +745,19 @@ function renderToday() {
       </div>
 
       ${firewallIsActive() ? `<div class="firewall-banner">🌙 Work Firewall is active. Work items are hidden until your work window, unless you switch directly to Work.</div>` : ""}
+    </section>
+
+    <section class="capacity-card capacity-${capacity.level}">
+      <div class="capacity-heading">
+        <div><p class="eyebrow">BLOOM BUDGET</p><h2>${capacityLabel(capacity.level)}</h2></div>
+        <strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong>
+      </div>
+      <div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div>
+      <p>${capacity.over ? `You are ${formatDuration(capacity.over)} over your planned capacity.` : `${formatDuration(capacity.remaining)} of breathing room remains.`} Tasks without an estimate count as 30m.</p>
+      <div class="capacity-actions">
+        <button class="secondary-button" data-goto="time-pockets">⏱ Time Pockets</button>
+        <button class="primary-button" data-goto="rescue">🛟 Rescue My Day</button>
+      </div>
     </section>
 
     <section class="section">
@@ -664,10 +785,70 @@ function renderToday() {
   `;
 }
 
+function renderDoMode() {
+  const container = document.getElementById("pageContent");
+  const focusTasks = focusTasksVisible();
+  const capacity = capacitySnapshot(focusTasks);
+  if (state.doTaskIndex >= focusTasks.length) state.doTaskIndex = 0;
+  const task = focusTasks[state.doTaskIndex] || null;
+
+  container.innerHTML = `
+    <div class="day-mode-switch" role="group" aria-label="Today mode">
+      <button class="day-mode-button" data-today-view="plan">🌷 Plan</button>
+      <button class="day-mode-button active" data-today-view="do">▶ Do</button>
+    </div>
+    <div class="do-mode-shell">
+      <p class="eyebrow">DO MODE · ONE BLOOM AT A TIME</p>
+      ${task ? `
+        <div class="do-mode-count">${state.doTaskIndex + 1} of ${focusTasks.length} in your bouquet · ${formatDuration(capacity.minutes)} planned</div>
+        <article class="do-task-card">
+          <div class="do-task-icon">🌸</div>
+          <span class="badge ${modeBadge(task.space)}">${modeLabel(task.space)}</span>
+          <h1>${escapeHTML(task.title)}</h1>
+          <div class="do-task-meta">
+            <span>⏱ ${formatDuration(task.durationMinutes)}</span>
+            <span>${energyLabel(task.energy)}</span>
+            ${task.dueDate ? `<span>${deadlineLabel(task)} · ${formatDate(task.dueDate)}</span>` : ""}
+          </div>
+          ${task.notes ? `<p class="do-task-note">${escapeHTML(task.notes).slice(0, 280)}</p>` : ""}
+          ${task.subtasks.length ? `<div class="do-subtasks">${task.subtasks.map(sub => `<button class="note-check-row ${sub.completed ? "done" : ""}" data-toggle-subtask="${task.id}" data-subtask-id="${sub.id}"><span class="note-check-box">${sub.completed ? "✓" : ""}</span><span>${escapeHTML(sub.title)}</span></button>`).join("")}</div>` : ""}
+          <div class="do-actions">
+            <button class="primary-button" data-toggle-task="${task.id}">Complete bloom 🌸</button>
+            <button class="secondary-button" data-do-next>Next bloom →</button>
+            <button class="text-button" data-edit-task="${task.id}">Open details</button>
+          </div>
+        </article>
+      ` : `
+        <div class="empty-state do-empty"><div class="empty-icon">💐</div><h2>Your hands are free</h2><p>Add a few tasks to today's Focus Bouquet, then come back to Do Mode.</p><button class="primary-button" data-today-view="plan">Build today's bouquet</button></div>
+      `}
+    </div>`;
+}
+
+function toggleFocusTask(id) {
+  const task = state.tasks.find(item => item.id === id);
+  if (!task || task.completed) return;
+  if (state.focusTaskIds.includes(id)) {
+    state.focusTaskIds = state.focusTaskIds.filter(taskId => taskId !== id);
+    showToast("Removed from today's bouquet");
+    return render();
+  }
+
+  const current = capacitySnapshot();
+  const nextMinutes = current.minutes + taskPlanningMinutes(task);
+  const capacity = current.capacity;
+  if (state.settings.overloadGuardrail && nextMinutes > capacity) {
+    const over = nextMinutes - capacity;
+    if (!confirm(`This would put today's bouquet ${formatDuration(over)} over your Bloom Budget. Add it anyway?`)) return;
+  }
+  state.focusTaskIds.push(id);
+  showToast("Added to today's bouquet 🌷");
+  render();
+}
+
 function focusTaskRow(task, selected) {
   return `<div class="focus-item">
     <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}">${task.completed ? "✓" : ""}</button>
-    <div><strong style="font-size:12px;">${escapeHTML(task.title)}</strong><div class="task-meta" style="margin-top:4px;">${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}${task.dueDate ? `<span>📅 ${formatDate(task.dueDate)}</span>` : ""}<span>${modeLabel(task.space)}</span></div></div>
+    <div><strong style="font-size:12px;">${escapeHTML(task.title)}</strong><div class="task-meta" style="margin-top:4px;">${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}${task.dueDate ? `<span>📅 ${formatDate(task.dueDate)}</span>` : ""}<span>⏱ ${formatDuration(task.durationMinutes)}</span><span>${energyLabel(task.energy)}</span><span>${modeLabel(task.space)}</span></div></div>
     <button class="focus-add" data-focus-task="${task.id}">${selected ? "Remove" : "+ Add"}</button>
   </div>`;
 }
@@ -695,7 +876,10 @@ function taskCard(task) {
   if (task.link) petalChips.push("🔗 Link");
   if (task.reminderEnabled) petalChips.push(task.reminderChain ? "🔔 Chain" : "🔔 Reminder");
   if (task.waitingOn || task.followUpDate) petalChips.push("⏳ Follow-up");
-  if (task.recurrence.type !== "none") petalChips.push("🔁 Repeat");
+  if (task.durationMinutes) petalChips.push(`⏱ ${formatDuration(task.durationMinutes)}`);
+  petalChips.push(energyLabel(task.energy));
+  if (task.dueDate) petalChips.push(deadlineLabel(task));
+  if (task.recurrence.type !== "none") petalChips.push(recurrenceLabel(task));
 
   return `<div class="task-item ${task.completed ? "completed" : ""}">
     <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}" aria-label="Toggle task">${task.completed ? "✓" : ""}</button>
@@ -737,7 +921,7 @@ function renderTasks() {
   const visibleBase = filterByMode(state.tasks);
 
   container.innerHTML = `
-    <div class="page-heading"><p class="eyebrow">GROW WHAT MATTERS</p><h1>Tasks</h1><p>Projects, subtasks, Petal Notes, recurring rules, follow-ups and reminder chains.</p></div>
+    <div class="page-heading"><p class="eyebrow">GROW WHAT MATTERS</p><h1>Tasks</h1><p>Projects, time estimates, energy, deadlines, subtasks, recurrence, follow-ups and reminders.</p></div>
     <div class="task-summary"><span class="task-summary-chip">🌱 ${visibleBase.filter(t=>!t.completed).length} active</span><span class="task-summary-chip">⏳ ${visibleBase.filter(t=>!t.completed&&t.status==="waiting").length} waiting</span><span class="task-summary-chip">⚠️ ${visibleBase.filter(t=>!t.completed&&t.dueDate&&t.dueDate<todayISO()).length} overdue</span></div>
     <div class="task-tools">
       <div class="search-box"><input id="taskSearch" type="search" placeholder="Search tasks, projects, tags..." value="${escapeHTML(state.taskSearch || "")}" /></div>
@@ -753,6 +937,10 @@ function clearTaskForm() {
   document.getElementById("taskSpace").value = preferredSpace();
   document.getElementById("taskPriority").value = "medium";
   document.getElementById("taskStatus").value = "todo";
+  document.getElementById("taskDuration").value = "30";
+  document.getElementById("taskEnergy").value = "medium";
+  document.getElementById("taskDeadlineType").value = "soft";
+  document.querySelectorAll("[data-recur-day]").forEach(input => { input.checked = false; });
   document.getElementById("taskReminderEnabled").checked = false;
   document.getElementById("taskReminderChain").checked = false;
   document.getElementById("taskFollowUpAfterCompletion").checked = false;
@@ -777,6 +965,9 @@ function openTaskModal(taskId="") {
     document.getElementById("taskTags").value = task.tags.join(", ");
     document.getElementById("taskDate").value = task.dueDate;
     document.getElementById("taskTime").value = task.dueTime;
+    document.getElementById("taskDuration").value = String(task.durationMinutes || 0);
+    document.getElementById("taskEnergy").value = task.energy;
+    document.getElementById("taskDeadlineType").value = task.deadlineType;
     document.getElementById("taskStatus").value = task.completed ? "done" : task.status;
     document.getElementById("taskSubtasks").value = task.subtasks.map(s => s.title).join("\n");
     document.getElementById("taskNotes").value = task.notes;
@@ -788,6 +979,7 @@ function openTaskModal(taskId="") {
     document.getElementById("taskReminderChain").checked = task.reminderChain;
     document.getElementById("taskRecurrenceType").value = task.recurrence.type;
     document.getElementById("taskRecurrenceInterval").value = task.recurrence.interval;
+    document.querySelectorAll("[data-recur-day]").forEach(input => { input.checked = (task.recurrence.weekdays || []).includes(Number(input.value)); });
     document.getElementById("taskModalEyebrow").textContent = "TASK DETAILS";
     document.getElementById("taskModalTitle").textContent = "Edit task";
     document.getElementById("saveTaskButton").textContent = "Save changes";
@@ -800,6 +992,7 @@ function openTaskModal(taskId="") {
 function updateTaskConditionalFields() {
   const recurrenceType = document.getElementById("taskRecurrenceType")?.value;
   document.getElementById("taskRecurrenceIntervalWrap")?.classList.toggle("hidden", !["custom","afterCompletion"].includes(recurrenceType));
+  document.getElementById("taskRecurrenceWeekdaysWrap")?.classList.toggle("hidden", recurrenceType !== "selectedWeekdays");
 }
 
 function parseLines(text) { return text.split("\n").map(s=>s.trim()).filter(Boolean); }
@@ -829,6 +1022,9 @@ function saveTask() {
     tags: parseTags(document.getElementById("taskTags").value),
     dueDate: document.getElementById("taskDate").value,
     dueTime: document.getElementById("taskTime").value,
+    durationMinutes: Math.max(0, Number(document.getElementById("taskDuration").value || 0)),
+    energy: document.getElementById("taskEnergy").value,
+    deadlineType: document.getElementById("taskDeadlineType").value,
     status,
     completed: status === "done",
     completedDate: status === "done" ? (old?.completedDate || todayISO()) : null,
@@ -840,7 +1036,11 @@ function saveTask() {
     followUpAfterCompletion: document.getElementById("taskFollowUpAfterCompletion").checked,
     reminderEnabled: document.getElementById("taskReminderEnabled").checked,
     reminderChain: document.getElementById("taskReminderChain").checked,
-    recurrence: { type: document.getElementById("taskRecurrenceType").value, interval: Number(document.getElementById("taskRecurrenceInterval").value || 1) },
+    recurrence: {
+      type: document.getElementById("taskRecurrenceType").value,
+      interval: Number(document.getElementById("taskRecurrenceInterval").value || 1),
+      weekdays: [...document.querySelectorAll("[data-recur-day]:checked")].map(input => Number(input.value))
+    },
     createdAt: old?.createdAt || Date.now(),
     updatedAt: Date.now()
   });
@@ -910,7 +1110,7 @@ function toggleTask(id) {
 }
 
 function scheduleNextRecurringTask(task) {
-  const rec = task.recurrence || { type:"none", interval:1 };
+  const rec = task.recurrence || { type:"none", interval:1, weekdays:[] };
   if (rec.type === "none") return;
   const next = clone(task);
   next.id = createId(); next.completed = false; next.completedDate = null; next.status = "todo";
@@ -922,15 +1122,10 @@ function scheduleNextRecurringTask(task) {
   if (rec.type === "custom") next.dueDate = addDaysISO(baseDate, rec.interval);
   if (rec.type === "afterCompletion") next.dueDate = addDaysISO(todayISO(), rec.interval);
   if (rec.type === "weekly") next.dueDate = addDaysISO(baseDate, 7);
-  if (rec.type === "weekdays") {
-    let d = new Date(`${baseDate}T12:00:00`);
-    do { d.setDate(d.getDate()+1); } while ([0,6].includes(d.getDay()));
-    next.dueDate = localDateISO(d);
-  }
-  if (rec.type === "monthly") {
-    const d = new Date(`${baseDate}T12:00:00`); d.setMonth(d.getMonth()+1); next.dueDate = localDateISO(d);
-  }
-  state.tasks.push(next);
+  if (rec.type === "weekdays") next.dueDate = nextWorkdayISO(new Date(`${baseDate}T12:00:00`));
+  if (rec.type === "selectedWeekdays") next.dueDate = nextSelectedWeekdayISO(baseDate, rec.weekdays);
+  if (rec.type === "monthly") next.dueDate = addMonthsClamped(baseDate, 1);
+  state.tasks.push(normalizeTask(next));
   syncTaskReminder(next);
 }
 
@@ -1190,6 +1385,93 @@ function globalSearch(query){
 function renderGlobalSearchResults(query){const el=document.getElementById("globalSearchResults");if(!el)return;const results=globalSearch(query);el.innerHTML=query.trim()?results.length?results.map(r=>`<button class="search-result" data-search-type="${r.type}" data-search-id="${r.id}" data-search-page="${r.page}"><strong>${escapeHTML(r.title)}</strong><small>${escapeHTML(r.type)}</small><div class="search-result-snippet">${escapeHTML(String(r.snippet||"")).slice(0,140)}</div></button>`).join(""):`<div class="empty-state"><div class="empty-icon">🔎</div><h3>No matches</h3><p>Try another word.</p></div>`:`<div class="empty-state"><div class="empty-icon">🌸</div><h3>Search everything</h3><p>Tasks, notes, reminders, tables, pins, Someday and Inbox.</p></div>`;}
 function openSearchResult(type,id,page){closeModal("searchModal");if(type==="Task")return openTaskModal(id);if(type==="Note")return openNoteModal(id);if(type==="Reminder")return openReminderModal(id);if(type==="Table"){state.activeTableId=id;return changePage("tables");}if(type==="Table row"){const[tid,rid]=id.split(":");state.activeTableId=tid;changePage("tables");return setTimeout(()=>openTableRowModal(tid,rid),50);}changePage(page);}
 
+/* ================= RESCUE MY DAY + TIME POCKETS ================= */
+
+function getRescuePlan() {
+  const active = filterByMode(state.tasks).filter(task => !task.completed && task.status !== "waiting" && task.status !== "blocked");
+  const candidates = active.filter(task => state.focusTaskIds.includes(task.id) || (task.dueDate && task.dueDate <= todayISO()));
+  const hard = candidates.filter(task => task.deadlineType === "hard" && task.dueDate && task.dueDate <= todayISO());
+  const flexible = candidates.filter(task => !hard.some(item => item.id === task.id)).sort((a, b) => {
+    const priority = priorityWeight(b.priority) - priorityWeight(a.priority);
+    if (priority) return priority;
+    if (Boolean(a.dueDate) !== Boolean(b.dueDate)) return a.dueDate ? -1 : 1;
+    return taskSort(a, b);
+  });
+  const capacity = Math.max(30, Number(state.settings.dailyCapacityMinutes || 240));
+  const keep = [...hard];
+  let minutes = hard.reduce((sum, task) => sum + taskPlanningMinutes(task), 0);
+  const move = [];
+
+  flexible.forEach(task => {
+    const taskMinutes = taskPlanningMinutes(task);
+    if (minutes + taskMinutes <= capacity) {
+      keep.push(task);
+      minutes += taskMinutes;
+    } else {
+      move.push(task);
+    }
+  });
+  return { keep, move, minutes, capacity, hardMinutes: hard.reduce((sum, task) => sum + taskPlanningMinutes(task), 0) };
+}
+
+function rescueTaskRow(task, action) {
+  return `<div class="rescue-task-row"><div><strong>${escapeHTML(task.title)}</strong><div class="task-meta"><span>⏱ ${formatDuration(task.durationMinutes)}</span><span>${energyLabel(task.energy)}</span>${task.dueDate ? `<span>${deadlineLabel(task)} · ${formatDate(task.dueDate)}</span>` : ""}</div></div><span class="rescue-action-label">${action}</span></div>`;
+}
+
+function renderRescueDay() {
+  const c = document.getElementById("pageContent");
+  const plan = getRescuePlan();
+  const hardOver = Math.max(0, plan.hardMinutes - plan.capacity);
+  c.innerHTML = `
+    <div class="page-heading"><p class="eyebrow">WHEN THE DAY GOES SIDEWAYS</p><h1>Rescue My Day 🛟</h1><p>Hana protects hard deadlines, keeps what can realistically fit, and gently moves the rest.</p></div>
+    <div class="rescue-summary ${hardOver ? "rescue-warning" : ""}">
+      <strong>${hardOver ? "Hard deadlines already exceed today's Bloom Budget." : `${formatDuration(plan.minutes)} of ${formatDuration(plan.capacity)} will stay today.`}</strong>
+      <p>${hardOver ? `They are ${formatDuration(hardOver)} over capacity, so Hana will not pretend the day fits. You can still apply the plan without moving hard deadlines.` : `${plan.move.length} task${plan.move.length === 1 ? "" : "s"} can be released from today.`}</p>
+    </div>
+    <section class="section"><div class="section-header"><h2>Keep today · ${plan.keep.length}</h2></div>${plan.keep.length ? `<div class="rescue-list">${plan.keep.map(task => rescueTaskRow(task, task.deadlineType === "hard" && task.dueDate <= todayISO() ? "Protected" : "Keep")).join("")}</div>` : emptyState("🌿","Nothing must stay","Today can be very light.","","")}</section>
+    <section class="section"><div class="section-header"><h2>Release · ${plan.move.length}</h2></div>${plan.move.length ? `<div class="rescue-list">${plan.move.map(task => rescueTaskRow(task, task.dueDate && task.dueDate <= todayISO() ? "Move to tomorrow" : "Remove from bouquet")).join("")}</div>` : `<div class="card soft-card"><strong>Your day already fits 🌸</strong></div>`}</section>
+    <div class="rescue-footer"><button class="secondary-button" data-goto="today">Cancel</button><button class="primary-button" data-apply-rescue ${plan.move.length || plan.keep.length ? "" : "disabled"}>Apply rescue plan</button></div>`;
+}
+
+function applyRescuePlan() {
+  const plan = getRescuePlan();
+  const tomorrow = addDaysISO(todayISO(), 1);
+  state.focusTaskIds = plan.keep.map(task => task.id);
+  plan.move.forEach(task => {
+    if (task.dueDate && task.dueDate <= todayISO() && task.deadlineType !== "hard") {
+      task.dueDate = tomorrow;
+      task.rescheduleCount = Number(task.rescheduleCount || 0) + 1;
+      task.updatedAt = Date.now();
+      syncTaskReminder(task);
+    }
+  });
+  showToast(`Day rescued 🌷 ${plan.move.length} task${plan.move.length === 1 ? "" : "s"} released.`);
+  changePage("today");
+}
+
+function renderTimePockets() {
+  const c = document.getElementById("pageContent");
+  const minutes = Number(state.timePocketMinutes || 30);
+  const energy = state.timePocketEnergy || "any";
+  const tasks = filterByMode(state.tasks)
+    .filter(task => !task.completed && !["waiting", "blocked"].includes(task.status))
+    .filter(task => taskPlanningMinutes(task) <= minutes)
+    .filter(task => energy === "any" || task.energy === energy)
+    .sort((a, b) => {
+      const hardA = a.deadlineType === "hard" && a.dueDate && a.dueDate <= todayISO() ? 1 : 0;
+      const hardB = b.deadlineType === "hard" && b.dueDate && b.dueDate <= todayISO() ? 1 : 0;
+      if (hardA !== hardB) return hardB - hardA;
+      const priority = priorityWeight(b.priority) - priorityWeight(a.priority);
+      return priority || taskSort(a, b);
+    });
+  const minuteOptions = [10, 15, 30, 45, 60, 90];
+  const energyOptions = [["any","Any"],["low","🌿 Low"],["medium","🌸 Medium"],["high","⚡ High"]];
+  c.innerHTML = `
+    <div class="page-heading"><p class="eyebrow">USE THE TIME YOU ACTUALLY HAVE</p><h1>Time Pockets ⏱</h1><p>Tell Hana how much time and energy you have. It will only surface tasks that fit.</p></div>
+    <div class="pocket-controls"><div><span class="pocket-label">I have</span><div class="pocket-chip-row">${minuteOptions.map(value => `<button class="filter-chip ${minutes === value ? "active" : ""}" data-pocket-minutes="${value}">${value}m</button>`).join("")}</div></div><div><span class="pocket-label">My energy is</span><div class="pocket-chip-row">${energyOptions.map(([value,label]) => `<button class="filter-chip ${energy === value ? "active" : ""}" data-pocket-energy="${value}">${label}</button>`).join("")}</div></div></div>
+    <section class="section"><div class="section-header"><h2>${tasks.length} task${tasks.length === 1 ? "" : "s"} fit</h2><button data-goto="today">Today</button></div>${tasks.length ? `<div class="task-list">${tasks.map(task => `<div class="pocket-task"><div class="pocket-task-main" data-edit-task="${task.id}"><strong>${escapeHTML(task.title)}</strong><div class="task-meta"><span>⏱ ${formatDuration(task.durationMinutes)}</span><span>${energyLabel(task.energy)}</span>${task.dueDate ? `<span>${deadlineLabel(task)} · ${formatDate(task.dueDate)}</span>` : ""}</div></div><button class="focus-add" data-pocket-focus="${task.id}">${state.focusTaskIds.includes(task.id) ? "In bouquet" : "+ Bouquet"}</button></div>`).join("")}</div>` : emptyState("🍃","Nothing fits this pocket","Try a little more time, another energy level, or add estimates to your tasks.",""," ")}</section>`;
+}
+
 /* ================= BLOOM / PIN / SOMEDAY ================= */
 
 function renderBloom(){const container=document.getElementById("pageContent");const tasks=filterByMode(state.tasks);const completed=tasks.filter(t=>t.completed).length;const open=tasks.filter(t=>!t.completed).length;const work=state.tasks.filter(t=>t.space==="work"&&!t.completed).length;const personal=state.tasks.filter(t=>t.space==="personal"&&!t.completed).length;const notes=filterByMode(state.notes).length;container.innerHTML=`<div class="page-heading"><p class="eyebrow">YOUR GARDEN</p><h1>Bloom View</h1><p>Progress as petals, not pressure.</p></div><div class="card bloom-view"><div class="bloom-flower"><div class="petal petal-1"><span>💼 ${work}</span></div><div class="petal petal-2"><span>🎀 ${personal}</span></div><div class="petal petal-3"><span>📝 ${notes}</span></div><div class="petal petal-4"><span>🌱 ${open}</span></div><div class="petal petal-5"><span>✨ ${completed}</span></div><div class="bloom-center"><strong>${completed}</strong><span>BLOOMS</span></div></div><h3>Small steps. Beautiful results. 🌸</h3></div>`;}
@@ -1203,8 +1485,8 @@ function deleteSomeday(id){const item=state.someday.find(s=>s.id===id);if(item&&
 
 /* ================= DAILY CLOSE ================= */
 
-function renderDailyClose(){const c=document.getElementById("pageContent");const unfinished=filterByMode(state.tasks).filter(t=>!t.completed&&t.dueDate&&t.dueDate<=todayISO());const completedToday=state.tasks.filter(t=>t.completedDate===todayISO()).length;c.innerHTML=`<div class="page-heading"><p class="eyebrow">CLEAR THE GARDEN</p><h1>Daily Close</h1><p>Process unfinished things instead of waking up to a pile of accidental overdue tasks.</p></div><section class="daily-close-hero"><div class="daily-close-icon">🌙</div><h2>You did enough for one day.</h2><p style="color:var(--text-soft);font-size:12px;">${formatLongToday()}</p><div class="stat-grid"><div class="stat-card"><span class="stat-number">${completedToday}</span><span class="stat-label">Completed</span></div><div class="stat-card"><span class="stat-number">${unfinished.length}</span><span class="stat-label">Process</span></div><div class="stat-card"><span class="stat-number">${state.someday.length}</span><span class="stat-label">Someday</span></div></div></section><section class="section"><div class="section-header"><h2>Unfinished</h2></div>${unfinished.length?`<div class="daily-task-review">${unfinished.map(t=>`<div class="daily-task-row"><strong>${escapeHTML(t.title)}</strong><div class="daily-task-actions"><button data-daily-task-action="tomorrow" data-task-id="${t.id}">Tomorrow</button><button data-daily-task-action="week" data-task-id="${t.id}">Next week</button><button data-daily-task-action="someday" data-task-id="${t.id}">Someday</button><button data-daily-task-action="edit" data-task-id="${t.id}">Schedule</button><button data-daily-task-action="delete" data-task-id="${t.id}">Delete</button></div></div>`).join("")}</div>`:`<div class="card soft-card"><strong>Nothing needs processing 🌸</strong></div>`}<button class="primary-button full-width" style="margin-top:15px;" data-close-action="finish">All set for today ✨</button></section>`;}
-function dailyTaskAction(taskId,action){const t=state.tasks.find(t=>t.id===taskId);if(!t)return;if(action==="tomorrow")t.dueDate=addDaysISO(todayISO(),1);if(action==="week")t.dueDate=addDaysISO(todayISO(),7);if(action==="someday"){state.someday.push({id:createId(),title:t.title,category:"ideas",notes:t.notes,createdAt:Date.now()});deleteTaskSilent(taskId);}if(action==="delete"){const linkedReminders=state.reminders.filter(r=>r.linkedTaskId===taskId);moveToTrash("task",t,{linkedReminders});deleteTaskSilent(taskId);}if(action==="edit")return openTaskModal(taskId);if(t&&!t.completed)syncTaskReminder(t);render();}
+function renderDailyClose(){const c=document.getElementById("pageContent");const unfinished=filterByMode(state.tasks).filter(t=>!t.completed&&t.dueDate&&t.dueDate<=todayISO());const completedToday=state.tasks.filter(t=>t.completedDate===todayISO()).length;c.innerHTML=`<div class="page-heading"><p class="eyebrow">CLEAR THE GARDEN</p><h1>Daily Close</h1><p>Process unfinished things instead of waking up to a pile of accidental overdue tasks.</p></div><section class="daily-close-hero"><div class="daily-close-icon">🌙</div><h2>You did enough for one day.</h2><p style="color:var(--text-soft);font-size:12px;">${formatLongToday()}</p><div class="stat-grid"><div class="stat-card"><span class="stat-number">${completedToday}</span><span class="stat-label">Completed</span></div><div class="stat-card"><span class="stat-number">${unfinished.length}</span><span class="stat-label">Process</span></div><div class="stat-card"><span class="stat-number">${state.someday.length}</span><span class="stat-label">Someday</span></div></div></section><section class="section"><div class="section-header"><h2>Unfinished</h2></div>${unfinished.length?`<div class="daily-task-review">${unfinished.map(t=>`<div class="daily-task-row"><div><strong>${escapeHTML(t.title)}</strong>${t.deadlineType==="hard"?`<div class="task-meta" style="margin-top:4px;"><span>🔒 Hard deadline · reschedule manually if the real deadline changed</span></div>`:""}</div><div class="daily-task-actions">${t.deadlineType==="hard"?`<button data-daily-task-action="edit" data-task-id="${t.id}">Schedule</button><button data-daily-task-action="delete" data-task-id="${t.id}">Delete</button>`:`<button data-daily-task-action="tomorrow" data-task-id="${t.id}">Tomorrow</button><button data-daily-task-action="week" data-task-id="${t.id}">Next week</button><button data-daily-task-action="someday" data-task-id="${t.id}">Someday</button><button data-daily-task-action="edit" data-task-id="${t.id}">Schedule</button><button data-daily-task-action="delete" data-task-id="${t.id}">Delete</button>`}</div></div>`).join("")}</div>`:`<div class="card soft-card"><strong>Nothing needs processing 🌸</strong></div>`}<button class="primary-button full-width" style="margin-top:15px;" data-close-action="finish">All set for today ✨</button></section>`;}
+function dailyTaskAction(taskId,action){const t=state.tasks.find(t=>t.id===taskId);if(!t)return;if(t.deadlineType==="hard"&&["tomorrow","week","someday"].includes(action))return showToast("That date is protected as a hard deadline 🔒");if(action==="tomorrow"){t.dueDate=addDaysISO(todayISO(),1);t.rescheduleCount=Number(t.rescheduleCount||0)+1;}if(action==="week"){t.dueDate=addDaysISO(todayISO(),7);t.rescheduleCount=Number(t.rescheduleCount||0)+1;}if(action==="someday"){state.someday.push({id:createId(),title:t.title,category:"ideas",notes:t.notes,createdAt:Date.now()});deleteTaskSilent(taskId);}if(action==="delete"){const linkedReminders=state.reminders.filter(r=>r.linkedTaskId===taskId);moveToTrash("task",t,{linkedReminders});deleteTaskSilent(taskId);}if(action==="edit")return openTaskModal(taskId);if(t&&!t.completed)syncTaskReminder(t);render();}
 function deleteTaskSilent(id){state.tasks=state.tasks.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTaskId!==id);state.focusTaskIds=state.focusTaskIds.filter(x=>x!==id);}
 function finishDailyClose(){state.dailyCloseHistory.push({date:todayISO(),completedAt:Date.now()});saveState();showToast("The garden is closed for today 🌙");}
 
@@ -1583,11 +1865,12 @@ function renderTrash() {
 /* ================= MORE / SETTINGS / BACKUP ================= */
 
 function moreCard(icon,title,description,page){return `<button class="more-card" data-goto="${page}"><span class="more-icon">${icon}</span><strong>${title}</strong><small>${description}</small></button>`;}
-function renderMore(){const c=document.getElementById("pageContent");c.innerHTML=`<div class="page-heading"><p class="eyebrow">MORE OF HANA</p><h1>Your garden</h1><p>The tools that make Hana more than a checklist.</p></div><div class="more-grid">${moreCard("📅","Agenda","Tasks and reminders together for the next two weeks.","agenda")}${moreCard("🧠","Brain Dump","Organize messy thoughts into useful things.","inbox")}${moreCard("🔔","Reminders","Snooze, repeat and reminder chains.","reminders")}${moreCard("📋","Living Tables","Custom tables whose rows can act.","tables")}${moreCard("🧩","Templates","Reusable starting points for repeated workflows.","templates")}${moreCard("🌸","Bloom View","Progress as petals.","bloom")}${moreCard("📌","Pinboard","Quick references.","pinboard")}${moreCard("🌱","Someday","Ideas without urgency.","someday")}${moreCard("🌙","Daily Close","Process the day gently.","daily-close")}${moreCard("🕰️","History","See what you already completed.","history")}${moreCard("🗑️","Trash",`${state.trash.length} deleted item${state.trash.length===1?"":"s"}.`,"trash")}</div>
-    <section class="section"><div class="section-header"><h2>Defaults</h2></div><div class="settings-card"><h3>Make quick capture faster 🌷</h3><p>When you're in All mode, Hana can default new items to the space you use most.</p><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting"><option value="personal" ${state.settings.defaultSpace!=="work"?"selected":""}>🎀 Personal</option><option value="work" ${state.settings.defaultSpace==="work"?"selected":""}>💼 Work</option></select></div></div></section>
+function renderMore(){const c=document.getElementById("pageContent");c.innerHTML=`<div class="page-heading"><p class="eyebrow">MORE OF HANA</p><h1>Your garden</h1><p>The tools that make Hana more than a checklist.</p></div><div class="more-grid">${moreCard("📅","Agenda","Tasks and reminders together for the next two weeks.","agenda")}${moreCard("🛟","Rescue My Day","Protect deadlines and shrink an overloaded day.","rescue")}${moreCard("⏱","Time Pockets","Find tasks that fit the time and energy you have.","time-pockets")}${moreCard("🧠","Brain Dump","Organize messy thoughts into useful things.","inbox")}${moreCard("🔔","Reminders","Snooze, repeat and reminder chains.","reminders")}${moreCard("📋","Living Tables","Custom tables whose rows can act.","tables")}${moreCard("🧩","Templates","Reusable starting points for repeated workflows.","templates")}${moreCard("🌸","Bloom View","Progress as petals.","bloom")}${moreCard("📌","Pinboard","Quick references.","pinboard")}${moreCard("🌱","Someday","Ideas without urgency.","someday")}${moreCard("🌙","Daily Close","Process the day gently.","daily-close")}${moreCard("🕰️","History","See what you already completed.","history")}${moreCard("🗑️","Trash",`${state.trash.length} deleted item${state.trash.length===1?"":"s"}.`,"trash")}</div>
+    <section class="section"><div class="section-header"><h2>Planning defaults</h2></div><div class="settings-card"><h3>Your Bloom Budget 🌷</h3><p>Set how much task time you realistically want Hana to place in one day's Focus Bouquet. Tasks without an estimate count as 30 minutes.</p><div class="form-group"><label for="dailyCapacitySetting">Daily task capacity</label><div class="inline-field"><input id="dailyCapacitySetting" type="number" min="30" max="960" step="30" value="${Math.max(30,Number(state.settings.dailyCapacityMinutes||240))}" /><span>minutes</span></div></div><label class="check-row"><input id="overloadGuardrailSetting" type="checkbox" ${state.settings.overloadGuardrail!==false?"checked":""}/><span>Warn me before I overfill today's bouquet<small>You can still override Hana when a day genuinely needs to be full.</small></span></label><div class="form-group"><label for="defaultSpaceSetting">Default space</label><select id="defaultSpaceSetting"><option value="personal" ${state.settings.defaultSpace!=="work"?"selected":""}>🎀 Personal</option><option value="work" ${state.settings.defaultSpace==="work"?"selected":""}>💼 Work</option></select></div></div></section>
     <section class="section"><div class="section-header"><h2>Work / Personal Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>When enabled, Hana hides Work from All/Personal outside your work window. You can still explicitly switch to Work whenever you want.</p><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Work Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Work starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Work ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked work reminders outside work hours</span></label><button id="saveSettingsButton" class="secondary-button full-width">Save app settings</button></div></section>
     <section class="section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is still local-first. Export your garden regularly so your data does not live on one device only.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
-function saveSettings(){state.settings.defaultSpace=document.getElementById("defaultSpaceSetting")?.value==="work"?"work":"personal";state.settings.workFirewallEnabled=document.getElementById("firewallEnabled").checked;state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
+function saveSettings(){state.settings.defaultSpace=document.getElementById("defaultSpaceSetting")?.value==="work"?"work":"personal";state.settings.dailyCapacityMinutes=Math.max(30,Math.min(960,Number(document.getElementById("dailyCapacitySetting")?.value||240)));state.settings.overloadGuardrail=Boolean(document.getElementById("overloadGuardrailSetting")?.checked);state.settings.workFirewallEnabled=document.getElementById("firewallEnabled").checked;state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
+
 function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`hana-backup-${todayISO()}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast("Hana backup exported 🌸");}
 async function importData(file){if(!file)return;try{const parsed=JSON.parse(await file.text());if(!parsed||typeof parsed!=="object")throw new Error("Invalid backup");if(!confirm("Replace the current local Hana data with this backup?"))return;state=normalizeState(parsed);saveState();showToast("Hana backup restored 🌸");render();}catch(error){console.error(error);showToast("That file doesn't look like a Hana backup.");}finally{document.getElementById("importBackupInput").value="";}}
 
@@ -1638,7 +1921,13 @@ document.addEventListener("click", event => {
   const toggleTaskBtn=event.target.closest("[data-toggle-task]");if(toggleTaskBtn){toggleTask(toggleTaskBtn.dataset.toggleTask);return;}
   const cycle=event.target.closest("[data-cycle-task]");if(cycle){cycleTaskStatus(cycle.dataset.cycleTask);return;}
   const sub=event.target.closest("[data-toggle-subtask]");if(sub){toggleSubtask(sub.dataset.toggleSubtask,sub.dataset.subtaskId);return;}
-  const focus=event.target.closest("[data-focus-task]");if(focus){const id=focus.dataset.focusTask;state.focusTaskIds=state.focusTaskIds.includes(id)?state.focusTaskIds.filter(x=>x!==id):[...state.focusTaskIds,id];render();return;}
+  const focus=event.target.closest("[data-focus-task]");if(focus){toggleFocusTask(focus.dataset.focusTask);return;}
+  const todayView=event.target.closest("[data-today-view]");if(todayView){state.todayViewMode=todayView.dataset.todayView==="do"?"do":"plan";state.currentPage="today";render();return;}
+  if(event.target.closest("[data-do-next]")){const focusTasks=focusTasksVisible();if(focusTasks.length){state.doTaskIndex=(state.doTaskIndex+1)%focusTasks.length;render();}return;}
+  if(event.target.closest("[data-apply-rescue]")){applyRescuePlan();return;}
+  const pocketMinutes=event.target.closest("[data-pocket-minutes]");if(pocketMinutes){state.timePocketMinutes=Number(pocketMinutes.dataset.pocketMinutes);render();return;}
+  const pocketEnergy=event.target.closest("[data-pocket-energy]");if(pocketEnergy){state.timePocketEnergy=pocketEnergy.dataset.pocketEnergy;render();return;}
+  const pocketFocus=event.target.closest("[data-pocket-focus]");if(pocketFocus){toggleFocusTask(pocketFocus.dataset.pocketFocus);if(state.currentPage!=="time-pockets")return;state.currentPage="time-pockets";render();return;}
   const tf=event.target.closest("[data-task-filter]");if(tf){state.taskFilter=tf.dataset.taskFilter;render();return;}
 
   const editNote=event.target.closest("[data-edit-note]");if(editNote){openNoteModal(editNote.dataset.editNote);return;}
