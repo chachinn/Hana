@@ -1,13 +1,14 @@
 /* =====================================================
-   HANA 🌸 Service Worker v23
+   HANA 🌸 Service Worker v24
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v23";
+const CACHE_NAME = "hana-shell-v24";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./firebase-bridge.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

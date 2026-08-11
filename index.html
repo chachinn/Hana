@@ -609,6 +609,52 @@
     </div>
   </div>
 
+
+  <!-- OPTIONAL HANA ACCOUNT -->
+  <div id="accountWelcomeModal" class="modal-overlay hidden account-welcome-overlay">
+    <div class="modal-card account-welcome-card">
+      <div class="account-welcome-brand"><span>🌸</span><div><p class="eyebrow">OPTIONAL ACCOUNT</p><h2>Protect your Hana</h2></div></div>
+      <p class="account-welcome-copy">Sign in if you want a cloud backup you can restore on another device. Hana still works normally without an account.</p>
+      <div class="account-provider-stack">
+        <button class="google-auth-button" type="button" data-auth-google><span class="google-g">G</span><strong>Continue with Google</strong></button>
+        <button class="primary-button full-width" type="button" data-auth-email-mode="signin">Sign in with email</button>
+        <button class="secondary-button full-width" type="button" data-auth-email-mode="create">Create account</button>
+      </div>
+      <button class="text-button account-continue-local" type="button" data-continue-local>Continue without account</button>
+      <small class="account-safety-note">Your current Hana data stays on this device until you deliberately back it up or restore from cloud.</small>
+    </div>
+  </div>
+
+  <!-- EMAIL AUTH -->
+  <div id="emailAuthModal" class="modal-overlay hidden">
+    <div class="modal-card email-auth-card">
+      <div class="modal-header"><div><p id="emailAuthEyebrow" class="eyebrow">HANA ACCOUNT</p><h2 id="emailAuthTitle">Sign in</h2></div><button class="modal-close" data-close-modal="emailAuthModal">×</button></div>
+      <input id="emailAuthMode" type="hidden" value="signin" />
+      <div class="form-group"><label for="accountEmail">Email</label><input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" /></div>
+      <div class="form-group"><label for="accountPassword">Password</label><input id="accountPassword" type="password" autocomplete="current-password" placeholder="Password" /></div>
+      <div id="accountConfirmPasswordWrap" class="form-group hidden"><label for="accountConfirmPassword">Confirm password</label><input id="accountConfirmPassword" type="password" autocomplete="new-password" placeholder="Type it again" /></div>
+      <div id="emailAuthMessage" class="auth-inline-message hidden"></div>
+      <button id="forgotPasswordButton" class="text-button auth-forgot-button" type="button" data-forgot-password>Forgot password?</button>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="emailAuthModal">Cancel</button><button id="submitEmailAuthButton" class="primary-button" type="button" data-submit-email-auth>Sign in</button></div>
+    </div>
+  </div>
+
+  <!-- CLOUD BACKUP CHOICE AFTER SIGN-IN -->
+  <div id="cloudChoiceModal" class="modal-overlay hidden">
+    <div class="modal-card cloud-choice-card">
+      <div class="modal-header"><div><p class="eyebrow">SIGNED IN</p><h2>Choose what happens next</h2></div><button class="modal-close" data-close-modal="cloudChoiceModal">×</button></div>
+      <div id="cloudChoiceAccount" class="cloud-choice-account"></div>
+      <p id="cloudChoiceMessage" class="cloud-choice-message">Hana found data on this device. Nothing will be replaced automatically.</p>
+      <div id="cloudChoiceMeta" class="cloud-choice-meta"></div>
+      <div class="cloud-choice-actions">
+        <button id="cloudChoiceBackupButton" class="primary-button full-width" type="button" data-cloud-choice="backup">Back up this device</button>
+        <button id="cloudChoiceRestoreButton" class="secondary-button full-width" type="button" data-cloud-choice="restore">Restore cloud backup</button>
+        <button class="text-button full-width" type="button" data-cloud-choice="later">Not now</button>
+      </div>
+      <small class="account-safety-note">Cloud restore always makes a local safety copy first. Wallpaper photos are not uploaded to Firestore.</small>
+    </div>
+  </div>
+
   <!-- FIRST-TIME TUTORIAL / APP TOUR -->
   <div id="tutorialModal" class="modal-overlay hidden tutorial-overlay">
     <div class="modal-card tutorial-card">
@@ -657,6 +703,7 @@
   <div id="toast" class="toast hidden"></div>
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
+  <script src="firebase-bridge.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

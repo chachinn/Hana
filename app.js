@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.8.7
-   Stability + backup hardening
+   HANA 🌸 v1.9
+   Optional accounts + Firebase cloud backup
    Local-first PWA
    ===================================================== */
 
@@ -212,7 +212,8 @@ const defaultState = {
     quickAccess: ["reminders"],
     bottomNav: DEFAULT_BOTTOM_NAV.slice(),
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
-    tutorialCompleted: false
+    tutorialCompleted: false,
+    accountPromptSeen: false
   },
 
   tasks: [
@@ -679,6 +680,17 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
+const HANA_APP_VERSION = "1.9";
+let hanaAccountState = {
+  status: "loading",
+  user: null,
+  meta: null,
+  error: ""
+};
+let authActionPending = false;
+let firebaseAuthListenerInstalled = false;
+let cloudOperationBusy = false;
+
 function daysBetweenISO(from, to) {
   if (!from || !to) return 0;
   const a = new Date(`${from}T12:00:00`);
@@ -1120,7 +1132,8 @@ const HANA_TUTORIAL_STEPS = [
   { icon:"🌷", eyebrow:"CONNECTED WORK", title:"Projects & Notes", text:"Projects collect related tasks, milestones, notes and trackers. Notes hold context that does not need to become a task.", bullets:["Projects show progress and waiting items together","Notes can be pinned or linked into Memory Threads","Meeting notes can turn lines into tasks"] },
   { icon:"☰", eyebrow:"THE REST, WITHOUT THE CLUTTER", title:"Menu & Quick Access", text:"The hamburger keeps advanced tools out of your everyday screens. Quick Access lets you pin up to three things you use most.", bullets:["Plan & Focus contains planning tools","Organize contains Reminders, Trackers and supporting tools","Review & Settings contains history, customization and backups"] },
   { icon:"✨", eyebrow:"MAKE IT YOURS", title:"Your bottom navigation", text:"Today, Tasks and + stay fixed. The two right-side tabs are yours to choose. Hana starts with Lists and Calendar.", bullets:["Change them anytime in Settings & Spaces","Choose Trackers, Notes, Reminders, Projects and more","Restore the default whenever you want"] },
-  { icon:"🌺", eyebrow:"YOU’RE READY", title:"Use only what helps", text:"Hana has many tools, but it is designed so you can ignore most of them until you need them. Start with Today, add a few tasks, and let your system grow naturally.", bullets:["Reopen this tour anytime from Settings","Customize your bottom tabs around your real habits","Your data stays local on this device unless you export it"] }
+  { icon:"☁️", eyebrow:"OPTIONAL ACCOUNT", title:"Cloud backup when you want it", text:"Hana works without an account. If you sign in with Google or email, you can also keep a Firebase cloud backup that can be restored on another device.", bullets:["Local autosave and safety copies still stay active","Cloud backup and restore are deliberate — Hana never silently replaces your local data","Full JSON export remains your independent backup, including your wallpaper"] },
+  { icon:"🌺", eyebrow:"YOU’RE READY", title:"Use only what helps", text:"Hana has many tools, but it is designed so you can ignore most of them until you need them. Start with Today, add a few tasks, and let your system grow naturally.", bullets:["Reopen this tour anytime from Settings","Customize your bottom tabs around your real habits","Use local-only mode or sign in later whenever you want cloud backup"] }
 ];
 let tutorialStepIndex=0;
 
@@ -3186,10 +3199,242 @@ function renderTrash() {
 }
 
 
+
+/* ================= HANA ACCOUNT / CLOUD BACKUP ================= */
+
+function firebaseFriendlyError(error){
+  const code=String(error?.code||"");
+  if(code.includes("invalid-credential")||code.includes("wrong-password")||code.includes("user-not-found"))return "That email or password doesn't match a Hana account.";
+  if(code.includes("email-already-in-use"))return "That email already has an account. Try Sign in instead.";
+  if(code.includes("weak-password"))return "Use a password with at least 6 characters.";
+  if(code.includes("invalid-email"))return "Enter a valid email address.";
+  if(code.includes("too-many-requests"))return "Too many attempts. Try again a little later.";
+  if(code.includes("network-request-failed"))return "Hana couldn't reach Firebase. Check your internet connection.";
+  if(code.includes("popup-closed-by-user"))return "Google sign-in was closed before it finished.";
+  return error?.message ? String(error.message).replace(/^Firebase:\s*/i,"") : "Something went wrong with your Hana account.";
+}
+
+async function firebaseReady(){
+  const fb=window.HanaFirebase;
+  if(!fb?.ready)throw new Error("Firebase is unavailable in this build.");
+  await fb.ready;
+  if(!fb.available)throw fb.error||new Error("Firebase is unavailable right now.");
+  return fb;
+}
+
+function accountDisplayName(user=hanaAccountState.user){
+  if(!user)return "Hana user";
+  return user.displayName || user.email?.split("@")[0] || "Hana user";
+}
+
+function cloudMetaLabel(meta=hanaAccountState.meta){
+  if(!meta?.updatedAt)return "No cloud backup yet";
+  const date=new Date(meta.updatedAt);
+  if(Number.isNaN(date.getTime()))return "Cloud backup available";
+  return `Last cloud backup: ${date.toLocaleString(undefined,{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})}`;
+}
+
+function renderAccountSettingsCard(){
+  if(hanaAccountState.status==="loading")return `<section id="hanaAccountSection" class="section settings-section"><div class="section-header"><h2>Hana Account</h2></div><div class="settings-card account-settings-card"><h3>Connecting… ☁️</h3><p>Local Hana continues working while cloud services load.</p></div></section>`;
+  if(hanaAccountState.status==="unavailable")return `<section id="hanaAccountSection" class="section settings-section"><div class="section-header"><h2>Hana Account</h2></div><div class="settings-card account-settings-card"><h3>Cloud unavailable right now</h3><p>${escapeHTML(hanaAccountState.error||"Hana could not reach Firebase. Your local data is still safe on this device.")}</p><button class="secondary-button" data-retry-firebase>Try again</button></div></section>`;
+  const user=hanaAccountState.user;
+  if(!user)return `<section id="hanaAccountSection" class="section settings-section"><div class="section-header"><h2>Hana Account</h2></div><div class="settings-card account-settings-card"><div class="account-settings-heading"><div class="account-avatar">🌸</div><div><h3>Optional cloud backup</h3><p>Sign in to keep a restorable copy of Hana in your Firebase account.</p></div></div><div class="account-settings-actions"><button class="google-auth-button" type="button" data-auth-google><span class="google-g">G</span><strong>Continue with Google</strong></button><button class="secondary-button" type="button" data-auth-email-mode="signin">Sign in with email</button><button class="text-button" type="button" data-auth-email-mode="create">Create account</button></div><small class="field-help">You can keep using Hana without signing in. Local autosave, safety snapshots and JSON export still work normally.</small></div></section>`;
+  return `<section id="hanaAccountSection" class="section settings-section"><div class="section-header"><h2>Hana Account</h2></div><div class="settings-card account-settings-card"><div class="account-settings-heading"><div class="account-avatar">${user.photoURL?`<img src="${escapeHTML(user.photoURL)}" alt="" referrerpolicy="no-referrer" />`:"🌸"}</div><div><h3>${escapeHTML(accountDisplayName(user))}</h3><p>${escapeHTML(user.email||"Signed in")}</p></div><span class="account-signed-badge">Signed in</span></div><div class="cloud-backup-status"><span>☁️ Cloud backup</span><strong>${escapeHTML(cloudMetaLabel())}</strong>${hanaAccountState.meta?.sizeBytes?`<small>${Math.max(1,Math.round(Number(hanaAccountState.meta.sizeBytes)/1024))} KB · ${Number(hanaAccountState.meta.chunkCount||1)} cloud part${Number(hanaAccountState.meta.chunkCount||1)===1?"":"s"}</small>`:""}</div><div class="data-actions backup-actions"><button class="primary-button" data-cloud-backup-now>Back up Hana now</button><button class="secondary-button" data-cloud-restore-now ${hanaAccountState.meta?"":"disabled"}>Restore from cloud</button><button class="secondary-button" data-refresh-cloud-meta>Refresh status</button><button class="text-button danger-text" data-auth-signout>Sign out</button></div><small class="field-help">Cloud backup stores your Hana data in Firestore under your account. Wallpaper photos stay local; use Export full backup if you also want the wallpaper in your backup file.</small></div></section>`;
+}
+
+function openEmailAuth(mode="signin"){
+  closeModal("accountWelcomeModal");
+  const create=mode==="create";
+  document.getElementById("emailAuthMode").value=create?"create":"signin";
+  document.getElementById("emailAuthTitle").textContent=create?"Create account":"Sign in";
+  document.getElementById("emailAuthEyebrow").textContent=create?"NEW HANA ACCOUNT":"WELCOME BACK";
+  document.getElementById("submitEmailAuthButton").textContent=create?"Create account":"Sign in";
+  document.getElementById("accountConfirmPasswordWrap").classList.toggle("hidden",!create);
+  document.getElementById("forgotPasswordButton").classList.toggle("hidden",create);
+  document.getElementById("accountPassword").setAttribute("autocomplete",create?"new-password":"current-password");
+  document.getElementById("accountPassword").value="";
+  document.getElementById("accountConfirmPassword").value="";
+  document.getElementById("emailAuthMessage").classList.add("hidden");
+  document.getElementById("emailAuthMessage").textContent="";
+  openModal("emailAuthModal");
+  setTimeout(()=>document.getElementById("accountEmail")?.focus(),80);
+}
+
+function setAuthMessage(message,type="error"){
+  const el=document.getElementById("emailAuthMessage");if(!el)return;
+  el.textContent=message;el.dataset.type=type;el.classList.toggle("hidden",!message);
+}
+
+function markAuthActionPending(){
+  authActionPending=true;
+  try{sessionStorage.setItem("hana_auth_flow_pending","1");}catch{}
+  state.settings.accountPromptSeen=true;
+  saveState({snapshot:false});
+}
+
+async function submitEmailAuth(){
+  if(cloudOperationBusy)return;
+  const mode=document.getElementById("emailAuthMode").value||"signin";
+  const email=document.getElementById("accountEmail").value.trim();
+  const password=document.getElementById("accountPassword").value;
+  const confirmPassword=document.getElementById("accountConfirmPassword").value;
+  if(!email||!password)return setAuthMessage("Enter your email and password.");
+  if(mode==="create"&&password!==confirmPassword)return setAuthMessage("The two passwords don't match.");
+  cloudOperationBusy=true;setAuthMessage(mode==="create"?"Creating your account…":"Signing you in…","info");
+  try{
+    const fb=await firebaseReady();markAuthActionPending();
+    if(mode==="create")await fb.createEmailAccount(email,password);else await fb.signInEmail(email,password);
+    closeModal("emailAuthModal");
+  }catch(error){setAuthMessage(firebaseFriendlyError(error));authActionPending=false;try{sessionStorage.removeItem("hana_auth_flow_pending");}catch{}}
+  finally{cloudOperationBusy=false;}
+}
+
+async function beginGoogleSignIn(){
+  if(cloudOperationBusy)return;
+  cloudOperationBusy=true;
+  closeModal("accountWelcomeModal");
+  showToast("Opening Google sign-in…");
+  try{const fb=await firebaseReady();markAuthActionPending();await fb.signInGoogle();}
+  catch(error){authActionPending=false;try{sessionStorage.removeItem("hana_auth_flow_pending");}catch{}showToast(firebaseFriendlyError(error));}
+  finally{cloudOperationBusy=false;}
+}
+
+async function sendHanaPasswordReset(){
+  const email=document.getElementById("accountEmail").value.trim();
+  if(!email)return setAuthMessage("Enter your email first, then tap Forgot password.");
+  try{const fb=await firebaseReady();await fb.resetPassword(email);setAuthMessage("Password reset email sent. Check your inbox.","success");}
+  catch(error){setAuthMessage(firebaseFriendlyError(error));}
+}
+
+function buildCloudBackupPayload(){
+  const snapshot=clone(state);
+  snapshot.currentPage="today";
+  snapshot.taskSearch="";
+  snapshot.calendarDragTaskId="";
+  snapshot.returnRitualPending=false;
+  return {hanaCloudBackup:true,formatVersion:1,appVersion:HANA_APP_VERSION,savedAt:new Date().toISOString(),state:snapshot};
+}
+
+async function refreshCloudMeta(options={}){
+  const user=hanaAccountState.user;if(!user)return null;
+  try{
+    const fb=await firebaseReady();
+    hanaAccountState.meta=await fb.getCloudMeta(user.uid);
+    if(state.currentPage==="settings")renderSettings();
+    return hanaAccountState.meta;
+  }catch(error){if(!options.quiet)showToast(firebaseFriendlyError(error));return null;}
+}
+
+async function backupHanaToCloud(options={}){
+  const user=hanaAccountState.user;if(!user){openModal("accountWelcomeModal");return false;}
+  if(cloudOperationBusy)return false;
+  if(options.confirmReplace&&hanaAccountState.meta&&!confirm("Replace your existing Hana cloud backup with the data on this device?"))return false;
+  cloudOperationBusy=true;showToast("Backing up Hana to cloud…");
+  try{
+    const fb=await firebaseReady();
+    const meta=await fb.backupSnapshot(user.uid,buildCloudBackupPayload());
+    hanaAccountState.meta=meta;
+    showToast("Hana cloud backup updated ☁️🌸");
+    if(state.currentPage==="settings")renderSettings();
+    return true;
+  }catch(error){console.error("Cloud backup failed:",error);showToast(firebaseFriendlyError(error));return false;}
+  finally{cloudOperationBusy=false;}
+}
+
+async function restoreHanaFromCloud(options={}){
+  const user=hanaAccountState.user;if(!user)return false;
+  if(cloudOperationBusy)return false;
+  if(options.confirm!==false&&!confirm("Restore your Hana cloud backup to this device? Your current local data will be saved as a safety copy first."))return false;
+  cloudOperationBusy=true;showToast("Restoring Hana from cloud…");
+  try{
+    const fb=await firebaseReady();
+    const restored=await fb.restoreSnapshot(user.uid);
+    const cloudState=restored?.payload?.hanaCloudBackup?restored.payload.state:restored?.payload?.state;
+    if(!cloudState||!isLikelyHanaState(cloudState))throw new Error("This cloud backup does not look like valid Hana data.");
+    await createSafetySnapshot("pre-cloud-restore",JSON.stringify(state),{force:true});
+    await ensureWallpaperLoaded();
+    state=normalizeState(cloudState);
+    state.settings.accountPromptSeen=true;
+    if(!hanaWallpaperData)state.appearance.wallpaperEnabled=false;
+    lastSavedStateJSON="";
+    saveState({snapshot:false});
+    await createSafetySnapshot("post-cloud-restore",JSON.stringify(state),{force:true});
+    hanaAccountState.meta=restored.meta;
+    await applyAppearance();
+    render();
+    showToast("Hana restored from cloud ☁️🌸");
+    return true;
+  }catch(error){console.error("Cloud restore failed:",error);showToast(firebaseFriendlyError(error));return false;}
+  finally{cloudOperationBusy=false;}
+}
+
+async function openCloudChoiceForUser(){
+  const user=hanaAccountState.user;if(!user)return;
+  const meta=await refreshCloudMeta({quiet:true});
+  document.getElementById("cloudChoiceAccount").innerHTML=`<div class="account-avatar">${user.photoURL?`<img src="${escapeHTML(user.photoURL)}" alt="" referrerpolicy="no-referrer" />`:"🌸"}</div><div><strong>${escapeHTML(accountDisplayName(user))}</strong><small>${escapeHTML(user.email||"")}</small></div>`;
+  const metaBox=document.getElementById("cloudChoiceMeta");
+  const restoreButton=document.getElementById("cloudChoiceRestoreButton");
+  const backupButton=document.getElementById("cloudChoiceBackupButton");
+  if(meta){
+    metaBox.innerHTML=`<span>Cloud backup found</span><strong>${escapeHTML(cloudMetaLabel(meta))}</strong>`;
+    restoreButton.classList.remove("hidden");
+    backupButton.textContent="Use this device & replace cloud backup";
+    document.getElementById("cloudChoiceMessage").textContent="Hana found both this device's data and a cloud backup. Choose which copy you want to keep. Nothing is replaced automatically.";
+  }else{
+    metaBox.innerHTML=`<span>No cloud backup yet</span><strong>This device can become your first backup.</strong>`;
+    restoreButton.classList.add("hidden");
+    backupButton.textContent="Back up this device";
+    document.getElementById("cloudChoiceMessage").textContent="You're signed in. Hana can now save an independent cloud backup of the data on this device.";
+  }
+  openModal("cloudChoiceModal");
+}
+
+async function handleAuthChanged(user){
+  hanaAccountState.user=user||null;
+  hanaAccountState.status="ready";
+  hanaAccountState.error="";
+  if(user){
+    state.settings.accountPromptSeen=true;saveState({snapshot:false});
+    await refreshCloudMeta({quiet:true});
+    let pending=authActionPending;try{pending=pending||sessionStorage.getItem("hana_auth_flow_pending")==="1";}catch{}
+    if(pending){authActionPending=false;try{sessionStorage.removeItem("hana_auth_flow_pending");}catch{};setTimeout(openCloudChoiceForUser,100);}
+  }else{hanaAccountState.meta=null;}
+  if(state.currentPage==="settings")renderSettings();
+}
+
+async function initHanaFirebase(){
+  if(firebaseAuthListenerInstalled)return;
+  firebaseAuthListenerInstalled=true;
+  window.addEventListener("hana:auth-changed",event=>handleAuthChanged(event.detail));
+  try{
+    const fb=await firebaseReady();
+    hanaAccountState.status="ready";
+    await handleAuthChanged(fb.user||null);
+  }catch(error){hanaAccountState.status="unavailable";hanaAccountState.error=firebaseFriendlyError(error);if(state.currentPage==="settings")renderSettings();}
+}
+
+function continueWithoutAccount(){
+  state.settings.accountPromptSeen=true;saveState({snapshot:false});closeModal("accountWelcomeModal");maybeOpenFirstRunTutorial();
+}
+
+async function signOutHanaAccount(){
+  try{const fb=await firebaseReady();await fb.signOut();hanaAccountState.user=null;hanaAccountState.meta=null;showToast("Signed out. Your local Hana data stays on this device.");if(state.currentPage==="settings")renderSettings();}
+  catch(error){showToast(firebaseFriendlyError(error));}
+}
+
+async function startAccountOnboarding(){
+  await initHanaFirebase();
+  if(hanaAccountState.user){state.settings.accountPromptSeen=true;saveState({snapshot:false});maybeOpenFirstRunTutorial();return;}
+  if(hanaAccountState.status==="unavailable"){maybeOpenFirstRunTutorial();return;}
+  if(state.settings.accountPromptSeen===false)setTimeout(()=>openModal("accountWelcomeModal"),180);else maybeOpenFirstRunTutorial();
+}
+
 /* ================= MORE / SETTINGS / BACKUP ================= */
 
 function renderSettings(){const c=document.getElementById("pageContent");c.innerHTML=`
   <div class="page-heading settings-page-heading"><p class="eyebrow">MAKE HANA YOURS</p><h1>Settings & spaces</h1><p>Customization and app controls live here so your everyday screens can stay calm.</p></div>
+
+  ${renderAccountSettingsCard()}
 
   <section class="section settings-section"><div class="section-header"><h2>Bottom navigation</h2></div><div class="settings-card"><h3>Your everyday tabs ✨</h3><p>Today, Tasks and + stay fixed. Choose the two shortcuts that appear on the right side of the bottom bar.</p><div class="settings-inline bottom-nav-settings"><div class="form-group"><label for="bottomNavSlot1Setting">Slot 1</label><select id="bottomNavSlot1Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[0]||"lists")}</select></div><div class="form-group"><label for="bottomNavSlot2Setting">Slot 2</label><select id="bottomNavSlot2Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[1]||"calendar")}</select></div></div><div class="settings-button-row"><button class="primary-button" data-save-bottom-nav>Save navigation</button><button class="secondary-button" data-restore-bottom-nav>Restore default</button></div><small class="field-help">Default: Today · Tasks · + · Lists · Calendar</small></div></section>
 
@@ -3207,7 +3452,7 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
   <section class="section settings-section"><div class="section-header"><h2>Boundary Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>Choose any space that Hana should hide outside its schedule.</p><div class="form-group"><label for="workFirewallSpaceSetting">Protected space</label><select id="workFirewallSpaceSetting"><option value="">None</option>${spaceOptionsHTML(state.settings.workFirewallSpaceId)}</select></div><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Boundary Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Window starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Window ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked reminders from the protected space outside the window</span></label><button id="saveSettingsButton" class="primary-button full-width">Save settings</button></div></section>
 
-  <section class="section settings-section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card backup-card"><h3>Your Hana safety net 🌸</h3><p>Hana saves changes locally as you use the app and also keeps up to ${MAX_SAFETY_SNAPSHOTS} rolling safety copies on this device. For protection outside this device, export a full backup and keep the JSON file in iCloud Drive, Google Drive, or your computer.</p><div class="backup-status-grid"><div><span>Automatic safety copies</span><strong>On</strong></div><div><span>Latest safety copy</span><strong>${backupMetaLabel()}</strong></div><div><span>Last exported file</span><strong>${lastExportLabel()}</strong></div></div><div class="data-actions backup-actions"><button id="exportDataButton" class="primary-button">Export full backup</button><button id="importDataButton" class="secondary-button">Import backup</button><button id="createSafetyBackupButton" class="secondary-button">Make safety copy now</button><button id="restoreSafetyBackupButton" class="secondary-button">Restore latest safety copy</button></div><small class="field-help">Automatic safety copies are still stored on this device. The exported JSON file is the independent backup you can keep somewhere else.</small></div></section>`;}
+  <section class="section settings-section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card backup-card"><h3>Your Hana safety net 🌸</h3><p>Hana saves changes locally as you use the app and also keeps up to ${MAX_SAFETY_SNAPSHOTS} rolling safety copies on this device. For protection outside this device, sign in for optional Firebase cloud backup or export a full JSON backup to iCloud Drive, Google Drive, or your computer.</p><div class="backup-status-grid"><div><span>Automatic safety copies</span><strong>On</strong></div><div><span>Latest safety copy</span><strong>${backupMetaLabel()}</strong></div><div><span>Last exported file</span><strong>${lastExportLabel()}</strong></div></div><div class="data-actions backup-actions"><button id="exportDataButton" class="primary-button">Export full backup</button><button id="importDataButton" class="secondary-button">Import backup</button><button id="createSafetyBackupButton" class="secondary-button">Make safety copy now</button><button id="restoreSafetyBackupButton" class="secondary-button">Restore latest safety copy</button></div><small class="field-help">Automatic safety copies are still stored on this device. The exported JSON file is the independent backup you can keep somewhere else.</small></div></section>`;}
 
 // Legacy route kept so users who update while sitting on the old More page land safely in Settings.
 function renderMore(){ renderSettings(); }
@@ -3649,6 +3894,17 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-tutorial-back]")){tutorialBack();return;}
   if(event.target.closest("[data-tutorial-skip]")){finishTutorial();return;}
   if(event.target.closest("[data-open-tutorial]")){openTutorial();return;}
+  if(event.target.closest("[data-auth-google]")){beginGoogleSignIn();return;}
+  const authEmail=event.target.closest("[data-auth-email-mode]");if(authEmail){openEmailAuth(authEmail.dataset.authEmailMode||"signin");return;}
+  if(event.target.closest("[data-submit-email-auth]")){submitEmailAuth();return;}
+  if(event.target.closest("[data-forgot-password]")){sendHanaPasswordReset();return;}
+  if(event.target.closest("[data-continue-local]")){continueWithoutAccount();return;}
+  if(event.target.closest("[data-auth-signout]")){signOutHanaAccount();return;}
+  if(event.target.closest("[data-cloud-backup-now]")){backupHanaToCloud({confirmReplace:true});return;}
+  if(event.target.closest("[data-cloud-restore-now]")){restoreHanaFromCloud();return;}
+  if(event.target.closest("[data-refresh-cloud-meta]")){refreshCloudMeta();return;}
+  if(event.target.closest("[data-retry-firebase]")){firebaseAuthListenerInstalled=false;hanaAccountState.status="loading";renderSettings();initHanaFirebase();return;}
+  const cloudChoice=event.target.closest("[data-cloud-choice]");if(cloudChoice){const choice=cloudChoice.dataset.cloudChoice;if(choice==="backup"){closeModal("cloudChoiceModal");backupHanaToCloud({confirmReplace:false}).then(()=>maybeOpenFirstRunTutorial());}else if(choice==="restore"){closeModal("cloudChoiceModal");restoreHanaFromCloud({confirm:false}).then(()=>maybeOpenFirstRunTutorial());}else{closeModal("cloudChoiceModal");maybeOpenFirstRunTutorial();}return;}
   if(event.target.closest("[data-save-bottom-nav]")){saveBottomNavigation();return;}
   if(event.target.closest("[data-restore-bottom-nav]")){restoreBottomNavigation();return;}
   if(event.target.closest("[data-edit-quick-access]")){openQuickAccessEditor();return;}
@@ -3959,8 +4215,8 @@ applyAppearance();
 render();
 (async()=>{
   try{if(navigator.storage?.persist)await navigator.storage.persist();}catch{}
-  const recovered=await maybeRecoverFromSafetySnapshot();
-  if(!recovered)maybeOpenFirstRunTutorial();
+  await maybeRecoverFromSafetySnapshot();
+  await startAccountOnboarding();
 })();
 
 const launchParams=new URLSearchParams(window.location.search);

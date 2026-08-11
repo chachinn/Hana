@@ -3528,3 +3528,246 @@ body.wallpaper-active .nav-drawer {
     width: 14px !important;
   }
 }
+
+/* =====================================================
+   HANA v1.9 · OPTIONAL ACCOUNT + CLOUD BACKUP
+   ===================================================== */
+.account-welcome-overlay {
+  background: rgba(63, 39, 49, 0.26);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.account-welcome-card,
+.email-auth-card,
+.cloud-choice-card {
+  max-width: 430px;
+}
+
+.account-welcome-card {
+  text-align: center;
+  padding-top: 28px;
+}
+
+.account-welcome-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.account-welcome-brand > span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(244, 199, 216, 0.48);
+  font-size: 25px;
+}
+
+.account-welcome-brand h2,
+.account-welcome-brand p {
+  margin: 0;
+}
+
+.account-welcome-copy {
+  max-width: 340px;
+  margin: 14px auto 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.account-provider-stack,
+.account-settings-actions,
+.cloud-choice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.google-auth-button {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  border: 1px solid rgba(96, 71, 81, 0.16);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.95);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(85, 55, 67, 0.05);
+}
+
+.google-g {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(96, 71, 81, 0.12);
+  color: #4285f4;
+  font-weight: 800;
+  font-family: Arial, sans-serif;
+  background: white;
+}
+
+.account-continue-local {
+  margin: 15px auto 7px;
+  display: block;
+}
+
+.account-safety-note {
+  display: block;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 12px;
+}
+
+.auth-inline-message {
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: rgba(244, 218, 224, 0.7);
+  color: #9b425c;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: -2px;
+  margin-bottom: 8px;
+}
+
+.auth-inline-message[data-type="info"] {
+  background: rgba(232, 236, 249, 0.8);
+  color: #586482;
+}
+
+.auth-inline-message[data-type="success"] {
+  background: rgba(222, 242, 226, 0.85);
+  color: #3d7150;
+}
+
+.auth-forgot-button {
+  margin-left: auto;
+  display: block;
+  margin-top: -2px;
+}
+
+.account-settings-card {
+  overflow: hidden;
+}
+
+.account-settings-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.account-settings-heading h3,
+.account-settings-heading p {
+  margin: 0;
+}
+
+.account-settings-heading p {
+  color: var(--muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.account-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 17px;
+  display: grid;
+  place-items: center;
+  background: rgba(244, 199, 216, 0.45);
+  overflow: hidden;
+  font-size: 23px;
+  flex: 0 0 auto;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-signed-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(220, 241, 225, 0.9);
+  color: #407153;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.cloud-backup-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 17px;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+
+.cloud-backup-status span,
+.cloud-backup-status small {
+  color: var(--muted);
+}
+
+.cloud-choice-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 17px;
+  background: rgba(255,255,255,0.62);
+  margin-bottom: 14px;
+}
+
+.cloud-choice-account > div:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cloud-choice-account small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.cloud-choice-message {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.cloud-choice-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px;
+  margin: 14px 0;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(250, 239, 244, 0.65);
+}
+
+.cloud-choice-meta span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .account-settings-heading {
+    grid-template-columns: auto minmax(0,1fr);
+  }
+  .account-signed-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
