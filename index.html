@@ -63,6 +63,12 @@
     </div>
 
     <div class="nav-drawer-scroll">
+      <section class="nav-drawer-group nav-drawer-quick-access">
+        <div class="nav-drawer-group-title">Quick access</div>
+        <button class="nav-drawer-item nav-drawer-item-priority" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
+        <button class="nav-drawer-item nav-drawer-item-priority" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
+      </section>
+
       <section class="nav-drawer-group">
         <div class="nav-drawer-group-title">Plan</div>
         <button class="nav-drawer-item" data-goto="calendar"><span class="nav-drawer-icon">🗓️</span><span><strong>Calendar</strong><small>Month, week, day and time blocks</small></span><b>›</b></button>
@@ -84,9 +90,7 @@
         <button class="nav-drawer-item" data-goto="waiting-garden"><span class="nav-drawer-icon">⏳</span><span><strong>Waiting Garden</strong><small>Things waiting on replies, approvals or deliveries</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="future-notes"><span class="nav-drawer-icon">💌</span><span><strong>Future Me</strong><small>Notes that return when you need them</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="threads"><span class="nav-drawer-icon">🧵</span><span><strong>Memory Threads</strong><small>Connect context across Hana</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="inbox"><span class="nav-drawer-icon">🧠</span><span><strong>Brain Dump</strong><small>Sort thoughts later</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="templates"><span class="nav-drawer-icon">🧩</span><span><strong>Templates</strong><small>Reusable starting points</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="pinboard"><span class="nav-drawer-icon">📌</span><span><strong>Pinboard</strong><small>Keep quick references handy</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="someday"><span class="nav-drawer-icon">🌱</span><span><strong>Someday</strong><small>Ideas without urgency</small></span><b>›</b></button>
@@ -362,9 +366,15 @@
       </div>
       <div class="form-group"><label for="tableProject">🌷 Project <span class="optional-label">optional</span></label><input id="tableProject" type="text" list="hanaProjectOptions" placeholder="Link this tracker to a project" /></div>
       <div class="form-group">
-        <label for="tableColumns">Columns</label>
-        <textarea id="tableColumns" class="large-textarea" placeholder="One per line: Name:type\nTask:text\nOwner:text\nDue:date\nStatus:status\nDone:checkbox\nAmount:money"></textarea>
-        <small class="field-help">Types: text, number, progress, date, checkbox, status, money, tag, link, reminder. Add, remove, rename, or reorder one column per line.</small>
+        <label>Columns</label>
+        <div id="tableColumnsBuilder" class="table-columns-builder"></div>
+        <div class="table-columns-actions"><button id="addTableColumnButton" class="secondary-button" type="button">+ Add column</button></div>
+        <small class="field-help">Choose the name and type for each column separately. You can add, remove, rename, or reorder columns anytime.</small>
+      </div>
+      <div class="form-group">
+        <label for="tableStatusOptions">Status options</label>
+        <input id="tableStatusOptions" type="text" placeholder="Upcoming, To Do, Doing, Waiting, Done" />
+        <small class="field-help">Used by any status column. Separate options with commas.</small>
       </div>
       <div class="modal-actions task-modal-actions">
         <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete tracker</button>
@@ -408,7 +418,11 @@
         <div class="form-group"><label for="listName">List name</label><input id="listName" type="text" placeholder="Groceries" /></div>
       </div>
       <div class="form-group"><label for="listSpace">Space</label><select id="listSpace" data-space-select></select></div>
-      <p class="field-help list-modal-help">Each checklist item is stored as its own entry, so you can check, edit, or remove items independently.</p>
+      <div class="form-row">
+        <div class="form-group"><label for="listQuantityLabel">Extra field 1 label <span class="optional-label">optional</span></label><input id="listQuantityLabel" type="text" placeholder="Quantity" /></div>
+        <div class="form-group"><label for="listDetailLabel">Extra field 2 label <span class="optional-label">optional</span></label><input id="listDetailLabel" type="text" placeholder="Detail" /></div>
+      </div>
+      <p class="field-help list-modal-help">Each checklist item is stored as its own entry, so you can check, edit, or remove items independently. You can also rename the extra fields to fit the list.</p>
       <div class="modal-actions task-modal-actions">
         <button id="deleteListFromModal" class="danger-button hidden" type="button">Delete list</button>
         <div class="modal-action-spacer"></div>
@@ -428,7 +442,10 @@
       <input id="listItemListId" type="hidden" />
       <input id="listItemEditId" type="hidden" />
       <div class="form-group"><label for="listItemTitle">Item</label><input id="listItemTitle" type="text" placeholder="Milk, book dentist, buy charger..." /></div>
-      <div class="form-group"><label for="listItemDetail">Detail / quantity <span class="optional-label">optional</span></label><input id="listItemDetail" type="text" placeholder="2 bottles, size M, aisle 4..." /></div>
+      <div class="form-row">
+        <div class="form-group"><label for="listItemQuantity" id="listItemQuantityLabel">Quantity <span class="optional-label">optional</span></label><input id="listItemQuantity" type="text" placeholder="2 bottles" /></div>
+        <div class="form-group"><label for="listItemDetail" id="listItemDetailLabel">Detail <span class="optional-label">optional</span></label><input id="listItemDetail" type="text" placeholder="size M, aisle 4..." /></div>
+      </div>
       <div class="modal-actions task-modal-actions">
         <button id="deleteListItemFromModal" class="danger-button hidden" type="button">Delete item</button>
         <div class="modal-action-spacer"></div>

@@ -339,10 +339,15 @@ function normalizeReminder(reminder = {}) {
   };
 }
 
+const DEFAULT_TABLE_STATUSES = ["upcoming", "to do", "doing", "waiting", "done"];
+
 function normalizeTable(table = {}) {
   const cols = Array.isArray(table.columns) && table.columns.length
     ? table.columns.map(col => ({ id: col.id || createId(), name: String(col.name || "Column"), type: validColumnType(col.type) }))
     : [{ id: createId(), name: "Item", type: "text" }];
+  const statusOptions = Array.isArray(table.statusOptions) && table.statusOptions.length
+    ? table.statusOptions.map(option => String(option || "").trim()).filter(Boolean)
+    : DEFAULT_TABLE_STATUSES.slice();
 
   return {
     id: table.id || createId(),
@@ -350,6 +355,7 @@ function normalizeTable(table = {}) {
     space: String(table.space || "personal"),
     project: String(table.project || ""),
     columns: cols,
+    statusOptions,
     rows: Array.isArray(table.rows)
       ? table.rows.map(row => ({ id: row.id || createId(), values: row.values || {}, createdAt: Number(row.createdAt || Date.now()) }))
       : [],
@@ -368,11 +374,14 @@ function normalizeList(list = {}) {
     name: String(list.name || "Checklist"),
     icon: String(list.icon || "☑️").slice(0, 4),
     space: String(list.space || "personal"),
+    quantityLabel: String(list.quantityLabel || "Quantity"),
+    detailLabel: String(list.detailLabel || "Detail"),
     items: Array.isArray(list.items)
       ? list.items.map(item => ({
           id: item.id || createId(),
           title: String(item.title || ""),
-          detail: String(item.detail || ""),
+          quantity: String(item.quantity || ""),
+          detail: String(item.detail || item.notes || ""),
           completed: Boolean(item.completed),
           createdAt: Number(item.createdAt || Date.now()),
           updatedAt: Number(item.updatedAt || item.createdAt || Date.now())
@@ -1680,16 +1689,26 @@ function renderSingleList(list) {
         ${completed ? `<button class="secondary-button" data-clear-checked="${list.id}">Remove checked</button>` : ""}
         ${completed ? `<button class="text-button" data-reset-list="${list.id}">Uncheck all</button>` : ""}
       </div>
+      <div class="quick-list-add-card">
+        <div class="quick-list-add-head"><strong>Quick add</strong><small>One line per item. Optional format: item | quantity | detail</small></div>
+        <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk
+Eggs | 1 tray
+Shampoo | 2 | refill pouches"></textarea>
+        <div class="quick-list-add-actions"><button class="secondary-button" data-quick-add-list="${list.id}">Add lines</button></div>
+      </div>
       <div class="standalone-checklist">
-        ${total ? list.items.map(item => `
+        ${total ? list.items.map(item => {
+          const meta = [item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "", item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""].filter(Boolean).join(" · ");
+          return `
           <div class="standalone-check-item ${item.completed?"done":""}">
             <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
             <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
               <strong>${escapeHTML(item.title)}</strong>
-              ${item.detail ? `<small>${escapeHTML(item.detail)}</small>` : ""}
+              ${meta ? `<small>${meta}</small>` : ""}
             </button>
             <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
-          </div>`).join("") : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one so each entry stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
+          </div>`;
+        }).join("") : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
       </div>
     </section>`;
 }
@@ -1700,6 +1719,8 @@ function clearListForm() {
   document.getElementById("listIcon").value = "☑️";
   document.getElementById("listName").value = "";
   document.getElementById("listSpace").value = preferredSpace();
+  document.getElementById("listQuantityLabel").value = "Quantity";
+  document.getElementById("listDetailLabel").value = "Detail";
   document.getElementById("listModalEyebrow").textContent = "NEW CHECKLIST";
   document.getElementById("listModalTitle").textContent = "Create a list";
   document.getElementById("saveListButton").textContent = "Create list";
@@ -1714,6 +1735,8 @@ function openListModal(listId = "") {
     document.getElementById("listIcon").value = list.icon;
     document.getElementById("listName").value = list.name;
     document.getElementById("listSpace").value = list.space;
+    document.getElementById("listQuantityLabel").value = list.quantityLabel || "Quantity";
+    document.getElementById("listDetailLabel").value = list.detailLabel || "Detail";
     document.getElementById("listModalEyebrow").textContent = "CHECKLIST DETAILS";
     document.getElementById("listModalTitle").textContent = "Edit list";
     document.getElementById("saveListButton").textContent = "Save changes";
@@ -1733,6 +1756,8 @@ function saveList() {
     name,
     icon: document.getElementById("listIcon").value.trim() || "☑️",
     space: document.getElementById("listSpace").value,
+    quantityLabel: document.getElementById("listQuantityLabel").value.trim() || "Quantity",
+    detailLabel: document.getElementById("listDetailLabel").value.trim() || "Detail",
     items: old?.items || [],
     createdAt: old?.createdAt || Date.now(),
     updatedAt: Date.now()
@@ -1762,7 +1787,10 @@ function openListItemModal(listId, itemId = "") {
   document.getElementById("listItemListId").value = listId;
   document.getElementById("listItemEditId").value = itemId;
   document.getElementById("listItemTitle").value = item?.title || "";
+  document.getElementById("listItemQuantity").value = item?.quantity || "";
   document.getElementById("listItemDetail").value = item?.detail || "";
+  document.getElementById("listItemQuantityLabel").innerHTML = `${escapeHTML(list.quantityLabel || "Quantity")} <span class="optional-label">optional</span>`;
+  document.getElementById("listItemDetailLabel").innerHTML = `${escapeHTML(list.detailLabel || "Detail")} <span class="optional-label">optional</span>`;
   document.getElementById("listItemModalTitle").textContent = item ? "Edit item" : `Add to ${list.name}`;
   document.getElementById("saveListItemButton").textContent = item ? "Save item" : "Add item";
   document.getElementById("deleteListItemFromModal").classList.toggle("hidden", !item);
@@ -1780,6 +1808,7 @@ function saveListItem() {
   const item = {
     id: itemId || createId(),
     title,
+    quantity: document.getElementById("listItemQuantity").value.trim(),
     detail: document.getElementById("listItemDetail").value.trim(),
     completed: old?.completed || false,
     createdAt: old?.createdAt || Date.now(),
@@ -1808,6 +1837,24 @@ function toggleListItem(listId, itemId) {
   item.completed = !item.completed;
   item.updatedAt = Date.now();
   list.updatedAt = Date.now();
+  render();
+}
+
+function quickAddListItems(listId) {
+  const list = state.lists.find(item => item.id === listId);
+  const input = document.getElementById(`quickListInput_${listId}`);
+  if (!list || !input) return;
+  const lines = parseLines(input.value);
+  if (!lines.length) return showToast("Type at least one line first 🌸");
+  const created = lines.map(line => {
+    const [titleRaw, quantityRaw = "", detailRaw = ""] = line.split("|").map(part => part.trim());
+    return { id: createId(), title: titleRaw, quantity: quantityRaw, detail: detailRaw, completed: false, createdAt: Date.now(), updatedAt: Date.now() };
+  }).filter(item => item.title);
+  if (!created.length) return showToast("Nothing to add yet 🌸");
+  list.items.push(...created);
+  list.updatedAt = Date.now();
+  input.value = "";
+  showToast(`${created.length} item${created.length===1?"":"s"} added ☑️`);
   render();
 }
 
@@ -1864,25 +1911,55 @@ function renderSingleTable(table){return `<div class="table-head-actions"><butto
 
 function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase()}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
-function parseTableColumns(text){return parseLines(text).map(line=>{const [nameRaw,typeRaw]=line.split(":");const name=(nameRaw||"Column").trim();const type=validColumnType((typeRaw||"text").trim().toLowerCase());return{id:createId(),name,type};});}
 
-const TABLE_TEMPLATES={progress:{name:"Progress Tracker",columns:"Item:text\nProgress:progress\nStatus:status\nDue:date\nRemarks:text\nDone:checkbox"},project:{name:"Project Tracker",columns:"Task:text\nOwner:text\nProgress:progress\nStatus:status\nDue:date\nRemarks:text"},expenses:{name:"Expense Tracker",columns:"Item:text\nAmount:money\nDate:date\nStatus:status\nRemarks:text"},blank:{name:"",columns:"Item:text"}};
-function applyTableTemplate(templateId,force=false){const template=TABLE_TEMPLATES[templateId]||TABLE_TEMPLATES.progress;const name=document.getElementById("tableName"),columns=document.getElementById("tableColumns");if(force||!name.value.trim())name.value=template.name;if(force||!columns.value.trim())columns.value=template.columns;}
-function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();document.getElementById("tableColumns").value="";applyTableTemplate("progress",true);document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
-function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";document.getElementById("tableColumns").value=t.columns.map(c=>`${c.name}:${c.type}`).join("\n");document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
+function parseStatusOptions(text){
+  const options = String(text || "").split(",").map(option => option.trim().toLowerCase()).filter(Boolean);
+  return options.length ? [...new Set(options)] : DEFAULT_TABLE_STATUSES.slice();
+}
 
-function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=parseTableColumns(document.getElementById("tableColumns").value);if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");render();}
+let tableBuilderColumns = [];
+function getTemplateDefinition(templateId){return TABLE_TEMPLATES[templateId] || TABLE_TEMPLATES.progress;}
+function cloneTemplateColumns(columns){return columns.map(col => ({ id: col.id || createId(), name: String(col.name || "Column"), type: validColumnType(col.type) }));}
+function renderTableColumnsBuilder(){
+  const wrap = document.getElementById("tableColumnsBuilder");
+  if(!wrap) return;
+  wrap.innerHTML = tableBuilderColumns.map((col,index)=>`<div class="table-column-row"><div class="table-column-grip" title="Column ${index+1}">⋮⋮</div><input data-table-col-name="${col.id}" type="text" value="${escapeHTML(col.name)}" placeholder="Column name" /><select data-table-col-type="${col.id}"><option value="text" ${col.type==="text"?"selected":""}>Text</option><option value="number" ${col.type==="number"?"selected":""}>Number</option><option value="progress" ${col.type==="progress"?"selected":""}>Progress</option><option value="date" ${col.type==="date"?"selected":""}>Date</option><option value="checkbox" ${col.type==="checkbox"?"selected":""}>Checkbox</option><option value="status" ${col.type==="status"?"selected":""}>Status</option><option value="money" ${col.type==="money"?"selected":""}>Money</option><option value="tag" ${col.type==="tag"?"selected":""}>Tag</option><option value="link" ${col.type==="link"?"selected":""}>Link</option><option value="reminder" ${col.type==="reminder"?"selected":""}>Reminder date</option></select><div class="table-column-row-actions"><button type="button" class="mini-icon-button" data-shift-table-col="up" data-col-id="${col.id}" ${index===0?"disabled":""}>↑</button><button type="button" class="mini-icon-button" data-shift-table-col="down" data-col-id="${col.id}" ${index===tableBuilderColumns.length-1?"disabled":""}>↓</button><button type="button" class="mini-icon-button danger-outline-button" data-remove-table-col="${col.id}">×</button></div></div>`).join("");
+}
+function syncTableBuilderFromDOM(){
+  tableBuilderColumns = tableBuilderColumns.map(col => ({ ...col, name: document.querySelector(`[data-table-col-name="${col.id}"]`)?.value || col.name, type: validColumnType(document.querySelector(`[data-table-col-type="${col.id}"]`)?.value || col.type) }));
+}
+function setTableBuilderColumns(columns){ tableBuilderColumns = cloneTemplateColumns(columns && columns.length ? columns : [{id:createId(),name:"Item",type:"text"}]); renderTableColumnsBuilder(); }
+function addTableColumnBuilder(column={name:"",type:"text"}){ syncTableBuilderFromDOM(); tableBuilderColumns.push({id:createId(),name:String(column.name||""),type:validColumnType(column.type||"text")}); renderTableColumnsBuilder(); }
+function moveTableColumn(colId, direction){ syncTableBuilderFromDOM(); const index = tableBuilderColumns.findIndex(col => col.id===colId); if(index<0) return; const target = direction==="up" ? index-1 : index+1; if(target<0 || target>=tableBuilderColumns.length) return; [tableBuilderColumns[index], tableBuilderColumns[target]] = [tableBuilderColumns[target], tableBuilderColumns[index]]; renderTableColumnsBuilder(); }
+function removeTableColumnBuilder(colId){ if(tableBuilderColumns.length<=1) return showToast("Keep at least one column 🌸"); tableBuilderColumns = tableBuilderColumns.filter(col => col.id!==colId); renderTableColumnsBuilder(); }
+function getBuiltTableColumns(){ syncTableBuilderFromDOM(); return tableBuilderColumns.map(col => ({...col, name:String(col.name||"").trim()})).filter(col => col.name).map(col => ({id:col.id||createId(), name:col.name, type:validColumnType(col.type)})); }
+
+const TABLE_TEMPLATES={
+  progress:{name:"Progress Tracker",columns:[{name:"Item",type:"text"},{name:"Progress",type:"progress"},{name:"Status",type:"status"},{name:"Due",type:"date"},{name:"Remarks",type:"text"},{name:"Done",type:"checkbox"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()},
+  project:{name:"Project Tracker",columns:[{name:"Task",type:"text"},{name:"Owner",type:"text"},{name:"Progress",type:"progress"},{name:"Status",type:"status"},{name:"Due",type:"date"},{name:"Remarks",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()},
+  expenses:{name:"Expense Tracker",columns:[{name:"Item",type:"text"},{name:"Amount",type:"money"},{name:"Date",type:"date"},{name:"Status",type:"status"},{name:"Remarks",type:"text"}],statusOptions:["pending","completed","reimbursed"]},
+  blank:{name:"",columns:[{name:"Item",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()}
+};
+function applyTableTemplate(templateId,force=false){const template=getTemplateDefinition(templateId);const name=document.getElementById("tableName");if(force||!name.value.trim())name.value=template.name;setTableBuilderColumns(template.columns);document.getElementById("tableStatusOptions").value=(template.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");}
+function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
+function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
+
+function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
 function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
-function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id])).join("");openModal("tableRowModal");}
-function tableFieldHTML(col,value){const id=`rowField_${col.id}`;if(col.type==="checkbox")return `<label class="check-row"><input id="${id}" data-row-field="${col.id}" data-col-type="checkbox" type="checkbox" ${value?"checked":""}/><span>${escapeHTML(col.name)}</span></label>`;if(col.type==="status")return `<div class="form-group"><label>${escapeHTML(col.name)}</label><select id="${id}" data-row-field="${col.id}" data-col-type="status"><option value="upcoming" ${value==="upcoming"?"selected":""}>Upcoming</option><option value="todo" ${value==="todo"?"selected":""}>To Do</option><option value="doing" ${value==="doing"?"selected":""}>Doing</option><option value="waiting" ${value==="waiting"?"selected":""}>Waiting</option><option value="done" ${value==="done"?"selected":""}>Done</option><option value="paid" ${value==="paid"?"selected":""}>Paid</option></select></div>`;if(col.type==="progress")return `<div class="form-group"><label>${escapeHTML(col.name)} (%)</label><input id="${id}" data-row-field="${col.id}" data-col-type="progress" type="number" min="0" max="100" step="5" value="${Math.max(0,Math.min(100,Number(value||0)))}" /></div>`;const inputType=["date","reminder"].includes(col.type)?"date":(["number","money"].includes(col.type)?"number":col.type==="link"?"url":"text");return `<div class="form-group"><label>${escapeHTML(col.name)}</label><input id="${id}" data-row-field="${col.id}" data-col-type="${col.type}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} value="${escapeHTML(value??"")}" /></div>`;}
+function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id],table)).join("");openModal("tableRowModal");}
+function tableFieldHTML(col,value,table){const id=`rowField_${col.id}`;if(col.type==="checkbox")return `<label class="check-row"><input id="${id}" data-row-field="${col.id}" data-col-type="checkbox" type="checkbox" ${value?"checked":""}/><span>${escapeHTML(col.name)}</span></label>`;if(col.type==="status"){const listId=`statusList_${table.id}_${col.id}`;const options=(table.statusOptions||DEFAULT_TABLE_STATUSES).map(option=>`<option value="${escapeHTML(option)}"></option>`).join("");return `<div class="form-group"><label>${escapeHTML(col.name)}</label><input id="${id}" list="${listId}" data-row-field="${col.id}" data-col-type="status" type="text" value="${escapeHTML(String(value||"upcoming"))}" /><datalist id="${listId}">${options}</datalist></div>`;}if(col.type==="progress")return `<div class="form-group"><label>${escapeHTML(col.name)} (%)</label><input id="${id}" data-row-field="${col.id}" data-col-type="progress" type="number" min="0" max="100" step="5" value="${Math.max(0,Math.min(100,Number(value||0)))}" /></div>`;const inputType=["date","reminder"].includes(col.type)?"date":(["number","money"].includes(col.type)?"number":col.type==="link"?"url":"text");return `<div class="form-group"><label>${escapeHTML(col.name)}</label><input id="${id}" data-row-field="${col.id}" data-col-type="${col.type}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} value="${escapeHTML(value??"")}" /></div>`;}
 
-function saveTableRow(){const table=state.tables.find(t=>t.id===document.getElementById("tableRowTableId").value);if(!table)return;const rowId=document.getElementById("tableRowEditId").value;const old=table.rows.find(r=>r.id===rowId);const values={};document.querySelectorAll("[data-row-field]").forEach(el=>{const type=el.dataset.colType;values[el.dataset.rowField]=type==="checkbox"?el.checked:(["number","money","progress"].includes(type)?Number(el.value||0):el.value);});const row={id:rowId||createId(),values,createdAt:old?.createdAt||Date.now()};if(old)table.rows[table.rows.findIndex(r=>r.id===rowId)]=row;else table.rows.push(row);if(document.getElementById("tableRowReminder").checked)createReminderFromTableRow(table,row);closeModal("tableRowModal");showToast("Row saved 📋");render();}
+function saveTableRow(){const table=state.tables.find(t=>t.id===document.getElementById("tableRowTableId").value);if(!table)return;const rowId=document.getElementById("tableRowEditId").value;const old=table.rows.find(r=>r.id===rowId);const values={};document.querySelectorAll("[data-row-field]").forEach(el=>{const type=el.dataset.colType;values[el.dataset.rowField]=type==="checkbox"?el.checked:( ["number","money","progress"].includes(type)?Number(el.value||0):el.value);});const row={id:rowId||createId(),values,createdAt:old?.createdAt||Date.now()};if(old)table.rows[table.rows.findIndex(r=>r.id===rowId)]=row;else table.rows.push(row);if(document.getElementById("tableRowReminder").checked)createReminderFromTableRow(table,row);closeModal("tableRowModal");showToast("Row saved 📋");render();}
+function saveInlineTableRow(tableId){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const values={};table.columns.forEach(col=>{const el=document.getElementById(`inline_${tableId}_${col.id}`);if(!el) return; if(col.type==="checkbox") values[col.id]=el.checked; else if(["number","money","progress"].includes(col.type)) values[col.id]=Number(el.value||0); else values[col.id]=el.value;});if(!Object.values(values).some(value=>String(value||"").trim()||value===true||Number(value)>0)) return showToast("Add something to the row first 🌸");table.rows.push({id:createId(),values,createdAt:Date.now()});showToast("Row added 📋");render();}
 function deleteTableRow(tableId,rowId){const t=state.tables.find(t=>t.id===tableId);const row=t?.rows.find(r=>r.id===rowId);if(!t||!row||!confirm("Move this row to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===tableId&&r.linkedRowId===rowId);moveToTrash("tableRow",row,{tableId,tableName:t.name,linkedReminders});t.rows=t.rows.filter(r=>r.id!==rowId);state.reminders=state.reminders.filter(r=>!(r.linkedTableId===tableId&&r.linkedRowId===rowId));closeModal("tableRowModal");render();}
 function rowTitle(table,row){const col=table.columns.find(c=>["text","tag"].includes(c.type));return String(row.values[col?.id]||`${table.name} row`);}
 function rowDate(table,row){const col=table.columns.find(c=>["date","reminder"].includes(c.type));return row.values[col?.id]||"";}
 function createReminderFromTableRow(table,row){const title=rowTitle(table,row),date=rowDate(table,row);if(!date)return showToast("This row needs a date column before Hana can remind you.");const existing=state.reminders.find(r=>r.linkedTableId===table.id&&r.linkedRowId===row.id);const rem=normalizeReminder({...(existing||{}),id:existing?.id||createId(),title,space:table.space,date,time:"09:00",repeatType:"none",linkedTableId:table.id,linkedRowId:row.id,completed:false,notified:false,createdAt:existing?.createdAt||Date.now()});if(existing)state.reminders[state.reminders.findIndex(r=>r.id===existing.id)]=rem;else state.reminders.push(rem);showToast("Row reminder created 🔔");}
 function createTaskFromTableRow(table,row){const task=normalizeTask({title:rowTitle(table,row),space:table.space,priority:"medium",status:"todo",dueDate:rowDate(table,row),project:table.name,tags:["from-table"],notes:`Created from ${table.name}`,createdAt:Date.now()});state.tasks.push(task);showToast("Table row became a task 🌱");render();}
+function renderInlineTableRow(table){return `<div class="inline-table-row-card"><div class="inline-table-row-head"><strong>Quick add row</strong><small>Type directly here if you do not need the full pop-up.</small></div><div class="inline-table-row-grid">${table.columns.map(col=>{const id=`inline_${table.id}_${col.id}`; if(col.type==="checkbox") return `<label class="inline-table-checkbox"><input id="${id}" type="checkbox" /><span>${escapeHTML(col.name)}</span></label>`; if(col.type==="status"){const listId=`inline_status_${table.id}_${col.id}`; return `<div class="form-group compact"><label>${escapeHTML(col.name)}</label><input id="${id}" list="${listId}" type="text" placeholder="${escapeHTML((table.statusOptions||DEFAULT_TABLE_STATUSES)[0]||"status")}" /><datalist id="${listId}">${(table.statusOptions||DEFAULT_TABLE_STATUSES).map(option=>`<option value="${escapeHTML(option)}"></option>`).join("")}</datalist></div>`;} const inputType=["date","reminder"].includes(col.type)?"date":(["number","money","progress"].includes(col.type)?"number":col.type==="link"?"url":"text"); return `<div class="form-group compact"><label>${escapeHTML(col.name)}</label><input id="${id}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} placeholder="${escapeHTML(col.name)}" /></div>`;}).join("")}</div><div class="inline-table-row-actions"><button class="secondary-button" data-add-row="${table.id}">Open full form</button><button class="primary-button" data-save-inline-row="${table.id}">Save row</button></div></div>`;}
+function renderSingleTable(table){return `<div class="table-head-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button></div>${renderInlineTableRow(table)}<div class="table-wrapper"><table class="smart-table"><thead><tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}<th>Actions</th></tr></thead><tbody>${table.rows.length?table.rows.map(row=>`<tr>${table.columns.map(c=>`<td>${renderTableCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="table-actions-cell"><div class="table-row-actions"><button class="table-row-action" data-edit-row="${row.id}" data-table-id="${table.id}">Edit</button><button class="table-row-action" data-row-to-task="${row.id}" data-table-id="${table.id}">→ Task</button><button class="table-row-action" data-row-remind="${row.id}" data-table-id="${table.id}">🔔</button></div></td></tr>`).join(""):`<tr><td colspan="${table.columns.length+1}">No rows yet.</td></tr>`}</tbody></table></div>`;}
+function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase().replace(/\s+/g,"-")}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
 
 /* ================= HANA v1.7 · CALENDAR / PROJECTS / GARDEN ================= */
@@ -3148,6 +3225,9 @@ document.addEventListener("click", event => {
   const selectTable=event.target.closest("[data-select-table]");if(selectTable){state.activeTableId=selectTable.dataset.selectTable;render();return;}
   const editTable=event.target.closest("[data-edit-table]");if(editTable){openTableModal(editTable.dataset.editTable);return;}
   const addRow=event.target.closest("[data-add-row]");if(addRow){openTableRowModal(addRow.dataset.addRow);return;}
+  const saveInlineRow=event.target.closest("[data-save-inline-row]");if(saveInlineRow){saveInlineTableRow(saveInlineRow.dataset.saveInlineRow);return;}
+  const removeTableCol=event.target.closest("[data-remove-table-col]");if(removeTableCol){removeTableColumnBuilder(removeTableCol.dataset.removeTableCol);return;}
+  const shiftTableCol=event.target.closest("[data-shift-table-col]");if(shiftTableCol){moveTableColumn(shiftTableCol.dataset.colId, shiftTableCol.dataset.shiftTableCol);return;}
   const editRow=event.target.closest("[data-edit-row]");if(editRow){openTableRowModal(editRow.dataset.tableId,editRow.dataset.editRow);return;}
   const rowTask=event.target.closest("[data-row-to-task]");if(rowTask){const t=state.tables.find(t=>t.id===rowTask.dataset.tableId),r=t?.rows.find(r=>r.id===rowTask.dataset.rowToTask);if(t&&r)createTaskFromTableRow(t,r);return;}
   const rowRem=event.target.closest("[data-row-remind]");if(rowRem){const t=state.tables.find(t=>t.id===rowRem.dataset.tableId),r=t?.rows.find(r=>r.id===rowRem.dataset.rowRemind);if(t&&r){createReminderFromTableRow(t,r);render();}return;}
@@ -3156,6 +3236,7 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-open-list]")){openListModal();return;}
   const editList=event.target.closest("[data-edit-list]");if(editList){openListModal(editList.dataset.editList);return;}
   const addListItem=event.target.closest("[data-add-list-item]");if(addListItem){openListItemModal(addListItem.dataset.addListItem);return;}
+  const quickAddList=event.target.closest("[data-quick-add-list]");if(quickAddList){quickAddListItems(quickAddList.dataset.quickAddList);return;}
   const editListItem=event.target.closest("[data-edit-list-item]");if(editListItem){openListItemModal(editListItem.dataset.listId,editListItem.dataset.editListItem);return;}
   const toggleList=event.target.closest("[data-toggle-list-item]");if(toggleList){toggleListItem(toggleList.dataset.listId,toggleList.dataset.toggleListItem);return;}
   const listTemplate=event.target.closest("[data-list-template]");if(listTemplate){createListFromTemplate(listTemplate.dataset.listTemplate);return;}
@@ -3193,7 +3274,7 @@ document.addEventListener("click", event => {
 
   const empty=event.target.closest("[data-empty-action]");if(empty){const a=empty.dataset.emptyAction;if(a==="open-task")openTaskModal();else if(a==="open-note")openNoteModal();else if(a==="open-reminder")openReminderModal();else if(a==="open-table")openTableModal();else if(a==="open-list")openListModal();else if(a==="open-pin")openModal("pinModal");else if(a==="open-someday")openModal("somedayModal");else if(a==="open-project")openProjectModal();return;}
 
-  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="event")openEventModal();else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table")openTableModal();else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
+  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="task")openTaskModal();else if(a==="event")openEventModal();else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table"){changePage("tables");setTimeout(()=>openTableModal(),60);}else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
 
   if(event.target.id==="brainDumpAddButton"){addBrainDump();return;}
   if(event.target.id==="addSpaceButton"){addCustomSpace();return;}
@@ -3215,9 +3296,11 @@ document.addEventListener("dragleave",event=>{event.target.closest("[data-time-s
 document.addEventListener("drop",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.remove("drag-over");const id=event.dataTransfer?.getData("text/plain")||state.calendarDragTaskId;if(id)scheduleTaskAt(id,slot.dataset.date,slot.dataset.time);});
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
+document.getElementById("addTableColumnButton")?.addEventListener("click",()=>addTableColumnBuilder());
+document.getElementById("tableTemplate")?.addEventListener("change",event=>applyTableTemplate(event.target.value, true));
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
-document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}if(event.key==="Enter" && ["listItemTitle","listItemQuantity","listItemDetail"].includes(event.target.id)){event.preventDefault();saveListItem();}});
 document.getElementById("saveEventButton").addEventListener("click",saveEvent);
 document.getElementById("deleteEventButton").addEventListener("click",()=>{const id=document.getElementById("eventEditId").value;if(id)deleteEvent(id);});
 document.getElementById("saveTaskScheduleButton").addEventListener("click",saveTaskSchedule);
