@@ -64,9 +64,11 @@
 
     <div class="nav-drawer-scroll">
       <section class="nav-drawer-group nav-drawer-quick-access">
-        <div class="nav-drawer-group-title">Quick access</div>
-        <button class="nav-drawer-item nav-drawer-item-priority" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
-        <button class="nav-drawer-item nav-drawer-item-priority" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
+        <div class="nav-drawer-group-heading-row">
+          <div class="nav-drawer-group-title">Quick access</div>
+          <button class="quick-access-edit-button" type="button" data-edit-quick-access aria-label="Edit Quick Access">Edit</button>
+        </div>
+        <div id="quickAccessItems"></div>
       </section>
 
       <section class="nav-drawer-group">
@@ -87,6 +89,8 @@
 
       <section class="nav-drawer-group">
         <div class="nav-drawer-group-title">Organize</div>
+        <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="waiting-garden"><span class="nav-drawer-icon">⏳</span><span><strong>Waiting Garden</strong><small>Things waiting on replies, approvals or deliveries</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="future-notes"><span class="nav-drawer-icon">💌</span><span><strong>Future Me</strong><small>Notes that return when you need them</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="threads"><span class="nav-drawer-icon">🧵</span><span><strong>Memory Threads</strong><small>Connect context across Hana</small></span><b>›</b></button>
@@ -112,6 +116,26 @@
       </section>
     </div>
   </aside>
+
+  <!-- QUICK ACCESS EDITOR -->
+  <div id="quickAccessModal" class="modal-overlay hidden">
+    <div class="modal-card quick-access-modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">SHORTCUTS</p><h2>Edit Quick Access</h2></div>
+        <button class="modal-close" data-close-modal="quickAccessModal">×</button>
+      </div>
+      <p class="quick-access-help">Choose up to three shortcuts. Leave a slot empty if you want fewer. Reminders is the default shortcut.</p>
+      <div class="quick-access-slot-list">
+        <div class="form-group"><label for="quickAccessSlot1">Slot 1</label><select id="quickAccessSlot1" data-quick-access-slot></select></div>
+        <div class="form-group"><label for="quickAccessSlot2">Slot 2</label><select id="quickAccessSlot2" data-quick-access-slot></select></div>
+        <div class="form-group"><label for="quickAccessSlot3">Slot 3</label><select id="quickAccessSlot3" data-quick-access-slot></select></div>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-button" data-close-modal="quickAccessModal">Cancel</button>
+        <button id="saveQuickAccessButton" class="primary-button" type="button">Save shortcuts</button>
+      </div>
+    </div>
+  </div>
 
   <!-- GLOBAL SEARCH -->
   <div id="searchModal" class="modal-overlay hidden">

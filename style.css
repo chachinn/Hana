@@ -3097,3 +3097,92 @@ body.wallpaper-active .nav-drawer {
     width: 100%;
   }
 }
+
+
+/* ===== v1.7.2 · Editable Quick Access ===== */
+.nav-drawer-group-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 8px;
+}
+
+.nav-drawer-group-heading-row .nav-drawer-group-title {
+  padding: 0;
+}
+
+.quick-access-edit-button {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--rose);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+.quick-access-edit-button:active {
+  background: var(--pink-50);
+}
+
+.quick-access-duplicate {
+  display: none !important;
+}
+
+.quick-access-empty {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 10px 8px;
+  text-align: left;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: var(--pink-25);
+  color: var(--text);
+}
+
+.quick-access-empty > span {
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--pink-50);
+  color: var(--pink-600);
+  font-size: 18px;
+}
+
+.quick-access-empty strong {
+  align-self: end;
+  font-size: 13px;
+}
+
+.quick-access-empty small {
+  align-self: start;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.quick-access-modal-card {
+  max-width: 520px;
+}
+
+.quick-access-help {
+  margin: -2px 0 18px;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.quick-access-slot-list {
+  display: grid;
+  gap: 12px;
+}
+
+.quick-access-slot-list .form-group {
+  margin: 0;
+}

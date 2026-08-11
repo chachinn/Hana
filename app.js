@@ -123,6 +123,31 @@ const STARTER_TEMPLATES = [
   }
 ];
 
+const QUICK_ACCESS_MENU = {
+  reminders: { label: "Reminders", icon: "🔔", description: "Repeats, snooze and reminder chains" },
+  tables: { label: "Trackers", icon: "📊", description: "Progress, status, remarks and custom columns" },
+  calendar: { label: "Calendar", icon: "🗓️", description: "Month, week, day and time blocks" },
+  projects: { label: "Projects", icon: "🌷", description: "Milestones and connected work" },
+  garden: { label: "Hana Garden", icon: "🌺", description: "See what you have been nurturing" },
+  agenda: { label: "Agenda", icon: "📅", description: "Tasks, events and reminders together" },
+  rescue: { label: "Rescue My Day", icon: "🛟", description: "Shrink an overloaded day" },
+  "time-pockets": { label: "Time Pockets", icon: "⏱", description: "Find work that fits your time and energy" },
+  bloom: { label: "Bloom View", icon: "🌸", description: "See progress without pressure" },
+  "daily-close": { label: "Daily Close", icon: "🌙", description: "Wrap up unfinished things gently" },
+  "waiting-garden": { label: "Waiting Garden", icon: "⏳", description: "Things waiting on replies, approvals or deliveries" },
+  "future-notes": { label: "Future Me", icon: "💌", description: "Notes that return when you need them" },
+  threads: { label: "Memory Threads", icon: "🧵", description: "Connect context across Hana" },
+  inbox: { label: "Brain Dump", icon: "🧠", description: "Sort thoughts later" },
+  templates: { label: "Templates", icon: "🧩", description: "Reusable starting points" },
+  pinboard: { label: "Pinboard", icon: "📌", description: "Keep quick references handy" },
+  someday: { label: "Someday", icon: "🌱", description: "Ideas without urgency" },
+  insights: { label: "Hana Notices", icon: "🌿", description: "Local planning patterns and suggestions" },
+  "return-ritual": { label: "Return Ritual", icon: "🌱", description: "Reset overdue things without panic" },
+  history: { label: "History", icon: "🕰️", description: "See what you already finished" },
+  trash: { label: "Trash", icon: "🗑️", description: "Restore recently deleted things" },
+  settings: { label: "Settings & Spaces", icon: "⚙️", description: "Edit spaces, planning defaults and backups" }
+};
+
 const defaultState = {
   currentPage: "today",
   currentMode: "all",
@@ -161,7 +186,8 @@ const defaultState = {
     workEnd: "18:00",
     workDays: [1, 2, 3, 4, 5],
     allowHighPriorityWorkReminders: true,
-    defaultSpace: "personal"
+    defaultSpace: "personal",
+    quickAccess: ["reminders"]
   },
 
   tasks: [
@@ -517,6 +543,11 @@ function normalizeState(data = {}) {
     calendarDragTaskId: "",
     dailyCloseHistory: Array.isArray(data.dailyCloseHistory) ? data.dailyCloseHistory : []
   };
+
+  const incomingQuickAccess = Array.isArray(normalized.settings.quickAccess) ? normalized.settings.quickAccess : ["reminders"];
+  normalized.settings.quickAccess = [...new Set(incomingQuickAccess)]
+    .filter(key => Object.prototype.hasOwnProperty.call(QUICK_ACCESS_MENU, key))
+    .slice(0, 3);
 
   // Spaces are fully user-controlled. If an imported/older state has none,
   // create one neutral fallback so Hana always has somewhere to place items.
@@ -911,7 +942,58 @@ function resetDailyFocusIfNeeded() {
   }
 }
 
+function quickAccessItemHTML(key) {
+  const item = QUICK_ACCESS_MENU[key];
+  if (!item) return "";
+  return `<button class="nav-drawer-item nav-drawer-item-priority" data-goto="${key}"><span class="nav-drawer-icon">${item.icon}</span><span><strong>${escapeHTML(item.label)}</strong><small>${escapeHTML(item.description)}</small></span><b>›</b></button>`;
+}
+
+function renderQuickAccess() {
+  const container = document.getElementById("quickAccessItems");
+  if (!container) return;
+  const selected = Array.isArray(state.settings.quickAccess) ? state.settings.quickAccess.slice(0, 3) : ["reminders"];
+  container.innerHTML = selected.length
+    ? selected.map(quickAccessItemHTML).join("")
+    : `<button class="quick-access-empty" type="button" data-edit-quick-access><span>＋</span><strong>Add a shortcut</strong><small>Choose up to three frequently used sections.</small></button>`;
+
+  document.querySelectorAll('.nav-drawer-group:not(.nav-drawer-quick-access) .nav-drawer-item[data-goto]').forEach(button => {
+    button.classList.toggle("quick-access-duplicate", selected.includes(button.dataset.goto));
+  });
+}
+
+function quickAccessOptionsHTML(selectedValue = "") {
+  const options = [`<option value="">— Empty —</option>`];
+  Object.entries(QUICK_ACCESS_MENU).forEach(([key, item]) => {
+    options.push(`<option value="${key}" ${key === selectedValue ? "selected" : ""}>${item.icon} ${escapeHTML(item.label)}</option>`);
+  });
+  return options.join("");
+}
+
+function openQuickAccessEditor() {
+  closeNavDrawer();
+  const selected = Array.isArray(state.settings.quickAccess) ? state.settings.quickAccess.slice(0, 3) : ["reminders"];
+  ["quickAccessSlot1", "quickAccessSlot2", "quickAccessSlot3"].forEach((id, index) => {
+    const select = document.getElementById(id);
+    if (select) select.innerHTML = quickAccessOptionsHTML(selected[index] || "");
+  });
+  openModal("quickAccessModal");
+}
+
+function saveQuickAccess() {
+  const values = ["quickAccessSlot1", "quickAccessSlot2", "quickAccessSlot3"]
+    .map(id => document.getElementById(id)?.value || "")
+    .filter(Boolean);
+  const unique = [...new Set(values)];
+  if (unique.length !== values.length) return showToast("Choose each shortcut only once 🌸");
+  state.settings.quickAccess = unique.slice(0, 3);
+  saveState();
+  renderQuickAccess();
+  closeModal("quickAccessModal");
+  showToast("Quick Access updated ✨");
+}
+
 function openNavDrawer() {
+  renderQuickAccess();
   const drawer = document.getElementById("navDrawer");
   const backdrop = document.getElementById("navDrawerBackdrop");
   const button = document.getElementById("menuButton");
@@ -938,6 +1020,7 @@ function render() {
   renderModeBar();
   refreshSpaceSelects();
   updateNavigation();
+  renderQuickAccess();
 
   switch (state.currentPage) {
     case "tasks": renderTasks(); break;
@@ -3143,6 +3226,7 @@ installNoZoomGuards();
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
+  if(event.target.closest("[data-edit-quick-access]")){openQuickAccessEditor();return;}
   const closeDrawer=event.target.closest("[data-close-nav-drawer]");if(closeDrawer){closeNavDrawer();return;}
   const enableNotifications=event.target.closest("[data-enable-notifications]");if(enableNotifications){closeNavDrawer();requestNotificationPermission();return;}
   const nav=event.target.closest("[data-page]");if(nav&&!nav.classList.contains("nav-center-placeholder")){changePage(nav.dataset.page);return;}
@@ -3296,6 +3380,7 @@ document.addEventListener("dragleave",event=>{event.target.closest("[data-time-s
 document.addEventListener("drop",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.remove("drag-over");const id=event.dataTransfer?.getData("text/plain")||state.calendarDragTaskId;if(id)scheduleTaskAt(id,slot.dataset.date,slot.dataset.time);});
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
+document.getElementById("saveQuickAccessButton")?.addEventListener("click", saveQuickAccess);
 document.getElementById("addTableColumnButton")?.addEventListener("click",()=>addTableColumnBuilder());
 document.getElementById("tableTemplate")?.addEventListener("change",event=>applyTableTemplate(event.target.value, true));
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
