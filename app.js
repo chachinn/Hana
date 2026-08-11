@@ -2204,20 +2204,30 @@ function toggleBirthdayHelper(forceOpen=null) {
   helper.classList.toggle("hidden",!open);
   if(open){const select=document.getElementById("birthdayPerson"); if(select){select.innerHTML=birthdayPersonOptionsHTML(select.value||birthdayLabels()[0]);}updateBirthdayOtherField();}
 }
-function applyBirthdayPreset() {
-  const select=document.getElementById("birthdayPerson"); if(!select)return;
+function birthdayPresetTitle() {
+  const select=document.getElementById("birthdayPerson");
+  if(!select)return "Birthday 🎂";
   let label=select.value||birthdayLabels()[0]||"Other";
-  if(label.toLowerCase()==="other") label=document.getElementById("birthdayOtherName")?.value.trim()||"Birthday";
-  let title;
-  if(label.toLowerCase()==="me") title="My Birthday 🎂";
-  else if(label.toLowerCase()==="birthday") title="Birthday 🎂";
-  else title=`${label}'s Birthday 🎂`;
-  document.getElementById("eventTitle").value=title;
+  if(label.toLowerCase()==="other") label=document.getElementById("birthdayOtherName")?.value.trim()||"";
+  if(!label)return "Birthday 🎂";
+  if(label.toLowerCase()==="me")return "My Birthday 🎂";
+  if(label.toLowerCase()==="birthday")return "Birthday 🎂";
+  return `${label}'s Birthday 🎂`;
+}
+function applyBirthdayPreset(showMessage=true) {
+  const titleInput=document.getElementById("eventTitle");
+  if(titleInput)titleInput.value=birthdayPresetTitle();
   document.getElementById("eventRepeat").value="yearly";
   document.getElementById("eventStart").value=document.getElementById("eventStart").value||"09:00";
   document.getElementById("eventEnd").value=document.getElementById("eventEnd").value||"10:00";
-  showToast("Birthday preset applied 🎂");
+  if(showMessage)showToast("Birthday preset applied 🎂");
 }
+function syncBirthdayPresetFromPerson() {
+  updateBirthdayOtherField();
+  const helper=document.getElementById("birthdayHelper");
+  if(helper && !helper.classList.contains("hidden")) applyBirthdayPreset(false);
+}
+
 
 function openEventModal(eventId="", presets={}){
   refreshSpaceSelects(); const old=state.events.find(e=>e.id===eventId);
@@ -3550,7 +3560,7 @@ document.addEventListener("click", event => {
 
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
-document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")updateBirthdayOtherField();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
+document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false};
 function openRowActionMenu(tableId,rowId){
@@ -3653,7 +3663,8 @@ document.getElementById("globalSearchButton").addEventListener("click",()=>{docu
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="quickTaskTitle"){event.preventDefault();saveQuickTask();}if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}if(event.key==="Enter" && ["listItemTitle","listItemQuantity","listItemDetail"].includes(event.target.id)){event.preventDefault();saveListItem();}});
 document.getElementById("birthdayHelperToggle")?.addEventListener("click",()=>toggleBirthdayHelper());
-document.getElementById("applyBirthdayPreset")?.addEventListener("click",applyBirthdayPreset);
+document.getElementById("applyBirthdayPreset")?.addEventListener("click",()=>applyBirthdayPreset(true));
+document.getElementById("birthdayOtherName")?.addEventListener("input",()=>{const helper=document.getElementById("birthdayHelper");if(helper&&!helper.classList.contains("hidden"))applyBirthdayPreset(false);});
 document.getElementById("saveEventButton").addEventListener("click",saveEvent);
 document.getElementById("deleteEventButton").addEventListener("click",()=>{const id=document.getElementById("eventEditId").value;if(id)deleteEvent(id);});
 document.getElementById("saveTaskScheduleButton").addEventListener("click",saveTaskSchedule);
