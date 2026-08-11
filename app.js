@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v1.7
-   Calendar + Time Blocking + Projects + Garden + Local Planning Intelligence
+   HANA 🌸 v1.8.3
+   Stability fixes + simplified navigation + tutorial
    Local-first PWA
    ===================================================== */
 
@@ -148,6 +148,23 @@ const QUICK_ACCESS_MENU = {
   settings: { label: "Settings & Spaces", icon: "⚙️", description: "Edit spaces, planning defaults and backups" }
 };
 
+
+const BOTTOM_NAV_OPTIONS = {
+  lists: { label: "Lists", icon: "☑️" },
+  calendar: { label: "Calendar", icon: "🗓️" },
+  tables: { label: "Trackers", icon: "📊" },
+  notes: { label: "Notes", icon: "📝" },
+  reminders: { label: "Reminders", icon: "🔔" },
+  projects: { label: "Projects", icon: "🌷" },
+  agenda: { label: "Agenda", icon: "📅" },
+  inbox: { label: "Brain Dump", icon: "🧠" },
+  "waiting-garden": { label: "Waiting", icon: "⏳" },
+  "future-notes": { label: "Future Me", icon: "💌" },
+  garden: { label: "Garden", icon: "🌺" },
+  bloom: { label: "Bloom", icon: "🌸" }
+};
+const DEFAULT_BOTTOM_NAV = ["lists", "calendar"];
+
 const defaultState = {
   currentPage: "today",
   currentMode: "all",
@@ -187,7 +204,9 @@ const defaultState = {
     workDays: [1, 2, 3, 4, 5],
     allowHighPriorityWorkReminders: true,
     defaultSpace: "personal",
-    quickAccess: ["reminders"]
+    quickAccess: ["reminders"],
+    bottomNav: DEFAULT_BOTTOM_NAV.slice(),
+    tutorialCompleted: false
   },
 
   tasks: [
@@ -518,7 +537,7 @@ function normalizeState(data = {}) {
     reminders: (Array.isArray(data.reminders) ? data.reminders : base.reminders).map(normalizeReminder),
     events: (Array.isArray(data.events) ? data.events : []).map(normalizeEvent),
     projects: (Array.isArray(data.projects) ? data.projects : []).map(normalizeProject),
-    tables: (migratedTables?.length ? migratedTables : base.tables).map(normalizeTable),
+    tables: (Array.isArray(data.tables) ? data.tables : (migratedTables?.length ? migratedTables : base.tables)).map(normalizeTable),
     pins: Array.isArray(data.pins) ? data.pins : base.pins,
     someday: Array.isArray(data.someday) ? data.someday : base.someday,
     inbox: Array.isArray(data.inbox) ? data.inbox : [],
@@ -551,6 +570,18 @@ function normalizeState(data = {}) {
   normalized.settings.quickAccess = [...new Set(incomingQuickAccess)]
     .filter(key => Object.prototype.hasOwnProperty.call(QUICK_ACCESS_MENU, key))
     .slice(0, 3);
+
+  const incomingBottomNav = Array.isArray(normalized.settings.bottomNav) ? normalized.settings.bottomNav : DEFAULT_BOTTOM_NAV;
+  const validBottomNav = [...new Set(incomingBottomNav)]
+    .filter(key => Object.prototype.hasOwnProperty.call(BOTTOM_NAV_OPTIONS, key));
+  DEFAULT_BOTTOM_NAV.forEach(key => { if (validBottomNav.length < 2 && !validBottomNav.includes(key)) validBottomNav.push(key); });
+  Object.keys(BOTTOM_NAV_OPTIONS).forEach(key => { if (validBottomNav.length < 2 && !validBottomNav.includes(key)) validBottomNav.push(key); });
+  normalized.settings.bottomNav = validBottomNav.slice(0, 2);
+  // Existing Hana users should not be interrupted by a first-run tour after updating.
+  // New installs inherit tutorialCompleted:false from defaultState and will see it once.
+  if (data && Object.keys(data).length && !Object.prototype.hasOwnProperty.call(data.settings || {}, "tutorialCompleted")) {
+    normalized.settings.tutorialCompleted = true;
+  }
 
   // Spaces are fully user-controlled. If an imported/older state has none,
   // create one neutral fallback so Hana always has somewhere to place items.
@@ -1018,6 +1049,48 @@ function closeNavDrawer() {
   document.body.classList.remove("nav-drawer-open");
 }
 
+
+const HANA_TUTORIAL_STEPS = [
+  { icon:"🌸", eyebrow:"WELCOME TO HANA", title:"One bloom at a time", text:"Hana is a gentle planner for tasks, notes, lists, calendars, reminders and structured trackers. You do not need to use everything. Start with what helps today.", bullets:["Use Today for what matters now","Use + whenever you need to capture something","Everything else stays organized in the menu"] },
+  { icon:"🌸", eyebrow:"YOUR HOME", title:"Today", text:"Today is your calm starting point. It shows your Focus Bouquet and only the things asking for attention right now.", bullets:["Focus Bouquet = the few tasks that matter today","Plan my day hides capacity and suggestions until you need them","Daily Close helps you wrap up unfinished work"] },
+  { icon:"✓", eyebrow:"THINGS TO DO", title:"Tasks", text:"Tasks are actions you need to finish. Quick Task is for fast entry; the full task form is there when you need details.", bullets:["Swipe right to reveal Edit","Swipe left to reveal Delete","Use projects, reminders, estimates and recurrence only when useful"] },
+  { icon:"☑️", eyebrow:"SIMPLE REPEATABLE THINGS", title:"Lists", text:"Lists are independent checklists for groceries, packing, shopping, routines or anything else you want to tick off.", bullets:["Quick add several lines at once","Customize Quantity and Detail labels per list","Each item can still be edited separately"] },
+  { icon:"🗓️", eyebrow:"WHEN IT HAPPENS", title:"Calendar", text:"Calendar combines dated tasks and events. Switch between Month, Week and Day views when you need more detail.", bullets:["Events are separate from tasks","Plan tasks into time slots","Auto-plan can place your Focus Bouquet around existing events"] },
+  { icon:"📊", eyebrow:"STRUCTURED PROGRESS", title:"Trackers", text:"Trackers are customizable tables for progress, projects, bills, applications, collections or anything that needs rows and columns.", bullets:["Choose your own columns and types","Quick Add Row keeps entry fast","Pin Trackers to Quick Access or your bottom navigation if you use them often"] },
+  { icon:"🔔", eyebrow:"DON’T FORGET", title:"Reminders", text:"Reminders are for things Hana should bring back to your attention. They can repeat, snooze and link to tasks or tracker rows.", bullets:["Reminders are the default Quick Access shortcut","Reminder chains can nudge you more than once","Enable browser notifications when you want alerts outside Hana"] },
+  { icon:"🌷", eyebrow:"CONNECTED WORK", title:"Projects & Notes", text:"Projects collect related tasks, milestones, notes and trackers. Notes hold context that does not need to become a task.", bullets:["Projects show progress and waiting items together","Notes can be pinned or linked into Memory Threads","Meeting notes can turn lines into tasks"] },
+  { icon:"☰", eyebrow:"THE REST, WITHOUT THE CLUTTER", title:"Menu & Quick Access", text:"The hamburger keeps advanced tools out of your everyday screens. Quick Access lets you pin up to three things you use most.", bullets:["Plan & Focus contains planning tools","Organize contains Reminders, Trackers and supporting tools","Review & Settings contains history, customization and backups"] },
+  { icon:"✨", eyebrow:"MAKE IT YOURS", title:"Your bottom navigation", text:"Today, Tasks and + stay fixed. The two right-side tabs are yours to choose. Hana starts with Lists and Calendar.", bullets:["Change them anytime in Settings & Spaces","Choose Trackers, Notes, Reminders, Projects and more","Restore the default whenever you want"] },
+  { icon:"🌺", eyebrow:"YOU’RE READY", title:"Use only what helps", text:"Hana has many tools, but it is designed so you can ignore most of them until you need them. Start with Today, add a few tasks, and let your system grow naturally.", bullets:["Reopen this tour anytime from Settings","Customize your bottom tabs around your real habits","Your data stays local on this device unless you export it"] }
+];
+let tutorialStepIndex=0;
+
+function renderTutorialStep(){
+  const step=HANA_TUTORIAL_STEPS[tutorialStepIndex]||HANA_TUTORIAL_STEPS[0];
+  const content=document.getElementById("tutorialContent");
+  const progress=document.getElementById("tutorialProgress");
+  if(!content||!progress)return;
+  content.innerHTML=`<div class="tutorial-icon">${step.icon}</div><p class="eyebrow">${escapeHTML(step.eyebrow)}</p><h2>${escapeHTML(step.title)}</h2><p class="tutorial-text">${escapeHTML(step.text)}</p>${step.bullets?.length?`<div class="tutorial-bullets">${step.bullets.map(item=>`<div><span>🌸</span><p>${escapeHTML(item)}</p></div>`).join("")}</div>`:""}`;
+  progress.innerHTML=HANA_TUTORIAL_STEPS.map((_,index)=>`<span class="${index===tutorialStepIndex?"active":""}"></span>`).join("");
+  const back=document.getElementById("tutorialBackButton"),next=document.getElementById("tutorialNextButton");
+  if(back)back.disabled=tutorialStepIndex===0;
+  if(next)next.textContent=tutorialStepIndex===HANA_TUTORIAL_STEPS.length-1?"Start using Hana":"Next";
+}
+
+function openTutorial({fromStart=true}={}){
+  if(fromStart)tutorialStepIndex=0;
+  closeNavDrawer();
+  renderTutorialStep();
+  openModal("tutorialModal");
+}
+function tutorialNext(){
+  if(tutorialStepIndex>=HANA_TUTORIAL_STEPS.length-1){finishTutorial();return;}
+  tutorialStepIndex+=1;renderTutorialStep();
+}
+function tutorialBack(){if(tutorialStepIndex>0){tutorialStepIndex-=1;renderTutorialStep();}}
+function finishTutorial(){state.settings.tutorialCompleted=true;saveState();closeModal("tutorialModal");}
+function maybeOpenFirstRunTutorial(){if(state.settings.tutorialCompleted===false)setTimeout(()=>openTutorial(),180);}
+
 function render() {
   resetDailyFocusIfNeeded();
   renderModeBar();
@@ -1063,10 +1136,45 @@ function changePage(page) {
   render();
 }
 
+function bottomNavOptionsHTML(selectedValue = "") {
+  return Object.entries(BOTTOM_NAV_OPTIONS).map(([key,item]) => `<option value="${key}" ${key===selectedValue?"selected":""}>${item.icon} ${escapeHTML(item.label)}</option>`).join("");
+}
+
+function renderBottomNavigation() {
+  const selected = Array.isArray(state.settings.bottomNav) ? state.settings.bottomNav.slice(0,2) : DEFAULT_BOTTOM_NAV.slice();
+  ["bottomNavSlot1","bottomNavSlot2"].forEach((id,index) => {
+    const button = document.getElementById(id);
+    const key = selected[index] || DEFAULT_BOTTOM_NAV[index];
+    const item = BOTTOM_NAV_OPTIONS[key] || BOTTOM_NAV_OPTIONS[DEFAULT_BOTTOM_NAV[index]];
+    if (!button || !item) return;
+    button.dataset.page = key;
+    button.innerHTML = `<span class="nav-icon">${item.icon}</span><span>${escapeHTML(item.label)}</span>`;
+    button.setAttribute("aria-label", item.label);
+  });
+}
+
 function updateNavigation() {
+  renderBottomNavigation();
   document.querySelectorAll(".nav-button[data-page]").forEach(button => {
     button.classList.toggle("active", button.dataset.page === state.currentPage);
   });
+}
+
+function saveBottomNavigation() {
+  const values=[document.getElementById("bottomNavSlot1Setting")?.value,document.getElementById("bottomNavSlot2Setting")?.value].filter(Boolean);
+  if(values.length!==2)return showToast("Choose two bottom shortcuts 🌸");
+  if(values[0]===values[1])return showToast("Choose two different shortcuts 🌸");
+  state.settings.bottomNav=values;
+  saveState();
+  showToast("Bottom navigation updated ✨");
+  render();
+}
+
+function restoreBottomNavigation() {
+  state.settings.bottomNav=DEFAULT_BOTTOM_NAV.slice();
+  saveState();
+  showToast("Bottom navigation restored 🌸");
+  render();
 }
 
 function updateModeButtons() { renderModeBar(); }
@@ -1666,7 +1774,7 @@ function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if
 
 function completeReminder(id){const r=state.reminders.find(r=>r.id===id);if(!r)return;if(r.linkedTaskId){const t=state.tasks.find(t=>t.id===r.linkedTaskId);if(t&&!t.completed)showToast("Reminder cleared; task is still open.");} if(r.repeatType!=="none"&&!r.linkedTaskId){advanceReminder(r);}else r.completed=true;render();}
 
-function advanceReminder(r){const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}if(r.repeatType==="monthly")base.setMonth(base.getMonth()+1);r.date=localDateISO(base);r.notified=false;r.chainNotified=[];r.completed=false;}
+function advanceReminder(r){if(r.repeatType==="monthly"){r.date=addMonthsClamped(r.date,1);}else{const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}r.date=localDateISO(base);}r.notified=false;r.chainNotified=[];r.completed=false;}
 
 function snoozeReminder(id,type){const r=state.reminders.find(r=>r.id===id);if(!r)return;const now=new Date();if(type==="tonight"){r.date=todayISO();r.time="19:00";}if(type==="tomorrow"){r.date=addDaysISO(todayISO(),1);r.time="08:00";}if(type==="workday"){r.date=nextWorkdayISO(now);r.time="09:00";}if(type==="week"){r.date=addDaysISO(todayISO(),7);r.time="09:00";}r.notified=false;r.chainNotified=[];showToast("Reminder snoozed 🌙");render();}
 
@@ -1941,10 +2049,6 @@ function renderTables(){
     <div class="table-tabs">${tables.map(t=>`<button class="table-tab ${t.id===state.activeTableId?"active":""}" data-select-table="${t.id}">${escapeHTML(t.name)}</button>`).join("")}<button class="table-tab" data-open="tableModal">+ New tracker</button></div>
     ${table?renderSingleTable(table):emptyState("📋","No trackers yet","Start with the standard Progress Tracker or build your own columns.","Create tracker","open-table")}`;
 }
-
-function renderSingleTable(table){return `<div class="table-head-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button></div><div class="table-wrapper"><table class="smart-table"><thead><tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}<th>Actions</th></tr></thead><tbody>${table.rows.length?table.rows.map(row=>`<tr>${table.columns.map(c=>`<td>${renderTableCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td><button class="table-row-action" data-edit-row="${row.id}" data-table-id="${table.id}">Edit</button> <button class="table-row-action" data-row-to-task="${row.id}" data-table-id="${table.id}">→ Task</button> <button class="table-row-action" data-row-remind="${row.id}" data-table-id="${table.id}">🔔</button></td></tr>`).join(""):`<tr><td colspan="${table.columns.length+1}">No rows yet.</td></tr>`}</tbody></table></div>`;}
-
-function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase()}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
 
 function getSortedTableRows(table){
@@ -2979,6 +3083,10 @@ function renderTrash() {
 function renderSettings(){const c=document.getElementById("pageContent");c.innerHTML=`
   <div class="page-heading settings-page-heading"><p class="eyebrow">MAKE HANA YOURS</p><h1>Settings & spaces</h1><p>Customization and app controls live here so your everyday screens can stay calm.</p></div>
 
+  <section class="section settings-section"><div class="section-header"><h2>Bottom navigation</h2></div><div class="settings-card"><h3>Your everyday tabs ✨</h3><p>Today, Tasks and + stay fixed. Choose the two shortcuts that appear on the right side of the bottom bar.</p><div class="settings-inline bottom-nav-settings"><div class="form-group"><label for="bottomNavSlot1Setting">Slot 1</label><select id="bottomNavSlot1Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[0]||"lists")}</select></div><div class="form-group"><label for="bottomNavSlot2Setting">Slot 2</label><select id="bottomNavSlot2Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[1]||"calendar")}</select></div></div><div class="settings-button-row"><button class="primary-button" data-save-bottom-nav>Save navigation</button><button class="secondary-button" data-restore-bottom-nav>Restore default</button></div><small class="field-help">Default: Today · Tasks · + · Lists · Calendar</small></div></section>
+
+  <section class="section settings-section"><div class="section-header"><h2>Help & tutorial</h2></div><div class="settings-card tutorial-settings-card"><div><h3>New to Hana? 🌸</h3><p>Take the guided tour of the main sections and learn what each part is for.</p></div><button class="secondary-button" data-open-tutorial>Open app tutorial</button></div></section>
+
   <section id="spaceManagerSection" class="section settings-section"><div class="section-header"><h2>Spaces</h2></div><div class="settings-card">
     <h3>Your categories 🌷</h3><p>Every space is yours. Rename it, change the emoji, reorder it, or remove it. Hana only keeps one rule: at least one space must remain.</p>
     <div class="space-manager-list">${state.spaces.map((space,index)=>`<div class="space-manager-row"><span class="space-manager-label">${escapeHTML(space.emoji)} <strong>${escapeHTML(space.name)}</strong></span><div class="space-manager-actions"><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="up" ${index===0?"disabled":""} aria-label="Move ${escapeHTML(space.name)} up">↑</button><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="down" ${index===state.spaces.length-1?"disabled":""} aria-label="Move ${escapeHTML(space.name)} down">↓</button><button class="text-button" data-edit-space="${escapeHTML(space.id)}">Edit</button><button class="text-button danger-text" data-delete-space="${escapeHTML(space.id)}" ${state.spaces.length===1?"disabled":""}>Remove</button></div></div>`).join("")}</div>
@@ -3223,6 +3331,12 @@ installNoZoomGuards();
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
+  if(event.target.closest("[data-tutorial-next]")){tutorialNext();return;}
+  if(event.target.closest("[data-tutorial-back]")){tutorialBack();return;}
+  if(event.target.closest("[data-tutorial-skip]")){finishTutorial();return;}
+  if(event.target.closest("[data-open-tutorial]")){openTutorial();return;}
+  if(event.target.closest("[data-save-bottom-nav]")){saveBottomNavigation();return;}
+  if(event.target.closest("[data-restore-bottom-nav]")){restoreBottomNavigation();return;}
   if(event.target.closest("[data-edit-quick-access]")){openQuickAccessEditor();return;}
   const closeDrawer=event.target.closest("[data-close-nav-drawer]");if(closeDrawer){closeNavDrawer();return;}
   const enableNotifications=event.target.closest("[data-enable-notifications]");if(enableNotifications){closeNavDrawer();requestNotificationPermission();return;}
@@ -3372,7 +3486,7 @@ document.addEventListener("click", event => {
 
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
-document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();}}});
+document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false};
 function openRowActionMenu(tableId,rowId){
@@ -3516,6 +3630,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.se
 setInterval(checkReminders,30*1000);checkReminders();
 applyAppearance();
 render();
+maybeOpenFirstRunTutorial();
 
 const launchParams=new URLSearchParams(window.location.search);
 if(launchParams.get("action")==="capture"){setTimeout(prepareQuickCapture,100);window.history.replaceState({},"",window.location.pathname+window.location.hash);}

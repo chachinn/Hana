@@ -45,8 +45,8 @@
       <button class="nav-button active" data-page="today"><span class="nav-icon">🌸</span><span>Today</span></button>
       <button class="nav-button" data-page="tasks"><span class="nav-icon">✓</span><span>Tasks</span></button>
       <button class="nav-button nav-center-placeholder" aria-hidden="true"><span></span></button>
-      <button class="nav-button" data-page="lists"><span class="nav-icon">☑️</span><span>Lists</span></button>
-      <button class="nav-button" data-page="notes"><span class="nav-icon">📝</span><span>Notes</span></button>
+      <button id="bottomNavSlot1" class="nav-button" data-page="lists"><span class="nav-icon">☑️</span><span>Lists</span></button>
+      <button id="bottomNavSlot2" class="nav-button" data-page="calendar"><span class="nav-icon">🗓️</span><span>Calendar</span></button>
     </nav>
   </div>
 
@@ -84,6 +84,8 @@
 
       <section class="nav-drawer-group">
         <div class="nav-drawer-group-title">Organize</div>
+        <button class="nav-drawer-item" data-goto="lists"><span class="nav-drawer-icon">☑️</span><span><strong>Lists</strong><small>Simple checklists for groceries, packing and more</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="notes"><span class="nav-drawer-icon">📝</span><span><strong>Notes</strong><small>Keep context, ideas and meeting notes</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="waiting-garden"><span class="nav-drawer-icon">⏳</span><span><strong>Waiting Garden</strong><small>Things waiting on replies, approvals or deliveries</small></span><b>›</b></button>
@@ -597,6 +599,22 @@
       <div class="form-group"><label for="somedayCategory">Category</label><select id="somedayCategory"><option value="ideas">💡 Idea</option><option value="places">📍 Place</option><option value="project">🌱 Project</option><option value="books">📚 Book</option><option value="learning">🎓 Learning</option><option value="other">🌸 Other</option></select></div>
       <div class="form-group"><label for="somedayNotes">Notes</label><textarea id="somedayNotes" placeholder="Why do you want to do this?"></textarea></div>
       <div class="modal-actions"><button class="secondary-button" data-close-modal="somedayModal">Cancel</button><button id="saveSomedayButton" class="primary-button">Save for someday</button></div>
+    </div>
+  </div>
+
+  <!-- FIRST-TIME TUTORIAL / APP TOUR -->
+  <div id="tutorialModal" class="modal-overlay hidden tutorial-overlay">
+    <div class="modal-card tutorial-card">
+      <div class="tutorial-topbar">
+        <button class="tutorial-skip" type="button" data-tutorial-skip>Skip</button>
+        <div id="tutorialProgress" class="tutorial-progress" aria-label="Tutorial progress"></div>
+        <button class="modal-close tutorial-close" type="button" data-tutorial-skip aria-label="Close tutorial">×</button>
+      </div>
+      <div id="tutorialContent" class="tutorial-content"></div>
+      <div class="tutorial-actions">
+        <button id="tutorialBackButton" class="secondary-button" type="button" data-tutorial-back>Back</button>
+        <button id="tutorialNextButton" class="primary-button" type="button" data-tutorial-next>Next</button>
+      </div>
     </div>
   </div>
 
