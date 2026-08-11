@@ -87,7 +87,7 @@
         <button class="nav-drawer-item" data-goto="lists"><span class="nav-drawer-icon">☑️</span><span><strong>Lists</strong><small>Simple checklists for groceries, packing and more</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="notes"><span class="nav-drawer-icon">📝</span><span><strong>Notes</strong><small>Keep context, ideas and meeting notes</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="reminders"><span class="nav-drawer-icon">🔔</span><span><strong>Reminders</strong><small>Repeats, snooze and reminder chains</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📊</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-goto="tables"><span class="nav-drawer-icon">📒</span><span><strong>Trackers</strong><small>Progress, status, remarks and custom columns</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="waiting-garden"><span class="nav-drawer-icon">⏳</span><span><strong>Waiting Garden</strong><small>Things waiting on replies, approvals or deliveries</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="future-notes"><span class="nav-drawer-icon">💌</span><span><strong>Future Me</strong><small>Notes that return when you need them</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="threads"><span class="nav-drawer-icon">🧵</span><span><strong>Memory Threads</strong><small>Connect context across Hana</small></span><b>›</b></button>
@@ -338,7 +338,7 @@
         <div class="form-group"><label for="reminderTime">Time</label><input id="reminderTime" type="time" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label for="reminderRepeat">Repeat</label><select id="reminderRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom">Every X days</option></select></div>
+        <div class="form-group"><label for="reminderRepeat">Repeat</label><select id="reminderRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="custom">Every X days</option></select></div>
         <div id="reminderRepeatIntervalWrap" class="form-group hidden"><label for="reminderRepeatInterval">Every</label><div class="inline-field"><input id="reminderRepeatInterval" type="number" min="1" value="1" /><span>days</span></div></div>
       </div>
       <label class="check-row"><input id="reminderChainEnabled" type="checkbox" /><span>Reminder chain<small>Only continues while the linked task/reminder is still unresolved.</small></span></label>
@@ -512,7 +512,14 @@
   </div>
 
   <!-- EVENT MODAL -->
-  <div id="eventModal" class="modal-overlay hidden"><div class="modal-card modal-large"><div class="modal-header"><div><p class="eyebrow">CALENDAR EVENT</p><h2 id="eventModalTitle">Add event</h2></div><button class="modal-close" data-close-modal="eventModal">×</button></div><input id="eventEditId" type="hidden" /><div class="form-group"><label for="eventTitle">Event</label><input id="eventTitle" type="text" placeholder="Dentist, dinner, flight..." /></div><div class="form-group"><label for="eventSpace">Space</label><select id="eventSpace" data-space-select></select></div><div class="stacked-date-time"><div class="form-group"><label for="eventDate">Date</label><input id="eventDate" type="date" /></div><div class="form-row"><div class="form-group"><label for="eventStart">Starts</label><input id="eventStart" type="time" /></div><div class="form-group"><label for="eventEnd">Ends</label><input id="eventEnd" type="time" /></div></div></div><div class="form-group"><label for="eventLocation">📍 Location <span class="optional-label">optional</span></label><input id="eventLocation" type="text" placeholder="Clinic, café, Zoom..." /></div><div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" placeholder="Anything useful for the event..."></textarea></div><div class="form-row"><div class="form-group"><label for="eventRepeat">Repeat</label><select id="eventRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><label class="check-row compact-check"><input id="eventReminder" type="checkbox" /><span>Remind me when it starts</span></label></div><div class="modal-actions task-modal-actions"><button id="deleteEventButton" class="danger-button hidden" type="button">Delete</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="eventModal">Cancel</button><button id="saveEventButton" class="primary-button">Save event</button></div></div></div>
+  <div id="eventModal" class="modal-overlay hidden"><div class="modal-card modal-large"><div class="modal-header"><div><p class="eyebrow">CALENDAR EVENT</p><h2 id="eventModalTitle">Add event</h2></div><button class="modal-close" data-close-modal="eventModal">×</button></div><input id="eventEditId" type="hidden" />
+    <button id="birthdayHelperToggle" class="birthday-helper-toggle" type="button">🎂 Add as birthday</button>
+    <div id="birthdayHelper" class="birthday-helper hidden">
+      <div class="birthday-helper-head"><div><strong>Birthday shortcut 🎂</strong><small>Pick who it is for. Hana will set this event to repeat yearly.</small></div></div>
+      <div class="form-row"><div class="form-group"><label for="birthdayPerson">Birthday for</label><select id="birthdayPerson"></select></div><div id="birthdayOtherWrap" class="form-group hidden"><label for="birthdayOtherName">Who?</label><input id="birthdayOtherName" type="text" placeholder="Sister, Alex, Tita..." /></div></div>
+      <button id="applyBirthdayPreset" class="secondary-button full-width" type="button">Use birthday preset</button>
+    </div>
+    <div class="form-group"><label for="eventTitle">Event</label><input id="eventTitle" type="text" placeholder="Dentist, dinner, flight..." /></div><div class="form-group"><label for="eventSpace">Space</label><select id="eventSpace" data-space-select></select></div><div class="stacked-date-time"><div class="form-group"><label for="eventDate">Date</label><input id="eventDate" type="date" /></div><div class="form-row"><div class="form-group"><label for="eventStart">Starts</label><input id="eventStart" type="time" /></div><div class="form-group"><label for="eventEnd">Ends</label><input id="eventEnd" type="time" /></div></div></div><div class="form-group"><label for="eventLocation">📍 Location <span class="optional-label">optional</span></label><input id="eventLocation" type="text" placeholder="Clinic, café, Zoom..." /></div><div class="form-group"><label for="eventNotes">Notes</label><textarea id="eventNotes" placeholder="Anything useful for the event..."></textarea></div><div class="form-row"><div class="form-group"><label for="eventRepeat">Repeat</label><select id="eventRepeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></div><label class="check-row compact-check"><input id="eventReminder" type="checkbox" /><span>Remind me when it starts</span></label></div><div class="modal-actions task-modal-actions"><button id="deleteEventButton" class="danger-button hidden" type="button">Delete</button><div class="modal-action-spacer"></div><button class="secondary-button" data-close-modal="eventModal">Cancel</button><button id="saveEventButton" class="primary-button">Save event</button></div></div></div>
 
   <!-- SCHEDULE TASK MODAL -->
   <div id="scheduleTaskModal" class="modal-overlay hidden"><div class="modal-card"><div class="modal-header"><div><p class="eyebrow">TIME BLOCK</p><h2>Place this task</h2></div><button class="modal-close" data-close-modal="scheduleTaskModal">×</button></div><input id="scheduleTaskId" type="hidden" /><div class="schedule-task-name">🌷 <strong id="scheduleTaskTitle"></strong></div><div class="form-group"><label for="scheduleTaskDate">Day</label><input id="scheduleTaskDate" type="date" /></div><div class="form-group"><label for="scheduleTaskTime">Starts</label><input id="scheduleTaskTime" type="time" /></div><div class="modal-actions"><button class="secondary-button" data-close-modal="scheduleTaskModal">Cancel</button><button id="saveTaskScheduleButton" class="primary-button">Place on calendar</button></div></div></div>
@@ -629,13 +636,14 @@
         <button data-action="list"><span>☑️</span>Checklist</button>
         <button data-action="note"><span>📝</span>Note</button>
         <button data-action="event"><span>📅</span>Event</button>
+        <button data-action="birthday"><span>🎂</span>Birthday</button>
         <button data-action="quick"><span>✨</span>Quick Capture</button>
       </div>
       <details class="add-menu-more">
         <summary>More options</summary>
         <div class="action-grid secondary-action-grid">
           <button data-action="task"><span>✅</span>Full Task</button>
-          <button data-action="table"><span>📊</span>Tracker</button>
+          <button data-action="table"><span>📒</span>Tracker</button>
           <button data-action="future"><span>💌</span>Future Me</button>
           <button data-action="pin"><span>📌</span>Pin</button>
           <button data-action="someday"><span>🌱</span>Someday</button>

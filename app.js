@@ -125,7 +125,7 @@ const STARTER_TEMPLATES = [
 
 const QUICK_ACCESS_MENU = {
   reminders: { label: "Reminders", icon: "🔔", description: "Repeats, snooze and reminder chains" },
-  tables: { label: "Trackers", icon: "📊", description: "Progress, status, remarks and custom columns" },
+  tables: { label: "Trackers", icon: "📒", description: "Progress, status, remarks and custom columns" },
   calendar: { label: "Calendar", icon: "🗓️", description: "Month, week, day and time blocks" },
   projects: { label: "Projects", icon: "🌷", description: "Milestones and connected work" },
   garden: { label: "Hana Garden", icon: "🌺", description: "See what you have been nurturing" },
@@ -152,7 +152,7 @@ const QUICK_ACCESS_MENU = {
 const BOTTOM_NAV_OPTIONS = {
   lists: { label: "Lists", icon: "☑️" },
   calendar: { label: "Calendar", icon: "🗓️" },
-  tables: { label: "Trackers", icon: "📊" },
+  tables: { label: "Trackers", icon: "📒" },
   notes: { label: "Notes", icon: "📝" },
   reminders: { label: "Reminders", icon: "🔔" },
   projects: { label: "Projects", icon: "🌷" },
@@ -206,6 +206,7 @@ const defaultState = {
     defaultSpace: "personal",
     quickAccess: ["reminders"],
     bottomNav: DEFAULT_BOTTOM_NAV.slice(),
+    birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false
   },
 
@@ -369,7 +370,7 @@ function normalizeReminder(reminder = {}) {
     space: String(reminder.space || "personal"),
     date: reminder.date || "",
     time: reminder.time || "09:00",
-    repeatType: ["none", "daily", "weekdays", "weekly", "monthly", "custom"].includes(repeatType) ? repeatType : "none",
+    repeatType: ["none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"].includes(repeatType) ? repeatType : "none",
     repeatInterval: Math.max(1, Number(reminder.repeatInterval || 1)),
     completed: Boolean(reminder.completed),
     notified: Boolean(reminder.notified),
@@ -495,7 +496,7 @@ function normalizeEvent(event = {}) {
     endTime: event.endTime || "10:00",
     location: String(event.location || ""),
     notes: String(event.notes || ""),
-    repeatType: ["none","daily","weekly","monthly"].includes(event.repeatType) ? event.repeatType : "none",
+    repeatType: ["none","daily","weekly","monthly","yearly"].includes(event.repeatType) ? event.repeatType : "none",
     reminderEnabled: Boolean(event.reminderEnabled),
     createdAt: Number(event.createdAt || Date.now()),
     updatedAt: Number(event.updatedAt || event.createdAt || Date.now())
@@ -577,6 +578,9 @@ function normalizeState(data = {}) {
   DEFAULT_BOTTOM_NAV.forEach(key => { if (validBottomNav.length < 2 && !validBottomNav.includes(key)) validBottomNav.push(key); });
   Object.keys(BOTTOM_NAV_OPTIONS).forEach(key => { if (validBottomNav.length < 2 && !validBottomNav.includes(key)) validBottomNav.push(key); });
   normalized.settings.bottomNav = validBottomNav.slice(0, 2);
+  const incomingBirthdayLabels = Array.isArray(normalized.settings.birthdayLabels) ? normalized.settings.birthdayLabels : ["Me", "Partner", "Mom", "Dad", "Other"];
+  normalized.settings.birthdayLabels = [...new Set(incomingBirthdayLabels.map(label => String(label || "").trim()).filter(Boolean))].slice(0, 10);
+  if (!normalized.settings.birthdayLabels.length) normalized.settings.birthdayLabels = ["Me", "Partner", "Mom", "Dad", "Other"];
   // Existing Hana users should not be interrupted by a first-run tour after updating.
   // New installs inherit tutorialCompleted:false from defaultState and will see it once.
   if (data && Object.keys(data).length && !Object.prototype.hasOwnProperty.call(data.settings || {}, "tutorialCompleted")) {
@@ -767,6 +771,16 @@ function addMonthsClamped(dateString, months = 1) {
   const target = new Date(base.getFullYear(), base.getMonth() + Number(months || 1), 1, 12, 0, 0);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12, 0, 0).getDate();
   target.setDate(Math.min(originalDay, lastDay));
+  return localDateISO(target);
+}
+
+function addYearsClamped(dateString, years = 1) {
+  const base = new Date(`${dateString || todayISO()}T12:00:00`);
+  const month = base.getMonth();
+  const day = base.getDate();
+  const targetYear = base.getFullYear() + Number(years || 1);
+  const lastDay = new Date(targetYear, month + 1, 0, 12, 0, 0).getDate();
+  const target = new Date(targetYear, month, Math.min(day, lastDay), 12, 0, 0);
   return localDateISO(target);
 }
 
@@ -1056,7 +1070,7 @@ const HANA_TUTORIAL_STEPS = [
   { icon:"✓", eyebrow:"THINGS TO DO", title:"Tasks", text:"Tasks are actions you need to finish. Quick Task is for fast entry; the full task form is there when you need details.", bullets:["Swipe right to reveal Edit","Swipe left to reveal Delete","Use projects, reminders, estimates and recurrence only when useful"] },
   { icon:"☑️", eyebrow:"SIMPLE REPEATABLE THINGS", title:"Lists", text:"Lists are independent checklists for groceries, packing, shopping, routines or anything else you want to tick off.", bullets:["Quick add several lines at once","Customize Quantity and Detail labels per list","Each item can still be edited separately"] },
   { icon:"🗓️", eyebrow:"WHEN IT HAPPENS", title:"Calendar", text:"Calendar combines dated tasks and events. Switch between Month, Week and Day views when you need more detail.", bullets:["Events are separate from tasks","Plan tasks into time slots","Auto-plan can place your Focus Bouquet around existing events"] },
-  { icon:"📊", eyebrow:"STRUCTURED PROGRESS", title:"Trackers", text:"Trackers are customizable tables for progress, projects, bills, applications, collections or anything that needs rows and columns.", bullets:["Choose your own columns and types","Quick Add Row keeps entry fast","Pin Trackers to Quick Access or your bottom navigation if you use them often"] },
+  { icon:"📒", eyebrow:"STRUCTURED PROGRESS", title:"Trackers", text:"Trackers are customizable tables for progress, projects, bills, applications, collections or anything that needs rows and columns.", bullets:["Choose your own columns and types","Quick Add Row keeps entry fast","Pin Trackers to Quick Access or your bottom navigation if you use them often"] },
   { icon:"🔔", eyebrow:"DON’T FORGET", title:"Reminders", text:"Reminders are for things Hana should bring back to your attention. They can repeat, snooze and link to tasks or tracker rows.", bullets:["Reminders are the default Quick Access shortcut","Reminder chains can nudge you more than once","Enable browser notifications when you want alerts outside Hana"] },
   { icon:"🌷", eyebrow:"CONNECTED WORK", title:"Projects & Notes", text:"Projects collect related tasks, milestones, notes and trackers. Notes hold context that does not need to become a task.", bullets:["Projects show progress and waiting items together","Notes can be pinned or linked into Memory Threads","Meeting notes can turn lines into tasks"] },
   { icon:"☰", eyebrow:"THE REST, WITHOUT THE CLUTTER", title:"Menu & Quick Access", text:"The hamburger keeps advanced tools out of your everyday screens. Quick Access lets you pin up to three things you use most.", bullets:["Plan & Focus contains planning tools","Organize contains Reminders, Trackers and supporting tools","Review & Settings contains history, customization and backups"] },
@@ -1774,7 +1788,7 @@ function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if
 
 function completeReminder(id){const r=state.reminders.find(r=>r.id===id);if(!r)return;if(r.linkedTaskId){const t=state.tasks.find(t=>t.id===r.linkedTaskId);if(t&&!t.completed)showToast("Reminder cleared; task is still open.");} if(r.repeatType!=="none"&&!r.linkedTaskId){advanceReminder(r);}else r.completed=true;render();}
 
-function advanceReminder(r){if(r.repeatType==="monthly"){r.date=addMonthsClamped(r.date,1);}else{const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}r.date=localDateISO(base);}r.notified=false;r.chainNotified=[];r.completed=false;}
+function advanceReminder(r){if(r.repeatType==="monthly"){r.date=addMonthsClamped(r.date,1);}else if(r.repeatType==="yearly"){r.date=addYearsClamped(r.date,1);}else{const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}r.date=localDateISO(base);}r.notified=false;r.chainNotified=[];r.completed=false;}
 
 function snoozeReminder(id,type){const r=state.reminders.find(r=>r.id===id);if(!r)return;const now=new Date();if(type==="tonight"){r.date=todayISO();r.time="19:00";}if(type==="tomorrow"){r.date=addDaysISO(todayISO(),1);r.time="08:00";}if(type==="workday"){r.date=nextWorkdayISO(now);r.time="09:00";}if(type==="week"){r.date=addDaysISO(todayISO(),7);r.time="09:00";}r.notified=false;r.chainNotified=[];showToast("Reminder snoozed 🌙");render();}
 
@@ -2166,10 +2180,44 @@ function eventOccursOn(event,date){
   if(event.repeatType==="daily")return diff>=0;
   if(event.repeatType==="weekly")return diff>=0&&diff%7===0;
   if(event.repeatType==="monthly"){const months=(target.getFullYear()-start.getFullYear())*12+(target.getMonth()-start.getMonth());return months>=0&&addMonthsClamped(event.date,months)===date;}
+  if(event.repeatType==="yearly"){const years=target.getFullYear()-start.getFullYear();return years>=0&&addYearsClamped(event.date,years)===date;}
   return false;
 }
 function eventsForDate(date){ return filterByMode(state.events,{respectFirewall:false}).filter(e=>eventOccursOn(e,date)).sort((a,b)=>a.startTime.localeCompare(b.startTime)); }
 function tasksForCalendarDate(date){ return filterByMode(state.tasks,{respectFirewall:false}).filter(t=>!t.completed&&(t.scheduledDate===date||(!t.scheduledDate&&t.dueDate===date))).sort((a,b)=>(a.scheduledStart||a.dueTime||"23:59").localeCompare(b.scheduledStart||b.dueTime||"23:59")); }
+
+function birthdayLabels() {
+  const labels = Array.isArray(state.settings.birthdayLabels) ? state.settings.birthdayLabels : ["Me", "Partner", "Mom", "Dad", "Other"];
+  return labels.length ? labels : ["Me", "Partner", "Mom", "Dad", "Other"];
+}
+function birthdayPersonOptionsHTML(selected="") {
+  return birthdayLabels().map(label => `<option value="${escapeHTML(label)}" ${label===selected?"selected":""}>${escapeHTML(label)}</option>`).join("");
+}
+function updateBirthdayOtherField() {
+  const select=document.getElementById("birthdayPerson"), wrap=document.getElementById("birthdayOtherWrap");
+  if(!select||!wrap)return;
+  wrap.classList.toggle("hidden", select.value.toLowerCase()!=="other");
+}
+function toggleBirthdayHelper(forceOpen=null) {
+  const helper=document.getElementById("birthdayHelper"); if(!helper)return;
+  const open=forceOpen===null?helper.classList.contains("hidden"):Boolean(forceOpen);
+  helper.classList.toggle("hidden",!open);
+  if(open){const select=document.getElementById("birthdayPerson"); if(select){select.innerHTML=birthdayPersonOptionsHTML(select.value||birthdayLabels()[0]);}updateBirthdayOtherField();}
+}
+function applyBirthdayPreset() {
+  const select=document.getElementById("birthdayPerson"); if(!select)return;
+  let label=select.value||birthdayLabels()[0]||"Other";
+  if(label.toLowerCase()==="other") label=document.getElementById("birthdayOtherName")?.value.trim()||"Birthday";
+  let title;
+  if(label.toLowerCase()==="me") title="My Birthday 🎂";
+  else if(label.toLowerCase()==="birthday") title="Birthday 🎂";
+  else title=`${label}'s Birthday 🎂`;
+  document.getElementById("eventTitle").value=title;
+  document.getElementById("eventRepeat").value="yearly";
+  document.getElementById("eventStart").value=document.getElementById("eventStart").value||"09:00";
+  document.getElementById("eventEnd").value=document.getElementById("eventEnd").value||"10:00";
+  showToast("Birthday preset applied 🎂");
+}
 
 function openEventModal(eventId="", presets={}){
   refreshSpaceSelects(); const old=state.events.find(e=>e.id===eventId);
@@ -2183,6 +2231,11 @@ function openEventModal(eventId="", presets={}){
   document.getElementById("eventNotes").value=old?.notes||"";
   document.getElementById("eventRepeat").value=old?.repeatType||"none";
   document.getElementById("eventReminder").checked=Boolean(old?.reminderEnabled);
+  const birthdaySelect=document.getElementById("birthdayPerson");
+  if(birthdaySelect) birthdaySelect.innerHTML=birthdayPersonOptionsHTML(presets.birthdayPerson||birthdayLabels()[0]);
+  document.getElementById("birthdayOtherName").value=presets.birthdayOtherName||"";
+  toggleBirthdayHelper(Boolean(presets.birthday));
+  if(presets.birthday) applyBirthdayPreset();
   document.getElementById("eventModalTitle").textContent=old?"Edit event":"Add event";
   document.getElementById("deleteEventButton").classList.toggle("hidden",!old);
   openModal("eventModal"); setTimeout(()=>document.getElementById("eventTitle")?.focus(),60);
@@ -2270,7 +2323,7 @@ function deleteMilestone(projectId,milestoneId){const p=state.projects.find(p=>p
 
 function renderProjectDetail(p){
   const ts=projectTasks(p),open=ts.filter(t=>!t.completed),waiting=open.filter(t=>t.status==="waiting"),notes=state.notes.filter(n=>n.project===p.name),tables=state.tables.filter(t=>t.project===p.name),progress=projectProgress(p),links=ts.filter(t=>t.link),activity=[...ts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)).slice(0,8);
-  return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📊</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(t.link)}" target="_blank" rel="noopener"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
+  return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📒</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(t.link)}" target="_blank" rel="noopener"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
 }
 function renderProjects(){const c=document.getElementById("pageContent");const projects=filterByMode(state.projects,{respectFirewall:false});if(!projects.some(p=>p.id===state.activeProjectId))state.activeProjectId=projects[0]?.id||"";const active=projects.find(p=>p.id===state.activeProjectId);c.innerHTML=`<div class="page-heading projects-heading"><div><p class="eyebrow">FROM TASK LIST TO REAL PROJECT</p><h1>Projects</h1><p>Milestones, tasks, waiting items, notes and trackers stay together.</p></div><button class="primary-button" data-new-project>+ Project</button></div>${projects.length?`<div class="project-tabs">${projects.map(p=>`<button class="${p.id===state.activeProjectId?"active":""}" data-select-project="${p.id}">${escapeHTML(p.emoji)} ${escapeHTML(p.name)}</button>`).join("")}</div>${active?renderProjectDetail(active):""}`:emptyState("🌷","No projects yet","Create a project when a goal needs more than a single task.","Create project","open-project")}`;}
 
@@ -2501,7 +2554,7 @@ function getThreadableItems() {
   state.notes.forEach(item=>items.push({type:"note",id:item.id,title:`📝 ${item.title}`,meta:modeLabel(item.space)}));
   state.reminders.forEach(item=>items.push({type:"reminder",id:item.id,title:`🔔 ${item.title}`,meta:modeLabel(item.space)}));
   state.futureNotes.forEach(item=>items.push({type:"future",id:item.id,title:`💌 ${item.title}`,meta:formatDate(item.date)}));
-  state.tables.forEach(table=>table.rows.forEach(row=>items.push({type:"row",id:row.id,tableId:table.id,title:`📊 ${rowTitle(table,row)}`,meta:table.name})));
+  state.tables.forEach(table=>table.rows.forEach(row=>items.push({type:"row",id:row.id,tableId:table.id,title:`📒 ${rowTitle(table,row)}`,meta:table.name})));
   return items;
 }
 
@@ -2510,7 +2563,7 @@ function resolveThreadItem(link) {
   if(link.type==="note"){const x=state.notes.find(i=>i.id===link.id);return x?{title:x.title,meta:modeLabel(x.space),icon:"📝"}:null;}
   if(link.type==="reminder"){const x=state.reminders.find(i=>i.id===link.id);return x?{title:x.title,meta:x.date?formatDate(x.date):"Reminder",icon:"🔔"}:null;}
   if(link.type==="future"){const x=state.futureNotes.find(i=>i.id===link.id);return x?{title:x.title,meta:`Returns ${formatDate(x.date)}`,icon:"💌"}:null;}
-  if(link.type==="row"){const t=state.tables.find(i=>i.id===link.tableId),r=t?.rows.find(i=>i.id===link.id);return t&&r?{title:rowTitle(t,r),meta:t.name,icon:"📊"}:null;}
+  if(link.type==="row"){const t=state.tables.find(i=>i.id===link.tableId),r=t?.rows.find(i=>i.id===link.id);return t&&r?{title:rowTitle(t,r),meta:t.name,icon:"📒"}:null;}
   return null;
 }
 
@@ -3087,6 +3140,8 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
   <section class="section settings-section"><div class="section-header"><h2>Help & tutorial</h2></div><div class="settings-card tutorial-settings-card"><div><h3>New to Hana? 🌸</h3><p>Take the guided tour of the main sections and learn what each part is for.</p></div><button class="secondary-button" data-open-tutorial>Open app tutorial</button></div></section>
 
+  <section class="section settings-section"><div class="section-header"><h2>Birthday shortcuts</h2></div><div class="settings-card"><h3>Your birthday people 🎂</h3><p>These names appear when you use the Birthday shortcut. Add, rename or remove them anytime.</p><div class="form-group"><label for="birthdayLabelsSetting">Birthday presets</label><input id="birthdayLabelsSetting" type="text" value="${escapeHTML(birthdayLabels().join(', '))}" placeholder="Me, Partner, Mom, Dad, Other" /></div><small class="field-help">Separate names with commas. “Other” gives you a free-text name field when creating a birthday.</small><button class="secondary-button" data-save-birthday-labels>Save birthday shortcuts</button></div></section>
+
   <section id="spaceManagerSection" class="section settings-section"><div class="section-header"><h2>Spaces</h2></div><div class="settings-card">
     <h3>Your categories 🌷</h3><p>Every space is yours. Rename it, change the emoji, reorder it, or remove it. Hana only keeps one rule: at least one space must remain.</p>
     <div class="space-manager-list">${state.spaces.map((space,index)=>`<div class="space-manager-row"><span class="space-manager-label">${escapeHTML(space.emoji)} <strong>${escapeHTML(space.name)}</strong></span><div class="space-manager-actions"><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="up" ${index===0?"disabled":""} aria-label="Move ${escapeHTML(space.name)} up">↑</button><button class="space-order-button" data-move-space="${escapeHTML(space.id)}" data-direction="down" ${index===state.spaces.length-1?"disabled":""} aria-label="Move ${escapeHTML(space.name)} down">↓</button><button class="text-button" data-edit-space="${escapeHTML(space.id)}">Edit</button><button class="text-button danger-text" data-delete-space="${escapeHTML(space.id)}" ${state.spaces.length===1?"disabled":""}>Remove</button></div></div>`).join("")}</div>
@@ -3101,6 +3156,14 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
 // Legacy route kept so users who update while sitting on the old More page land safely in Settings.
 function renderMore(){ renderSettings(); }
+
+function saveBirthdayLabels(){
+  const raw=document.getElementById("birthdayLabelsSetting")?.value||"";
+  const labels=[...new Set(raw.split(",").map(value=>value.trim()).filter(Boolean))].slice(0,10);
+  state.settings.birthdayLabels=labels.length?labels:["Me","Partner","Mom","Dad","Other"];
+  showToast("Birthday shortcuts saved 🎂");
+  render();
+}
 
 function saveSettings(){const selected=document.getElementById("defaultSpaceSetting")?.value;state.settings.defaultSpace=state.spaces.some(space=>space.id===selected)?selected:(state.spaces[0]?.id||"");state.settings.dailyCapacityMinutes=Math.max(30,Math.min(960,Number(document.getElementById("dailyCapacitySetting")?.value||240)));state.settings.overloadGuardrail=Boolean(document.getElementById("overloadGuardrailSetting")?.checked);const firewallSpace=document.getElementById("workFirewallSpaceSetting")?.value||"";state.settings.workFirewallSpaceId=state.spaces.some(space=>space.id===firewallSpace)?firewallSpace:"";state.settings.workFirewallEnabled=Boolean(document.getElementById("firewallEnabled")?.checked&&state.settings.workFirewallSpaceId);state.settings.workStart=document.getElementById("workStartSetting").value||"08:00";state.settings.workEnd=document.getElementById("workEndSetting").value||"18:00";state.settings.allowHighPriorityWorkReminders=document.getElementById("allowUrgentWorkSetting").checked;showToast("Hana settings saved 🌷");render();}
 
@@ -3348,6 +3411,7 @@ document.addEventListener("click", event => {
   const close=event.target.closest("[data-close-modal]");if(close){closeModal(close.dataset.closeModal);return;}
 
   if(event.target.closest("[data-new-event]")){openEventModal();return;}
+  if(event.target.closest("[data-save-birthday-labels]")){saveBirthdayLabels();return;}
   const editEvent=event.target.closest("[data-edit-event]");if(editEvent){openEventModal(editEvent.dataset.editEvent);return;}
   const addEventDate=event.target.closest("[data-add-event-date]");if(addEventDate){openEventModal("",{date:addEventDate.dataset.addEventDate});return;}
   const addEventSlot=event.target.closest("[data-add-event-slot]");if(addEventSlot){openEventModal("",{date:addEventSlot.dataset.date,startTime:addEventSlot.dataset.time});return;}
@@ -3472,7 +3536,7 @@ document.addEventListener("click", event => {
 
   const empty=event.target.closest("[data-empty-action]");if(empty){const a=empty.dataset.emptyAction;if(a==="open-task")openTaskModal();else if(a==="open-note")openNoteModal();else if(a==="open-reminder")openReminderModal();else if(a==="open-table")openTableModal();else if(a==="open-list")openListModal();else if(a==="open-pin")openModal("pinModal");else if(a==="open-someday")openModal("somedayModal");else if(a==="open-project")openProjectModal();return;}
 
-  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="quick-task")openQuickTaskModal();else if(a==="task")openTaskModal();else if(a==="event")openEventModal();else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table"){changePage("tables");setTimeout(()=>openTableModal(),60);}else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
+  const action=event.target.closest("[data-action]");if(action){closeModal("addMenu");const a=action.dataset.action;if(a==="quick-task")openQuickTaskModal();else if(a==="task")openTaskModal();else if(a==="event")openEventModal();else if(a==="birthday")openEventModal("",{birthday:true});else if(a==="note")openNoteModal();else if(a==="future")openFutureNoteModal();else if(a==="reminder")openReminderModal();else if(a==="table"){changePage("tables");setTimeout(()=>openTableModal(),60);}else if(a==="list")openListModal();else if(a==="quick")prepareQuickCapture();else if(a==="pin")openModal("pinModal");else if(a==="someday")openModal("somedayModal");return;}
 
   if(event.target.id==="brainDumpAddButton"){addBrainDump();return;}
   if(event.target.id==="addSpaceButton"){addCustomSpace();return;}
@@ -3486,7 +3550,7 @@ document.addEventListener("click", event => {
 
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
-document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
+document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")updateBirthdayOtherField();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false};
 function openRowActionMenu(tableId,rowId){
@@ -3588,6 +3652,8 @@ document.getElementById("tableTemplate")?.addEventListener("change",event=>apply
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="quickTaskTitle"){event.preventDefault();saveQuickTask();}if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}if(event.key==="Enter" && ["listItemTitle","listItemQuantity","listItemDetail"].includes(event.target.id)){event.preventDefault();saveListItem();}});
+document.getElementById("birthdayHelperToggle")?.addEventListener("click",()=>toggleBirthdayHelper());
+document.getElementById("applyBirthdayPreset")?.addEventListener("click",applyBirthdayPreset);
 document.getElementById("saveEventButton").addEventListener("click",saveEvent);
 document.getElementById("deleteEventButton").addEventListener("click",()=>{const id=document.getElementById("eventEditId").value;if(id)deleteEvent(id);});
 document.getElementById("saveTaskScheduleButton").addEventListener("click",saveTaskSchedule);
