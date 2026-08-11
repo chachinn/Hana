@@ -3461,3 +3461,21 @@ body.wallpaper-active .nav-drawer {
 .birthday-helper-head { margin-bottom:10px; }
 .birthday-helper-head strong { display:block; font-size:15px; }
 .birthday-helper-head small { display:block; margin-top:3px; color:var(--text-soft); line-height:1.4; }
+
+
+/* ===== v1.8.6 tracker gesture polish ===== */
+.gesture-table-row,
+.gesture-table-row td,
+.gesture-table-row th,
+.gesture-table-row span,
+.gesture-table-row strong,
+.gesture-table-row small {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+.gesture-table-row {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
+}
