@@ -1088,12 +1088,10 @@ function attentionItems() {
 
 function renderToday() {
   if (state.todayViewMode === "do") return renderDoMode();
-
   const container = document.getElementById("pageContent");
   const visibleTasks = filterByMode(state.tasks);
   const active = visibleTasks.filter(t => !t.completed);
   const completedToday = visibleTasks.filter(t => t.completedDate === todayISO()).length;
-  const visibleReminders = filterByMode(state.reminders).filter(r => !r.completed && r.date === todayISO());
   const focusTasks = focusTasksVisible();
   const recommendations = getBouquetRecommendations();
   const attention = attentionItems();
@@ -1104,65 +1102,14 @@ function renderToday() {
   const capacity = capacitySnapshot(focusTasks);
   const capacityWidth = Math.min(100, Math.round(capacity.ratio * 100));
   const intention = intentionForToday();
-
   container.innerHTML = `
-    <div class="day-mode-switch" role="group" aria-label="Today mode">
-      <button class="day-mode-button active" data-today-view="plan">🌷 Plan</button>
-      <button class="day-mode-button" data-today-view="do">▶ Do</button>
-    </div>
-
-    <section class="morning-card">
-      <div class="morning-title">
-        <div>
-          <p class="eyebrow">HANA MORNING · ${escapeHTML(formatLongToday())}</p>
-          <h1>${greeting()} 🌸</h1>
-          <p style="margin:0;color:var(--text-soft);font-size:12px;">What matters, without showing you everything.</p>
-        </div>
-        <span style="font-size:36px;">🌷</span>
-      </div>
-      <div class="attention-list">
-        ${attention.length ? attention.map(i => `<div class="attention-item"><span>${i.icon}</span><span>${escapeHTML(i.text)}</span></div>`).join("") : `<div class="attention-item"><span>🌿</span><span>Nothing urgent is asking for you.</span></div>`}
-      </div>
-      <div class="stat-grid">
-        <div class="stat-card"><span class="stat-number">${active.length}</span><span class="stat-label">Active</span></div>
-        <div class="stat-card"><span class="stat-number">${waitingTasks().length}</span><span class="stat-label">Waiting</span></div>
-        <div class="stat-card"><span class="stat-number">${completedToday}</span><span class="stat-label">Blooms</span></div>
-      </div>
-      ${firewallIsActive() ? `<div class="firewall-banner">🌙 Boundary Firewall is active. Protected-space items stay hidden outside your chosen window.</div>` : ""}
-    </section>
-
-    <section class="intention-card">
-      <div><p class="eyebrow">DAY INTENTION</p><h2>What do you want today to feel like?</h2><p>This quietly helps Hana choose better bouquet recommendations.</p></div>
-      <div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Finish the report without rushing · keep the evening light..." /><button class="primary-button" data-save-intention>Save</button></div>
-    </section>
-
-    ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip">
-      ${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me note${futureDue.length===1?"":"s"}</strong><small>ready for you</small></button>` : ""}
-      ${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong><small>need attention</small></button>` : ""}
-    </section>` : ""}
-
-    ${futureDue.length ? `<section class="future-morning-card"><p class="eyebrow">A NOTE FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Plant as task</button><button data-archive-future-note="${futureDue[0].id}">I got it · archive</button><button data-goto="future-notes">All Future Me notes</button></div></section>` : ""}
-
-    <section class="capacity-card capacity-${capacity.level}">
-      <div class="capacity-heading"><div><p class="eyebrow">BLOOM BUDGET</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div>
-      <div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div>
-      <p>${capacity.over ? `You are ${formatDuration(capacity.over)} over your planned capacity.` : `${formatDuration(capacity.remaining)} of breathing room remains.`} Tasks without an estimate count as 30m.</p>
-      <div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">⏱ Time Pockets</button><button class="primary-button" data-goto="rescue">🛟 Rescue My Day</button></div>
-    </section>
-
-    <section class="section">
-      <div class="section-header"><h2>Today's Focus Bouquet</h2><button data-goto="bloom">Bloom View</button></div>
-      <div class="bloom-count">🌸 ${completedToday} blooms today · ${focusTasks.length} still in your bouquet</div>
-      <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-      <div class="focus-grid" style="margin-top:11px;">${focusTasks.length ? focusTasks.map(t => focusTaskRow(t, true)).join("") : `<div class="empty-state" style="padding:22px;"><div class="empty-icon">💐</div><h3>Choose a small bouquet</h3><p>Pick only the things you actually want in front of you today.</p></div>`}</div>
-    </section>
-
-    <section class="section recommendation-section">
-      <div class="section-header"><div><p class="eyebrow">HANA SUGGESTS</p><h2>A realistic next bouquet</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>
-      ${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong><small>${escapeHTML(recommendationReason(task))} · ${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs to be pulled into today 🌿</strong></div>`}
-    </section>
-
-    <section class="section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong><small>${state.inbox.length} item${state.inbox.length === 1 ? "" : "s"} waiting to be planted.</small></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong><small>Count tiny wins and close the day honestly.</small></button></div></section>
+    <div class="day-mode-switch" role="group" aria-label="Today mode"><button class="day-mode-button active" data-today-view="plan">Plan</button><button class="day-mode-button" data-today-view="do">Do</button></div>
+    <section class="morning-card morning-card-simple"><div class="morning-title"><div><p class="eyebrow">${escapeHTML(formatLongToday())}</p><h1>${greeting()} 🌸</h1></div></div><div class="morning-compact-stats"><span><strong>${active.length}</strong> active</span><span><strong>${waitingTasks().length}</strong> waiting</span><span><strong>${completedToday}</strong> done</span></div>${attention.length ? `<div class="attention-list attention-list-simple">${attention.slice(0,2).map(i => `<div class="attention-item"><span>${i.icon}</span><span>${escapeHTML(i.text)}</span></div>`).join("")}${attention.length>2?`<button data-goto="agenda">+ ${attention.length-2} more</button>`:""}</div>` : `<div class="attention-item quiet-attention"><span>🌿</span><span>Nothing urgent is asking for you.</span></div>`}${firewallIsActive() ? `<div class="firewall-banner">🌙 Boundary Firewall is active.</div>` : ""}</section>
+    ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip compact-life-flow">${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me</strong></button>` : ""}${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong></button>` : ""}</section>` : ""}
+    ${futureDue.length ? `<section class="future-morning-card compact-future-card"><p class="eyebrow">FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Make task</button><button data-archive-future-note="${futureDue[0].id}">Archive</button></div></section>` : ""}
+    <section class="section focus-section-simple"><div class="section-header"><div><p class="eyebrow">TODAY</p><h2>Focus Bouquet</h2></div><button data-goto="bloom">View all</button></div><div class="bloom-count">${focusTasks.length} in focus · ${completedToday} completed</div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div><div class="focus-grid">${focusTasks.length ? focusTasks.map(t => focusTaskRow(t, true)).join("") : `<div class="empty-state compact-empty"><div class="empty-icon">💐</div><h3>Your bouquet is empty</h3><p>Add only what matters today.</p><button class="secondary-button" data-goto="tasks">Choose tasks</button></div>`}</div></section>
+    <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong><small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
+    <section class="section compact-more-section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong></button></div></section>
   `;
 }
 function renderDoMode() {
@@ -1251,36 +1198,26 @@ function getTaskProjects(tasks) {
 function taskCard(task) {
   const doneSubs = task.subtasks.filter(s => s.completed).length;
   const overdue = !task.completed && task.dueDate && task.dueDate < todayISO();
-  const petalChips = [];
-  if (task.subtasks.length) petalChips.push(`✅ ${doneSubs}/${task.subtasks.length}`);
-  if (task.notes) petalChips.push("📝 Notes");
-  if (task.link) petalChips.push("🔗 Link");
-  if (task.reminderEnabled) petalChips.push(task.reminderChain ? "🔔 Chain" : "🔔 Reminder");
-  if (task.waitingOn || task.followUpDate) petalChips.push("⏳ Follow-up");
-  if (task.durationMinutes) petalChips.push(`⏱ ${formatDuration(task.durationMinutes)}`);
-  petalChips.push(energyLabel(task.energy));
-  if (task.dueDate) petalChips.push(deadlineLabel(task));
-  if (task.recurrence.type !== "none") petalChips.push(recurrenceLabel(task));
-  if (task.rescheduleCount >= 2) petalChips.push(`🌿 Moved ${task.rescheduleCount}×`);
+  const secondary = [];
+  if (task.subtasks.length) secondary.push(`${doneSubs}/${task.subtasks.length} steps`);
+  if (task.durationMinutes) secondary.push(formatDuration(task.durationMinutes));
+  if (task.reminderEnabled) secondary.push("Reminder");
+  if (task.rescheduleCount >= 2) secondary.push(`Moved ${task.rescheduleCount}×`);
 
-  return `<div class="task-item ${task.completed ? "completed" : ""}">
+  return `<div class="task-item gesture-task-item ${task.completed ? "completed" : ""}" data-gesture-task="${task.id}">
     <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}" aria-label="Toggle task">${task.completed ? "✓" : ""}</button>
     <div class="task-main" data-edit-task="${task.id}">
       <div class="task-title">${escapeHTML(task.title)}</div>
-      <div class="task-meta">
+      <div class="task-meta task-meta-primary">
         <span class="badge ${modeBadge(task.space)}">${modeLabel(task.space)}</span>
         ${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}
-        <span><span class="priority-dot priority-${task.priority}"></span>${escapeHTML(task.priority)}</span>
-        ${task.dueDate ? `<span class="${overdue ? "overdue-text" : ""}">📅 ${overdue ? "Overdue · " : ""}${formatDate(task.dueDate)}</span>` : ""}
-        ${task.dueTime ? `<span>${formatTime(task.dueTime)}</span>` : ""}
+        ${task.dueDate ? `<span class="${overdue ? "overdue-text" : ""}">${overdue ? "⚠️ " : "📅 "}${formatDate(task.dueDate)}</span>` : ""}
         <span class="badge badge-${task.status}">${statusLabel(task.status)}</span>
-        ${(task.tags || []).map(tag => `<span class="task-tag">#${escapeHTML(tag)}</span>`).join("")}
       </div>
-      ${task.status === "waiting" && (task.waitingOn || task.followUpDate) ? `<div class="task-waiting-note"><strong>Waiting on:</strong> ${escapeHTML(task.waitingOn || "Follow-up")}${task.followUpDate ? ` · ${formatDate(task.followUpDate)}` : ""}</div>` : ""}
-      ${task.rescheduleCount >= 2 && !task.completed ? `<button class="no-guilt-inline" data-reflect-reschedule="${task.id}">🌿 This keeps moving. Help me rethink it</button>` : ""}
-      ${petalChips.length ? `<div class="petal-strip">${petalChips.map(p => `<span class="petal-chip">${p}</span>`).join("")}</div>` : ""}
+      ${secondary.length ? `<div class="task-secondary-meta">${secondary.map(item=>`<span>${escapeHTML(item)}</span>`).join("<i>·</i>")}</div>` : ""}
+      ${task.status === "waiting" && (task.waitingOn || task.followUpDate) ? `<div class="task-waiting-note"><strong>Waiting:</strong> ${escapeHTML(task.waitingOn || "Follow-up")}${task.followUpDate ? ` · ${formatDate(task.followUpDate)}` : ""}</div>` : ""}
+      ${task.rescheduleCount >= 2 && !task.completed ? `<button class="no-guilt-inline" data-reflect-reschedule="${task.id}">🌿 Help me rethink this</button>` : ""}
     </div>
-    <div class="task-actions"><button class="mini-icon-button" data-edit-task="${task.id}" title="Edit">✎</button><button class="mini-icon-button" data-breakdown-task="${task.id}" title="Break down">☷</button><button class="mini-icon-button" data-cycle-task="${task.id}" title="Status">↻</button></div>
   </div>`;
 }
 
@@ -1289,7 +1226,6 @@ function renderTasks() {
   let tasks = filterByMode(state.tasks);
   const projects = getTaskProjects(tasks);
   const search = String(state.taskSearch || "").trim().toLowerCase();
-
   if (search) tasks = tasks.filter(task => [task.title,task.project,task.notes,task.waitingOn,task.link,...task.tags,...task.subtasks.map(s=>s.title)].join(" ").toLowerCase().includes(search));
   if (state.taskProjectFilter !== "all") tasks = tasks.filter(t => t.project === state.taskProjectFilter);
   if (state.taskFilter === "today") tasks = tasks.filter(t => !t.completed && t.dueDate === todayISO());
@@ -1299,18 +1235,20 @@ function renderTasks() {
   if (state.taskFilter === "completed") tasks = tasks.filter(t => t.completed);
   if (state.taskFilter === "all") tasks = tasks.filter(t => !t.completed);
   tasks.sort(taskSort);
-
   const filters = [["all","All"],["today","Today"],["upcoming","Upcoming"],["overdue","Overdue"],["waiting","Waiting"],["completed","Completed"]];
   const visibleBase = filterByMode(state.tasks);
-
+  const activeCount = visibleBase.filter(t=>!t.completed).length;
+  const waitingCount = visibleBase.filter(t=>!t.completed&&t.status==="waiting").length;
+  const overdueCount = visibleBase.filter(t=>!t.completed&&t.dueDate&&t.dueDate<todayISO()).length;
+  const filtersOpen = Boolean(search || state.taskProjectFilter !== "all" || state.taskFilter !== "all");
+  const filterLabel = filters.find(([value])=>value===state.taskFilter)?.[1] || "All";
   container.innerHTML = `
-    <div class="page-heading"><p class="eyebrow">GROW WHAT MATTERS</p><div class="page-heading-row"><div><h1>Tasks</h1><p>Projects, time estimates, energy, deadlines, subtasks, recurrence, follow-ups and reminders.</p></div><button class="secondary-button quick-task-launch" data-quick-task>⚡ Quick task</button></div></div>
-    <div class="task-summary"><span class="task-summary-chip">🌱 ${visibleBase.filter(t=>!t.completed).length} active</span><span class="task-summary-chip">⏳ ${visibleBase.filter(t=>!t.completed&&t.status==="waiting").length} waiting</span><span class="task-summary-chip">⚠️ ${visibleBase.filter(t=>!t.completed&&t.dueDate&&t.dueDate<todayISO()).length} overdue</span></div>
-    <div class="task-tools">
-      <div class="search-box"><input id="taskSearch" type="search" placeholder="Search tasks, projects, tags..." value="${escapeHTML(state.taskSearch || "")}" /></div>
-      <select id="taskProjectFilter" class="task-project-select"><option value="all">All projects</option>${projects.map(p=>`<option value="${escapeHTML(p)}" ${state.taskProjectFilter===p?"selected":""}>${escapeHTML(p)}</option>`).join("")}</select>
-    </div>
-    <div class="filter-row">${filters.map(([v,l])=>`<button class="filter-chip ${state.taskFilter===v?"active":""}" data-task-filter="${v}">${l}</button>`).join("")}</div>
+    <div class="page-heading simplified-page-heading"><p class="eyebrow">TASKS</p><div class="page-heading-row"><div><h1>Tasks</h1><p>${activeCount} active · ${waitingCount} waiting · ${overdueCount} overdue</p></div><button class="primary-button quick-task-launch" data-quick-task>+ Quick task</button></div></div>
+    <details class="task-filter-panel" ${filtersOpen?"open":""}>
+      <summary><span>Search &amp; filter</span><small>${escapeHTML(filterLabel)}${state.taskProjectFilter!=="all"?` · ${escapeHTML(state.taskProjectFilter)}`:""}</small></summary>
+      <div class="task-filter-body"><div class="task-tools"><div class="search-box"><input id="taskSearch" type="search" placeholder="Search tasks..." value="${escapeHTML(state.taskSearch || "")}" /></div><select id="taskProjectFilter" class="task-project-select"><option value="all">All projects</option>${projects.map(p=>`<option value="${escapeHTML(p)}" ${state.taskProjectFilter===p?"selected":""}>${escapeHTML(p)}</option>`).join("")}</select></div><div class="filter-row">${filters.map(([v,l])=>`<button class="filter-chip ${state.taskFilter===v?"active":""}" data-task-filter="${v}">${l}</button>`).join("")}</div></div>
+    </details>
+    <div class="task-gesture-hint">Tap to open · swipe right to edit · swipe left to delete · hold for actions</div>
     ${tasks.length ? `<div class="task-list">${tasks.map(taskCard).join("")}</div>` : emptyState("🌱","Nothing here","No tasks match this view.","Add a task","open-task")}
   `;
 }
@@ -1340,6 +1278,8 @@ function clearTaskForm() {
   document.getElementById("taskModalTitle").textContent = "Add task";
   document.getElementById("saveTaskButton").textContent = "Add task";
   document.getElementById("deleteTaskFromModal").classList.add("hidden");
+  const advancedDetails = document.getElementById("taskAdvancedDetails");
+  if (advancedDetails) advancedDetails.open = false;
   updateTaskConditionalFields();
 }
 
@@ -3310,7 +3250,7 @@ document.addEventListener("click", event => {
   const openProjectTable=event.target.closest("[data-open-project-table]");if(openProjectTable){state.activeTableId=openProjectTable.dataset.openProjectTable;changePage("tables");return;}
   const gardenProject=event.target.closest("[data-open-garden-project]");if(gardenProject){state.activeProjectId=gardenProject.dataset.openGardenProject;changePage("projects");return;}
   if(event.target.closest("[data-quick-task]")){openQuickTaskModal();return;}
-  const editTask=event.target.closest("[data-edit-task]");if(editTask){openTaskModal(editTask.dataset.editTask);return;}
+  const editTask=event.target.closest("[data-edit-task]");if(editTask){if(Date.now()<taskGestureSuppressUntil)return;openTaskModal(editTask.dataset.editTask);return;}
   const toggleTaskBtn=event.target.closest("[data-toggle-task]");if(toggleTaskBtn){toggleTask(toggleTaskBtn.dataset.toggleTask);return;}
   const cycle=event.target.closest("[data-cycle-task]");if(cycle){cycleTaskStatus(cycle.dataset.cycleTask);return;}
   const sub=event.target.closest("[data-toggle-subtask]");if(sub){toggleSubtask(sub.dataset.toggleSubtask,sub.dataset.subtaskId);return;}
@@ -3437,6 +3377,19 @@ document.addEventListener("click",event=>{const e=event.target.closest("[data-ge
 document.addEventListener("touchstart",event=>{const row=event.target.closest("[data-gesture-row]");if(!row)return;const t=event.touches[0];tableGesture={row,tableId:row.dataset.tableId,rowId:row.dataset.gestureRow,startX:t.clientX,startY:t.clientY,timer:setTimeout(()=>openRowActionMenu(row.dataset.tableId,row.dataset.gestureRow),650),moved:false};},{passive:true});
 document.addEventListener("touchmove",event=>{if(!tableGesture.row)return;const t=event.touches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10){tableGesture.moved=true;clearTimeout(tableGesture.timer);}},{passive:true});
 document.addEventListener("touchend",event=>{if(!tableGesture.row)return;clearTimeout(tableGesture.timer);const t=event.changedTouches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;const {tableId,rowId}=tableGesture;tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false};if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.3)return;if(dx>0)openTableRowModal(tableId,rowId);else deleteTableRow(tableId,rowId);},{passive:true});
+
+let taskGesture={card:null,taskId:"",startX:0,startY:0,timer:null,longPressed:false};
+let taskGestureSuppressUntil=0;
+function openTaskGestureMenu(taskId){
+  const task=state.tasks.find(item=>item.id===taskId);if(!task)return;
+  taskGestureSuppressUntil=Date.now()+800;
+  document.getElementById("taskGestureSheet")?.remove();
+  const sheet=document.createElement("div");sheet.id="taskGestureSheet";sheet.className="row-gesture-sheet";sheet.innerHTML=`<div class="row-gesture-card"><div class="action-sheet-handle"></div><strong>${escapeHTML(task.title)}</strong><button data-task-gesture-edit="${task.id}">✎ Edit task</button><button data-task-gesture-breakdown="${task.id}">☷ Break down</button><button class="danger-action" data-task-gesture-delete="${task.id}">🗑 Delete task</button><button data-close-task-gesture>Cancel</button></div>`;document.body.appendChild(sheet);
+}
+document.addEventListener("click",event=>{const edit=event.target.closest("[data-task-gesture-edit]");if(edit){document.getElementById("taskGestureSheet")?.remove();openTaskModal(edit.dataset.taskGestureEdit);return;}const breakdown=event.target.closest("[data-task-gesture-breakdown]");if(breakdown){document.getElementById("taskGestureSheet")?.remove();openBreakdownModal(breakdown.dataset.taskGestureBreakdown);return;}const del=event.target.closest("[data-task-gesture-delete]");if(del){document.getElementById("taskGestureSheet")?.remove();deleteTask(del.dataset.taskGestureDelete);return;}if(event.target.closest("[data-close-task-gesture]"))document.getElementById("taskGestureSheet")?.remove();});
+document.addEventListener("touchstart",event=>{const card=event.target.closest("[data-gesture-task]");if(!card)return;if(event.target.closest("button,input,select,textarea,a"))return;const touch=event.touches[0];taskGesture={card,taskId:card.dataset.gestureTask,startX:touch.clientX,startY:touch.clientY,timer:null,longPressed:false};taskGesture.timer=setTimeout(()=>{taskGesture.longPressed=true;openTaskGestureMenu(taskGesture.taskId);},620);},{passive:true});
+document.addEventListener("touchmove",event=>{if(!taskGesture.card)return;const touch=event.touches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10)clearTimeout(taskGesture.timer);},{passive:true});
+document.addEventListener("touchend",event=>{if(!taskGesture.card)return;clearTimeout(taskGesture.timer);const touch=event.changedTouches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;const taskId=taskGesture.taskId,longPressed=taskGesture.longPressed;taskGesture={card:null,taskId:"",startX:0,startY:0,timer:null,longPressed:false};if(longPressed){taskGestureSuppressUntil=Date.now()+800;event.preventDefault();return;}if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.35)return;taskGestureSuppressUntil=Date.now()+700;event.preventDefault();if(dx>0)openTaskModal(taskId);else deleteTask(taskId);},{passive:false});
 
 document.addEventListener("dragstart",event=>{const card=event.target.closest("[data-calendar-drag-task]");if(!card)return;state.calendarDragTaskId=card.dataset.calendarDragTask;event.dataTransfer?.setData("text/plain",state.calendarDragTaskId);if(event.dataTransfer)event.dataTransfer.effectAllowed="move";});
 document.addEventListener("dragover",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.add("drag-over");});

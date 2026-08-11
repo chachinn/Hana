@@ -56,8 +56,8 @@
     <div class="nav-drawer-header">
       <div>
         <p class="eyebrow">HANA MENU</p>
-        <h2>Everything else</h2>
-        <p>Useful tools, tucked away until you need them.</p>
+        <h2>Menu</h2>
+        <p>Your Hana tools, organized and out of the way.</p>
       </div>
       <button class="nav-drawer-close" type="button" data-close-nav-drawer aria-label="Close menu">×</button>
     </div>
@@ -72,15 +72,10 @@
       </section>
 
       <section class="nav-drawer-group">
-        <div class="nav-drawer-group-title">Plan</div>
+        <div class="nav-drawer-group-title">Plan &amp; Focus</div>
         <button class="nav-drawer-item" data-goto="calendar"><span class="nav-drawer-icon">🗓️</span><span><strong>Calendar</strong><small>Month, week, day and time blocks</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-goto="projects"><span class="nav-drawer-icon">🌷</span><span><strong>Projects</strong><small>Milestones and connected work</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-goto="garden"><span class="nav-drawer-icon">🌺</span><span><strong>Hana Garden</strong><small>See what you have been nurturing</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="agenda"><span class="nav-drawer-icon">📅</span><span><strong>Agenda</strong><small>Tasks and reminders together</small></span><b>›</b></button>
-      </section>
-
-      <section class="nav-drawer-group">
-        <div class="nav-drawer-group-title">Focus &amp; Flow</div>
+        <button class="nav-drawer-item" data-goto="projects"><span class="nav-drawer-icon">🌷</span><span><strong>Projects</strong><small>Milestones and connected work</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="rescue"><span class="nav-drawer-icon">🛟</span><span><strong>Rescue My Day</strong><small>Shrink an overloaded day</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="time-pockets"><span class="nav-drawer-icon">⏱</span><span><strong>Time Pockets</strong><small>Find work that fits your time and energy</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="bloom"><span class="nav-drawer-icon">🌸</span><span><strong>Bloom View</strong><small>See progress without pressure</small></span><b>›</b></button>
@@ -101,18 +96,15 @@
       </section>
 
       <section class="nav-drawer-group">
-        <div class="nav-drawer-group-title">Review</div>
+        <div class="nav-drawer-group-title">Review &amp; Settings</div>
+        <button class="nav-drawer-item" data-goto="garden"><span class="nav-drawer-icon">🌺</span><span><strong>Hana Garden</strong><small>See what you have been nurturing</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="insights"><span class="nav-drawer-icon">🌿</span><span><strong>Hana Notices</strong><small>Local planning patterns and suggestions</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="return-ritual"><span class="nav-drawer-icon">🌱</span><span><strong>Return Ritual</strong><small>Reset overdue things without panic</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="history"><span class="nav-drawer-icon">🕰️</span><span><strong>History</strong><small>See what you already finished</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="trash"><span class="nav-drawer-icon">🗑️</span><span><strong>Trash</strong><small>Restore recently deleted things</small></span><b>›</b></button>
-      </section>
-
-      <section class="nav-drawer-group">
-        <div class="nav-drawer-group-title">Customize &amp; Settings</div>
         <button class="nav-drawer-item" data-goto="settings"><span class="nav-drawer-icon">⚙️</span><span><strong>Settings &amp; Spaces</strong><small>Edit spaces, planning defaults and backups</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-open-appearance><span class="nav-drawer-icon">🎨</span><span><strong>Appearance</strong><small>Themes and wallpaper</small></span><b>›</b></button>
-        <button class="nav-drawer-item" data-enable-notifications><span class="nav-drawer-icon">🔔</span><span><strong>Enable Notifications</strong><small>Allow Hana to send local reminders</small></span><b>›</b></button>
+        <button class="nav-drawer-item" data-enable-notifications><span class="nav-drawer-icon">🔔</span><span><strong>Notifications</strong><small>Allow Hana to send local reminders</small></span><b>›</b></button>
       </section>
     </div>
   </aside>
@@ -190,112 +182,89 @@
 
   <!-- TASK MODAL -->
   <div id="taskModal" class="modal-overlay hidden">
-    <div class="modal-card modal-large task-modal-card">
+    <div class="modal-card modal-large task-modal-card simplified-task-modal">
       <div class="modal-header">
-        <div><p id="taskModalEyebrow" class="eyebrow">NEW BLOOM</p><h2 id="taskModalTitle">Add task</h2></div>
+        <div><p id="taskModalEyebrow" class="eyebrow">TASK</p><h2 id="taskModalTitle">Add task</h2></div>
         <button class="modal-close" data-close-modal="taskModal">×</button>
       </div>
       <input id="taskEditId" type="hidden" />
-
-      <div class="petal-editor">
-        <div class="petal-editor-title">🌸 Petal Notes</div>
-        <p>Keep the task simple on the outside. Add details only where you need them.</p>
-      </div>
 
       <div class="form-group"><label for="taskTitle">Task</label><input id="taskTitle" type="text" placeholder="What needs to be done?" /></div>
 
       <div class="form-row">
         <div class="form-group"><label for="taskSpace">Space</label><select id="taskSpace" data-space-select><option value="personal">🎀 Personal</option><option value="work">💼 Work</option></select></div>
-        <div class="form-group"><label for="taskPriority">Priority</label><select id="taskPriority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+        <div class="form-group"><label for="taskStatus">Status</label><select id="taskStatus"><option value="todo">To Do</option><option value="doing">Doing</option><option value="waiting">Waiting</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
       </div>
 
       <div class="form-row">
-        <div class="form-group"><label for="taskProject">🌷 Project</label><input id="taskProject" type="text" list="hanaProjectOptions" placeholder="Campaign, Home, Wedding..." /><datalist id="hanaProjectOptions"></datalist></div>
-        <div class="form-group"><label for="taskTags">🏷️ Tags</label><input id="taskTags" type="text" placeholder="urgent, calls, admin" /></div>
+        <div class="form-group"><label for="taskDate">Due date <span class="optional-label">optional</span></label><input id="taskDate" type="date" /></div>
+        <div class="form-group"><label for="taskTime">Time <span class="optional-label">optional</span></label><input id="taskTime" type="time" /></div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group"><label for="taskDate">📅 Due date</label><input id="taskDate" type="date" /></div>
-        <div class="form-group"><label for="taskTime">🕐 Time</label><input id="taskTime" type="time" /></div>
-      </div>
-
-      <div class="petal-section planning-petal">
-        <div class="petal-section-label">🌷 Planning petal</div>
-        <div class="form-row">
-          <div class="form-group"><label for="taskDuration">⏱ Estimate</label><select id="taskDuration"><option value="0">Not sure yet</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></div>
-          <div class="form-group"><label for="taskEnergy">Energy</label><select id="taskEnergy"><option value="low">🌿 Low</option><option value="medium" selected>🌸 Medium</option><option value="high">⚡ High</option></select></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label for="taskScheduledDate">🗓️ Scheduled day</label><input id="taskScheduledDate" type="date" /></div>
-          <div class="form-group"><label for="taskScheduledStart">Start time</label><input id="taskScheduledStart" type="time" /></div>
-        </div>
-        <div class="form-group"><label for="taskMilestone">🌷 Project milestone</label><select id="taskMilestone"><option value="">No milestone</option></select></div>
-        <div class="form-group"><label for="taskDeadlineType">Date meaning</label><select id="taskDeadlineType"><option value="soft">🪶 Soft date — safe to move when plans change</option><option value="hard">🔒 Hard deadline — Hana should protect this date</option></select><small class="field-help">Hard deadlines are never moved by Rescue My Day.</small></div>
-      </div>
-
-      <div class="form-group"><label for="taskStatus">Status</label><select id="taskStatus"><option value="todo">To Do</option><option value="doing">Doing</option><option value="waiting">Waiting</option><option value="blocked">Blocked</option><option value="done">Done</option></select></div>
-
-      <div class="petal-section">
-        <div class="petal-section-label">✅ Checklist petal</div>
-        <textarea id="taskSubtasks" placeholder="One subtask per line\nDraft email\nAttach report\nSend to team"></textarea>
-        <small class="field-help">Each line becomes a checkable subtask.</small>
-      </div>
-
-      <div class="petal-section">
-        <div class="petal-section-label">📝 Notes petal</div>
-        <textarea id="taskNotes" placeholder="Details, context, instructions..."></textarea>
-      </div>
-
-      <div class="petal-section">
-        <div class="petal-section-label">🔗 Link petal</div>
-        <input id="taskLink" type="url" placeholder="https://..." />
-      </div>
-
-      <div id="waitingFields" class="petal-section waiting-fields">
-        <div class="petal-section-label">⏳ Waiting / follow-up petal</div>
-        <div class="form-row">
-          <div class="form-group"><label for="taskWaitingOn">Waiting on</label><input id="taskWaitingOn" type="text" placeholder="Finance approval, supplier reply..." /></div>
-          <div class="form-group"><label for="taskFollowUpDate">Follow up on</label><input id="taskFollowUpDate" type="date" /></div>
-        </div>
-        <label class="check-row compact-check"><input id="taskFollowUpAfterCompletion" type="checkbox" /><span>When I complete this, create a Waiting follow-up task on the follow-up date.</span></label>
-      </div>
-
-      <div class="petal-section">
-        <div class="petal-section-label">🔔 Reminder petal</div>
-        <label class="check-row"><input id="taskReminderEnabled" type="checkbox" /><span>Remind me at the due date/time<small>If no time is selected, Hana uses 9:00 AM.</small></span></label>
-        <label class="check-row"><input id="taskReminderChain" type="checkbox" /><span>Use a reminder chain<small>Hana nudges you before, at, and after the due time while the task is unfinished.</small></span></label>
-      </div>
-
-      <div class="petal-section">
-        <div class="petal-section-label">🔁 Recurrence petal</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="taskRecurrenceType">Repeat</label>
-            <select id="taskRecurrenceType">
-              <option value="none">Does not repeat</option>
-              <option value="daily">Daily</option>
-              <option value="weekdays">Every weekday</option>
-              <option value="selectedWeekdays">Selected weekdays</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="custom">Every X days</option>
-              <option value="afterCompletion">X days after completion</option>
-            </select>
+      <details id="taskAdvancedDetails" class="task-advanced-details">
+        <summary><span>More options</span><small>Priority, project, planning, notes, reminders &amp; repeat</small></summary>
+        <div class="task-advanced-body">
+          <div class="form-row">
+            <div class="form-group"><label for="taskPriority">Priority</label><select id="taskPriority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+            <div class="form-group"><label for="taskProject">Project <span class="optional-label">optional</span></label><input id="taskProject" type="text" list="hanaProjectOptions" placeholder="Campaign, Home, Wedding..." /><datalist id="hanaProjectOptions"></datalist></div>
           </div>
-          <div id="taskRecurrenceIntervalWrap" class="form-group hidden"><label for="taskRecurrenceInterval">Every</label><div class="inline-field"><input id="taskRecurrenceInterval" type="number" min="1" value="1" /><span>days</span></div></div>
-        </div>
-        <div id="taskRecurrenceWeekdaysWrap" class="weekday-picker hidden" aria-label="Repeat weekdays">
-          <label><input type="checkbox" data-recur-day value="1" /><span>M</span></label>
-          <label><input type="checkbox" data-recur-day value="2" /><span>T</span></label>
-          <label><input type="checkbox" data-recur-day value="3" /><span>W</span></label>
-          <label><input type="checkbox" data-recur-day value="4" /><span>T</span></label>
-          <label><input type="checkbox" data-recur-day value="5" /><span>F</span></label>
-          <label><input type="checkbox" data-recur-day value="6" /><span>S</span></label>
-          <label><input type="checkbox" data-recur-day value="0" /><span>S</span></label>
-        </div>
-      </div>
+          <div class="form-group"><label for="taskTags">Tags <span class="optional-label">optional</span></label><input id="taskTags" type="text" placeholder="urgent, calls, admin" /></div>
 
-      <div class="modal-actions task-modal-actions">
+          <div class="task-advanced-section">
+            <div class="task-advanced-label">Planning</div>
+            <div class="form-row">
+              <div class="form-group"><label for="taskDuration">Estimate</label><select id="taskDuration"><option value="0">Not sure yet</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></div>
+              <div class="form-group"><label for="taskEnergy">Energy</label><select id="taskEnergy"><option value="low">🌿 Low</option><option value="medium" selected>🌸 Medium</option><option value="high">⚡ High</option></select></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label for="taskScheduledDate">Scheduled day</label><input id="taskScheduledDate" type="date" /></div>
+              <div class="form-group"><label for="taskScheduledStart">Start time</label><input id="taskScheduledStart" type="time" /></div>
+            </div>
+            <div class="form-group"><label for="taskMilestone">Project milestone</label><select id="taskMilestone"><option value="">No milestone</option></select></div>
+            <div class="form-group"><label for="taskDeadlineType">Date meaning</label><select id="taskDeadlineType"><option value="soft">🪶 Soft date — safe to move</option><option value="hard">🔒 Hard deadline — protect this date</option></select></div>
+          </div>
+
+          <div class="task-advanced-section">
+            <div class="task-advanced-label">Details</div>
+            <div class="form-group"><label for="taskSubtasks">Checklist <span class="optional-label">optional</span></label><textarea id="taskSubtasks" placeholder="One subtask per line"></textarea></div>
+            <div class="form-group"><label for="taskNotes">Notes <span class="optional-label">optional</span></label><textarea id="taskNotes" placeholder="Details, context, instructions..."></textarea></div>
+            <div class="form-group"><label for="taskLink">Link <span class="optional-label">optional</span></label><input id="taskLink" type="url" placeholder="https://..." /></div>
+          </div>
+
+          <div id="waitingFields" class="task-advanced-section waiting-fields">
+            <div class="task-advanced-label">Waiting / follow-up</div>
+            <div class="form-row">
+              <div class="form-group"><label for="taskWaitingOn">Waiting on</label><input id="taskWaitingOn" type="text" placeholder="Finance approval, supplier reply..." /></div>
+              <div class="form-group"><label for="taskFollowUpDate">Follow up on</label><input id="taskFollowUpDate" type="date" /></div>
+            </div>
+            <label class="check-row compact-check"><input id="taskFollowUpAfterCompletion" type="checkbox" /><span>Create a Waiting follow-up task after completion.</span></label>
+          </div>
+
+          <div class="task-advanced-section">
+            <div class="task-advanced-label">Reminder</div>
+            <label class="check-row"><input id="taskReminderEnabled" type="checkbox" /><span>Remind me at the due date/time</span></label>
+            <label class="check-row"><input id="taskReminderChain" type="checkbox" /><span>Use a reminder chain</span></label>
+          </div>
+
+          <div class="task-advanced-section">
+            <div class="task-advanced-label">Repeat</div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="taskRecurrenceType">Repeat</label>
+                <select id="taskRecurrenceType">
+                  <option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekdays">Every weekday</option><option value="selectedWeekdays">Selected weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="custom">Every X days</option><option value="afterCompletion">X days after completion</option>
+                </select>
+              </div>
+              <div id="taskRecurrenceIntervalWrap" class="form-group hidden"><label for="taskRecurrenceInterval">Every</label><div class="inline-field"><input id="taskRecurrenceInterval" type="number" min="1" value="1" /><span>days</span></div></div>
+            </div>
+            <div id="taskRecurrenceWeekdaysWrap" class="weekday-picker hidden" aria-label="Repeat weekdays">
+              <label><input type="checkbox" data-recur-day value="1" /><span>M</span></label><label><input type="checkbox" data-recur-day value="2" /><span>T</span></label><label><input type="checkbox" data-recur-day value="3" /><span>W</span></label><label><input type="checkbox" data-recur-day value="4" /><span>T</span></label><label><input type="checkbox" data-recur-day value="5" /><span>F</span></label><label><input type="checkbox" data-recur-day value="6" /><span>S</span></label><label><input type="checkbox" data-recur-day value="0" /><span>S</span></label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="modal-actions task-modal-actions simplified-task-actions">
         <button id="deleteTaskFromModal" class="danger-button hidden" type="button">Delete</button>
         <div class="modal-action-spacer"></div>
         <button class="secondary-button" data-close-modal="taskModal">Cancel</button>
@@ -633,23 +602,28 @@
 
   <!-- ADD MENU -->
   <div id="addMenu" class="modal-overlay hidden">
-    <div class="action-sheet">
+    <div class="action-sheet simplified-add-sheet">
       <div class="action-sheet-handle"></div>
-      <div class="action-sheet-title">What would you like to plant?</div>
-      <div class="action-grid">
-        <button data-action="quick"><span>✨</span>Quick Capture</button>
+      <div class="action-sheet-title">Add something</div>
+      <div class="action-grid primary-action-grid">
         <button data-action="quick-task"><span>⚡</span>Quick Task</button>
-        <button data-action="task"><span>✅</span>Full Task</button>
-        <button data-action="event"><span>📅</span>Event</button>
-        <button data-action="note"><span>📝</span>Note</button>
-        <button data-action="future"><span>💌</span>Future Me</button>
         <button data-action="reminder"><span>🔔</span>Reminder</button>
-        <button data-action="table"><span>📋</span>Table / Tracker</button>
         <button data-action="list"><span>☑️</span>Checklist</button>
-        <button data-action="pin"><span>📌</span>Pin</button>
-        <button data-action="someday"><span>🌱</span>Someday</button>
-        <button data-goto="inbox"><span>🧠</span>Brain Dump</button>
+        <button data-action="note"><span>📝</span>Note</button>
+        <button data-action="event"><span>📅</span>Event</button>
+        <button data-action="quick"><span>✨</span>Quick Capture</button>
       </div>
+      <details class="add-menu-more">
+        <summary>More options</summary>
+        <div class="action-grid secondary-action-grid">
+          <button data-action="task"><span>✅</span>Full Task</button>
+          <button data-action="table"><span>📊</span>Tracker</button>
+          <button data-action="future"><span>💌</span>Future Me</button>
+          <button data-action="pin"><span>📌</span>Pin</button>
+          <button data-action="someday"><span>🌱</span>Someday</button>
+          <button data-goto="inbox"><span>🧠</span>Brain Dump</button>
+        </div>
+      </details>
       <button class="secondary-button full-width" data-close-modal="addMenu">Cancel</button>
     </div>
   </div>
