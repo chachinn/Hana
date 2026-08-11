@@ -3479,3 +3479,52 @@ body.wallpaper-active .nav-drawer {
   -webkit-tap-highlight-color: transparent;
   touch-action: pan-y;
 }
+
+/* =====================================================
+   HANA v1.8.7 — BACKUP + STABILITY POLISH
+   ===================================================== */
+.backup-card { display:flex; flex-direction:column; gap:12px; }
+.backup-card h3 { margin:0; }
+.backup-status-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.backup-status-grid > div { padding:11px 12px; border:1px solid var(--border-soft); border-radius:14px; background:var(--pink-25); }
+.backup-status-grid span,.backup-status-grid strong { display:block; }
+.backup-status-grid span { color:var(--text-muted); font-size:9px; margin-bottom:4px; }
+.backup-status-grid strong { color:var(--text); font-size:11px; }
+.backup-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.gesture-task-item,.gesture-table-row { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+.gesture-task-item *,.gesture-table-row * { -webkit-touch-callout:none; }
+@media (max-width:560px){
+  .backup-status-grid { grid-template-columns:1fr; }
+  .backup-actions { grid-template-columns:1fr; }
+}
+
+/* =====================================================
+   HANA v1.8.8 — COMPACT HAMBURGER
+   Keep the tap target comfortable while making the icon
+   itself smaller, tighter and visually lighter.
+   ===================================================== */
+.hamburger-button {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px !important;
+  padding: 0;
+}
+
+.hamburger-button span {
+  display: block;
+  width: 15px !important;
+  height: 2px !important;
+  min-height: 2px;
+  flex: 0 0 2px;
+  margin: 0 !important;
+  background: var(--pink-600) !important;
+  border-radius: 999px;
+}
+
+@media (max-width: 430px) {
+  .hamburger-button span {
+    width: 14px !important;
+  }
+}

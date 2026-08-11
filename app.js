@@ -1,10 +1,15 @@
 /* =====================================================
-   HANA 🌸 v1.8.3
-   Stability fixes + simplified navigation + tutorial
+   HANA 🌸 v1.8.7
+   Stability + backup hardening
    Local-first PWA
    ===================================================== */
 
 const STORAGE_KEY = "hana_app_v1";
+const BACKUP_DB_NAME = "hana_safety_backups_v1";
+const BACKUP_STORE_NAME = "snapshots";
+const BACKUP_META_KEY = "hana_backup_meta_v1";
+const LAST_EXPORT_KEY = "hana_last_export_at_v1";
+const MAX_SAFETY_SNAPSHOTS = 6;
 
 const createId = () => {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
@@ -643,17 +648,36 @@ function migrateLegacyTableRows(rows) {
   }];
 }
 
+let stateLoadStatus = "ok";
+let rawStateAtLoad = "";
+
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return normalizeState(clone(defaultState));
+  let raw = "";
+  try { raw = localStorage.getItem(STORAGE_KEY) || ""; }
+  catch (error) {
+    stateLoadStatus = "storage-unavailable";
+    console.error("Unable to access Hana local storage:", error);
+    return normalizeState(clone(defaultState));
+  }
+  rawStateAtLoad = raw;
+  if (!raw) {
+    stateLoadStatus = "missing";
+    return normalizeState(clone(defaultState));
+  }
   try { return normalizeState(JSON.parse(raw)); }
   catch (error) {
+    stateLoadStatus = "corrupt";
     console.error("Unable to load Hana data:", error);
     return normalizeState(clone(defaultState));
   }
 }
 
 let state = loadState();
+let lastSavedStateJSON = stateLoadStatus === "ok" ? rawStateAtLoad : "";
+let queuedSafetyStateJSON = "";
+let safetySnapshotTimer = null;
+let storageErrorShown = false;
+let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
 function daysBetweenISO(from, to) {
   if (!from || !to) return 0;
@@ -670,8 +694,29 @@ if (previousOpenedDate && daysAwayAtLaunch >= 3 && state.lastReturnRitualDate !=
 }
 state.lastOpenedDate = todayISO();
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveState(options = {}) {
+  let json;
+  try { json = JSON.stringify(state); }
+  catch (error) {
+    console.error("Unable to serialize Hana data:", error);
+    return false;
+  }
+
+  if (json === lastSavedStateJSON) return true;
+  try {
+    localStorage.setItem(STORAGE_KEY, json);
+    lastSavedStateJSON = json;
+    storageErrorShown = false;
+    if (options.snapshot !== false && !safetyRecoveryPending) queueSafetySnapshot(json);
+    return true;
+  } catch (error) {
+    console.error("Unable to save Hana data locally:", error);
+    if (!storageErrorShown && document.getElementById("toast")) {
+      storageErrorShown = true;
+      showToast("Hana could not save locally. Export a backup before closing the app.");
+    }
+    return false;
+  }
 }
 
 function escapeHTML(value = "") {
@@ -3162,7 +3207,7 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
   <section class="section settings-section"><div class="section-header"><h2>Boundary Firewall</h2></div><div class="settings-card"><h3>Protect personal time 🌙</h3><p>Choose any space that Hana should hide outside its schedule.</p><div class="form-group"><label for="workFirewallSpaceSetting">Protected space</label><select id="workFirewallSpaceSetting"><option value="">None</option>${spaceOptionsHTML(state.settings.workFirewallSpaceId)}</select></div><label class="check-row"><input id="firewallEnabled" type="checkbox" ${state.settings.workFirewallEnabled?"checked":""}/><span>Enable Boundary Firewall</span></label><div class="settings-inline"><div class="form-group"><label>Window starts</label><input id="workStartSetting" type="time" value="${state.settings.workStart}" /></div><div class="form-group"><label>Window ends</label><input id="workEndSetting" type="time" value="${state.settings.workEnd}" /></div></div><label class="check-row"><input id="allowUrgentWorkSetting" type="checkbox" ${state.settings.allowHighPriorityWorkReminders?"checked":""}/><span>Allow high-priority linked reminders from the protected space outside the window</span></label><button id="saveSettingsButton" class="primary-button full-width">Save settings</button></div></section>
 
-  <section class="section settings-section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card"><p>Hana is local-first. Export your garden regularly so your data does not live on one device only. Wallpaper photos stay private on this device and are not included in the JSON backup.</p><div class="data-actions"><button id="exportDataButton" class="secondary-button">Export backup</button><button id="importDataButton" class="secondary-button">Import backup</button></div></div></section>`;}
+  <section class="section settings-section"><div class="section-header"><h2>Backup & restore</h2></div><div class="settings-card backup-card"><h3>Your Hana safety net 🌸</h3><p>Hana saves changes locally as you use the app and also keeps up to ${MAX_SAFETY_SNAPSHOTS} rolling safety copies on this device. For protection outside this device, export a full backup and keep the JSON file in iCloud Drive, Google Drive, or your computer.</p><div class="backup-status-grid"><div><span>Automatic safety copies</span><strong>On</strong></div><div><span>Latest safety copy</span><strong>${backupMetaLabel()}</strong></div><div><span>Last exported file</span><strong>${lastExportLabel()}</strong></div></div><div class="data-actions backup-actions"><button id="exportDataButton" class="primary-button">Export full backup</button><button id="importDataButton" class="secondary-button">Import backup</button><button id="createSafetyBackupButton" class="secondary-button">Make safety copy now</button><button id="restoreSafetyBackupButton" class="secondary-button">Restore latest safety copy</button></div><small class="field-help">Automatic safety copies are still stored on this device. The exported JSON file is the independent backup you can keep somewhere else.</small></div></section>`;}
 
 // Legacy route kept so users who update while sitting on the old More page land safely in Settings.
 function renderMore(){ renderSettings(); }
@@ -3181,6 +3226,125 @@ function addCustomSpace(){const name=document.getElementById("newSpaceName")?.va
 function editSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;const name=prompt("Space name",space.name);if(name===null)return;const cleanName=name.trim();if(!cleanName)return showToast("Space name can't be empty.");const emoji=prompt("Space icon / emoji",space.emoji);if(emoji===null)return;space.name=cleanName;space.emoji=(emoji.trim()||"🌸").slice(0,4);showToast("Space updated 🌷");render();}
 function moveSpace(spaceId,direction){const index=state.spaces.findIndex(space=>space.id===spaceId);if(index<0)return;const nextIndex=direction==="up"?index-1:index+1;if(nextIndex<0||nextIndex>=state.spaces.length)return;[state.spaces[index],state.spaces[nextIndex]]=[state.spaces[nextIndex],state.spaces[index]];showToast("Space order updated 🌷");render();}
 function deleteSpace(spaceId){const space=state.spaces.find(item=>item.id===spaceId);if(!space)return;if(state.spaces.length<=1)return showToast("Keep at least one space in Hana 🌸");const replacement=state.spaces.find(item=>item.id!==spaceId);if(!replacement)return;const affected=[state.tasks,state.notes,state.reminders,state.events,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins,state.projects].reduce((count,collection)=>count+collection.filter(item=>item?.space===spaceId).length,0);const message=affected?`Remove “${space.name}”? ${affected} item${affected===1?"":"s"} will move to ${replacement.emoji} ${replacement.name}.`:`Remove “${space.name}”?`;if(!confirm(message))return;[state.tasks,state.notes,state.reminders,state.events,state.tables,state.lists,state.pins,state.inbox,state.futureNotes,state.threads,state.tinyWins,state.projects].forEach(collection=>collection.forEach(item=>{if(item?.space===spaceId)item.space=replacement.id;}));state.spaces=state.spaces.filter(item=>item.id!==spaceId);if(state.settings.defaultSpace===spaceId)state.settings.defaultSpace=replacement.id;if(state.settings.workFirewallSpaceId===spaceId){state.settings.workFirewallSpaceId="";state.settings.workFirewallEnabled=false;}if(state.currentMode===spaceId)state.currentMode="all";showToast(`Space removed; its items moved to ${replacement.name}.`);render();}
+
+/* ================= AUTOMATIC SAFETY BACKUPS ================= */
+
+function openSafetyBackupDB(){
+  return new Promise((resolve,reject)=>{
+    if(!("indexedDB" in window))return reject(new Error("IndexedDB unavailable"));
+    const request=indexedDB.open(BACKUP_DB_NAME,1);
+    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(BACKUP_STORE_NAME))db.createObjectStore(BACKUP_STORE_NAME,{keyPath:"id"});};
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error||new Error("Unable to open Hana backup storage"));
+  });
+}
+async function getSafetySnapshots(){
+  const db=await openSafetyBackupDB();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(BACKUP_STORE_NAME,"readonly");
+    const request=tx.objectStore(BACKUP_STORE_NAME).getAll();
+    request.onsuccess=()=>resolve((request.result||[]).sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0)));
+    request.onerror=()=>reject(request.error);
+    tx.oncomplete=()=>db.close();
+  });
+}
+async function createSafetySnapshot(reason="auto",stateJson="",options={}){
+  try{
+    const json=stateJson||JSON.stringify(state);
+    const existing=await getSafetySnapshots().catch(()=>[]);
+    if(!options.force&&existing[0]?.stateJson===json)return existing[0];
+    const record={id:createId(),createdAt:Date.now(),reason,stateJson:json};
+    const db=await openSafetyBackupDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(BACKUP_STORE_NAME,"readwrite");
+      tx.objectStore(BACKUP_STORE_NAME).put(record);
+      tx.oncomplete=()=>{db.close();resolve(true);};
+      tx.onerror=()=>{db.close();reject(tx.error);};
+    });
+    const all=await getSafetySnapshots();
+    const extras=all.slice(MAX_SAFETY_SNAPSHOTS);
+    if(extras.length){
+      const trimDB=await openSafetyBackupDB();
+      await new Promise((resolve,reject)=>{
+        const tx=trimDB.transaction(BACKUP_STORE_NAME,"readwrite");
+        extras.forEach(item=>tx.objectStore(BACKUP_STORE_NAME).delete(item.id));
+        tx.oncomplete=()=>{trimDB.close();resolve(true);};
+        tx.onerror=()=>{trimDB.close();reject(tx.error);};
+      });
+    }
+    try{localStorage.setItem(BACKUP_META_KEY,JSON.stringify({lastAt:record.createdAt,count:Math.min(all.length,MAX_SAFETY_SNAPSHOTS)}));}catch{}
+    return record;
+  }catch(error){
+    console.warn("Hana safety backup unavailable:",error);
+    return null;
+  }
+}
+function queueSafetySnapshot(json){
+  queuedSafetyStateJSON=json;
+  clearTimeout(safetySnapshotTimer);
+  safetySnapshotTimer=setTimeout(()=>{
+    const snapshotJSON=queuedSafetyStateJSON;
+    queuedSafetyStateJSON="";
+    createSafetySnapshot("auto",snapshotJSON);
+  },1400);
+}
+async function restoreSafetySnapshotRecord(record,options={}){
+  try{
+    if(!record?.stateJson)return false;
+    const parsed=JSON.parse(record.stateJson);
+    if(!isLikelyHanaState(parsed))return false;
+    state=normalizeState(parsed);
+    state.lastOpenedDate=todayISO();
+    lastSavedStateJSON="";
+    saveState({snapshot:false});
+    await applyAppearance();
+    render();
+    if(!options.quiet)showToast("Safety copy restored 🌸");
+    return true;
+  }catch(error){
+    console.warn("Unable to restore Hana safety copy:",error);
+    if(!options.quiet)showToast("No usable safety copy was found.");
+    return false;
+  }
+}
+async function restoreLatestSafetySnapshot(options={}){
+  try{
+    const latest=(await getSafetySnapshots())[0];
+    if(!latest)return false;
+    return await restoreSafetySnapshotRecord(latest,options);
+  }catch(error){
+    console.warn("Unable to read Hana safety copies:",error);
+    if(!options.quiet)showToast("No usable safety copy was found.");
+    return false;
+  }
+}
+async function maybeRecoverFromSafetySnapshot(){
+  if(!safetyRecoveryPending)return false;
+  let recovered=false;
+  try{
+    recovered=await restoreLatestSafetySnapshot({quiet:true});
+    if(recovered)showToast(stateLoadStatus==="corrupt"?"Hana recovered your data from a safety copy 🌸":"Hana restored your local safety copy 🌸");
+    return recovered;
+  }finally{
+    safetyRecoveryPending=false;
+    if(lastSavedStateJSON)queueSafetySnapshot(lastSavedStateJSON);
+  }
+}
+async function makeSafetyCopyNow(){
+  const record=await createSafetySnapshot("manual",JSON.stringify(state),{force:true});
+  if(record){showToast("Safety copy created 🌸");render();}
+  else showToast("Hana could not create a safety copy on this device.");
+}
+async function restoreSafetyCopyFromSettings(){
+  const snapshots=await getSafetySnapshots().catch(()=>[]);
+  if(!snapshots.length)return showToast("No safety copy exists yet.");
+  const target=snapshots[0];
+  const date=new Date(Number(target.createdAt||0)).toLocaleString();
+  if(!confirm(`Restore the latest safety copy from ${date}? Your current data will be saved as a new safety copy first.`))return;
+  await createSafetySnapshot("pre-restore",JSON.stringify(state),{force:true});
+  await restoreSafetySnapshotRecord(target);
+  await createSafetySnapshot("post-restore",JSON.stringify(state),{force:true});
+}
 
 /* ================= APPEARANCE / WALLPAPER ================= */
 
@@ -3364,8 +3528,85 @@ async function resetAppearance() {
   showToast("Appearance reset 🌸");
 }
 
-function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`hana-backup-${todayISO()}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);showToast("Hana backup exported 🌸");}
-async function importData(file){if(!file)return;try{const parsed=JSON.parse(await file.text());if(!parsed||typeof parsed!=="object")throw new Error("Invalid backup");if(!confirm("Replace the current local Hana data with this backup?"))return;state=normalizeState(parsed);saveState();showToast("Hana backup restored 🌸");render();}catch(error){console.error(error);showToast("That file doesn't look like a Hana backup.");}finally{document.getElementById("importBackupInput").value="";}}
+function backupMetaLabel(){
+  try {
+    const meta=JSON.parse(localStorage.getItem(BACKUP_META_KEY)||"null");
+    if(!meta?.lastAt)return "Not yet";
+    return new Date(Number(meta.lastAt)).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  } catch { return "Not yet"; }
+}
+function lastExportLabel(){
+  try {
+    const at=Number(localStorage.getItem(LAST_EXPORT_KEY)||0);
+    return at?new Date(at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}):"Not yet";
+  } catch { return "Not yet"; }
+}
+function isLikelyHanaState(value){
+  return Boolean(value&&typeof value==="object"&&["tasks","notes","reminders","tables","spaces","settings","lists","events","projects"].some(key=>Object.prototype.hasOwnProperty.call(value,key)));
+}
+async function exportData(){
+  try {
+    await ensureWallpaperLoaded();
+    const payload={
+      hanaBackup:true,
+      formatVersion:2,
+      exportedAt:new Date().toISOString(),
+      state:clone(state),
+      media:{wallpaper:hanaWallpaperData||null}
+    };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    const now=new Date();
+    const stamp=`${localDateISO(now)}-${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}`;
+    a.download=`hana-full-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    try{localStorage.setItem(LAST_EXPORT_KEY,String(Date.now()));}catch{}
+    showToast("Full Hana backup exported 🌸");
+  } catch(error){
+    console.error("Backup export failed:",error);
+    showToast("Hana could not create the backup file.");
+  }
+}
+async function importData(file){
+  if(!file)return;
+  try{
+    const parsed=JSON.parse(await file.text());
+    const backupState=parsed?.hanaBackup&&parsed?.state?parsed.state:parsed;
+    const backupWallpaper=parsed?.hanaBackup?parsed?.media?.wallpaper:null;
+    if(!isLikelyHanaState(backupState))throw new Error("Invalid Hana backup");
+    if(!confirm("Replace the current local Hana data with this backup? Hana will make a safety copy of your current data first."))return;
+    await createSafetySnapshot("pre-import",JSON.stringify(state),{force:true});
+    state=normalizeState(backupState);
+    lastSavedStateJSON="";
+    saveState({snapshot:false});
+    if(parsed?.hanaBackup){
+      if(typeof backupWallpaper==="string"&&backupWallpaper.startsWith("data:image/")){
+        hanaWallpaperData=backupWallpaper;
+        await mediaPut("wallpaper",backupWallpaper);
+      }else{
+        hanaWallpaperData=null;
+        await mediaDelete("wallpaper").catch(()=>{});
+        state.appearance.wallpaperEnabled=false;
+        lastSavedStateJSON="";
+        saveState({snapshot:false});
+      }
+    }
+    await createSafetySnapshot("post-import",JSON.stringify(state),{force:true});
+    await applyAppearance();
+    showToast("Hana backup restored 🌸");
+    render();
+  }catch(error){
+    console.error(error);
+    showToast("That file doesn't look like a valid Hana backup.");
+  }finally{
+    const input=document.getElementById("importBackupInput");if(input)input.value="";
+  }
+}
 
 /* ================= HELPERS ================= */
 
@@ -3556,6 +3797,8 @@ document.addEventListener("click", event => {
   if(event.target.id==="saveSettingsButton"){saveSettings();return;}
   if(event.target.id==="exportDataButton"){exportData();return;}
   if(event.target.id==="importDataButton"){document.getElementById("importBackupInput").click();return;}
+  if(event.target.id==="createSafetyBackupButton"){makeSafetyCopyNow();return;}
+  if(event.target.id==="restoreSafetyBackupButton"){restoreSafetyCopyFromSettings();return;}
 });
 
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
@@ -3705,13 +3948,20 @@ document.getElementById("wallpaperInput").addEventListener("change",event=>choos
 
 document.querySelectorAll(".modal-overlay").forEach(overlay=>overlay.addEventListener("click",event=>{if(event.target===overlay)overlay.classList.add("hidden");}));
 
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"&&lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("background",lastSavedStateJSON);});
+window.addEventListener("pagehide",()=>{if(lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("pagehide",lastSavedStateJSON);});
+
 /* SERVICE WORKER */
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(error=>console.error("Service worker registration failed:",error)));}
 
 setInterval(checkReminders,30*1000);checkReminders();
 applyAppearance();
 render();
-maybeOpenFirstRunTutorial();
+(async()=>{
+  try{if(navigator.storage?.persist)await navigator.storage.persist();}catch{}
+  const recovered=await maybeRecoverFromSafetySnapshot();
+  if(!recovered)maybeOpenFirstRunTutorial();
+})();
 
 const launchParams=new URLSearchParams(window.location.search);
 if(launchParams.get("action")==="capture"){setTimeout(prepareQuickCapture,100);window.history.replaceState({},"",window.location.pathname+window.location.hash);}
