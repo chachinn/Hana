@@ -3853,3 +3853,148 @@ body.wallpaper-active .nav-drawer {
   .tracker-import-card{padding:16px!important}
   .table-column-grip{font-size:20px;padding:10px 5px}
 }
+
+/* =====================================================
+   HANA v1.9.3 — COMPACT SECTIONS + LIST FLOW
+   ===================================================== */
+
+/* Keep every section intro informative without making it a large banner. */
+.page-heading{
+  margin-bottom:10px;
+}
+.page-heading > .eyebrow{
+  margin:0 0 2px;
+  font-size:8.5px;
+  line-height:1.2;
+  letter-spacing:1.05px;
+}
+.page-heading > h1,
+.page-heading-row h1{
+  margin:0 0 3px;
+  font-size:23px;
+  line-height:1.12;
+  letter-spacing:-.45px;
+}
+.page-heading > p:not(.eyebrow),
+.page-heading-row p:not(.eyebrow){
+  margin:0;
+  max-width:700px;
+  font-size:11px;
+  line-height:1.38;
+  color:var(--text-muted);
+}
+
+/* Lists: Quick add stays out of the way until needed. */
+.quick-list-add-card.quick-list-add-collapsible{
+  margin:10px 0 13px;
+  padding:0;
+  overflow:hidden;
+  border-radius:17px;
+}
+.quick-list-add-summary{
+  list-style:none;
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 13px;
+  cursor:pointer;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.quick-list-add-summary::-webkit-details-marker{display:none}
+.quick-list-add-summary span{min-width:0}
+.quick-list-add-summary strong{
+  display:block;
+  font-size:12px;
+  color:var(--text);
+}
+.quick-list-add-summary small{
+  display:block;
+  margin-top:2px;
+  font-size:9px;
+  color:var(--text-muted);
+}
+.quick-list-chevron{
+  flex:0 0 auto;
+  color:var(--rose);
+  font-size:18px;
+  line-height:1;
+  transform:rotate(0deg);
+  transition:transform .16s ease;
+}
+.quick-list-add-collapsible[open] .quick-list-chevron{transform:rotate(180deg)}
+.quick-list-add-body{
+  padding:0 13px 13px;
+  border-top:1px solid var(--border-soft);
+}
+.quick-list-add-body .quick-list-add-head{
+  margin:9px 0 7px;
+}
+.quick-list-add-body .quick-list-textarea{
+  min-height:84px;
+}
+.quick-list-add-body .quick-list-add-actions{
+  margin-top:8px;
+}
+
+/* Completed checklist items always live below pending items. */
+.completed-list-divider{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:12px 2px 6px;
+  color:var(--text-muted);
+  font-size:9px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
+.completed-list-divider::before,
+.completed-list-divider::after{
+  content:"";
+  height:1px;
+  flex:1;
+  background:var(--border-soft);
+}
+.completed-list-divider small{
+  display:inline-grid;
+  place-items:center;
+  min-width:20px;
+  height:20px;
+  padding:0 5px;
+  border-radius:999px;
+  background:var(--pink-50);
+  color:var(--rose);
+  font-size:9px;
+  letter-spacing:0;
+}
+
+/* Slightly tighter list chrome so the checklist appears sooner. */
+.list-template-strip{padding-bottom:8px}
+.list-template-strip button{padding:7px 10px;font-size:10px}
+.checklist-shell{padding:13px;border-radius:19px}
+.checklist-toolbar{margin:10px 0}
+.standalone-checklist{gap:7px}
+.standalone-check-item{padding:10px}
+
+@media(max-width:640px){
+  .page-content{padding-top:10px}
+  .page-heading{margin-bottom:8px}
+  .page-heading > .eyebrow{font-size:8px;margin-bottom:2px}
+  .page-heading > h1,
+  .page-heading-row h1{font-size:21px;margin-bottom:2px}
+  .page-heading > p:not(.eyebrow),
+  .page-heading-row p:not(.eyebrow){
+    font-size:10px;
+    line-height:1.32;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .quick-list-add-summary{min-height:44px;padding:9px 11px}
+  .quick-list-add-body{padding:0 11px 11px}
+  .checklist-shell{padding:11px}
+}

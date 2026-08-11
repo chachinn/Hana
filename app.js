@@ -129,6 +129,10 @@ const STARTER_TEMPLATES = [
 ];
 
 const QUICK_ACCESS_MENU = {
+  today: { label: "Today", icon: "🌸", description: "What matters right now" },
+  tasks: { label: "Tasks", icon: "✓", description: "Your actionable to-dos" },
+  lists: { label: "Lists", icon: "☑️", description: "Groceries, packing and simple checklists" },
+  notes: { label: "Notes", icon: "📝", description: "Ideas, context and meeting notes" },
   reminders: { label: "Reminders", icon: "🔔", description: "Repeats, snooze and reminder chains" },
   tables: { label: "Trackers", icon: "📒", description: "Progress, status, remarks and custom columns" },
   calendar: { label: "Calendar", icon: "🗓️", description: "Month, week, day and time blocks" },
@@ -1905,26 +1909,37 @@ function renderSingleList(list) {
         ${completed ? `<button class="secondary-button" data-clear-checked="${list.id}">Remove checked</button>` : ""}
         ${completed ? `<button class="text-button" data-reset-list="${list.id}">Uncheck all</button>` : ""}
       </div>
-      <div class="quick-list-add-card">
-        <div class="quick-list-add-head"><strong>Quick add</strong><small>One line per item. Optional format: item | quantity | detail</small></div>
-        <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk
+      <details class="quick-list-add-card quick-list-add-collapsible">
+        <summary class="quick-list-add-summary">
+          <span><strong>⚡ Quick add</strong><small>Add several items at once</small></span>
+          <b class="quick-list-chevron">⌄</b>
+        </summary>
+        <div class="quick-list-add-body">
+          <div class="quick-list-add-head"><small>One line per item. Optional: item | quantity | detail</small></div>
+          <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk
 Eggs | 1 tray
 Shampoo | 2 | refill pouches"></textarea>
-        <div class="quick-list-add-actions"><button class="secondary-button" data-quick-add-list="${list.id}">Add lines</button></div>
-      </div>
+          <div class="quick-list-add-actions"><button class="secondary-button" data-quick-add-list="${list.id}">Add lines</button></div>
+        </div>
+      </details>
       <div class="standalone-checklist">
-        ${total ? list.items.map(item => {
-          const meta = [item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "", item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""].filter(Boolean).join(" · ");
-          return `
-          <div class="standalone-check-item ${item.completed?"done":""}">
-            <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
-            <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
-              <strong>${escapeHTML(item.title)}</strong>
-              ${meta ? `<small>${meta}</small>` : ""}
-            </button>
-            <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
-          </div>`;
-        }).join("") : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
+        ${total ? (() => {
+          const pendingItems = list.items.filter(item => !item.completed);
+          const completedItems = list.items.filter(item => item.completed);
+          const itemHTML = item => {
+            const meta = [item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "", item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""].filter(Boolean).join(" · ");
+            return `
+            <div class="standalone-check-item ${item.completed?"done":""}">
+              <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
+              <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
+                <strong>${escapeHTML(item.title)}</strong>
+                ${meta ? `<small>${meta}</small>` : ""}
+              </button>
+              <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
+            </div>`;
+          };
+          return `${pendingItems.map(itemHTML).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div>${completedItems.map(itemHTML).join("")}` : ""}`;
+        })() : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
       </div>
     </section>`;
 }
