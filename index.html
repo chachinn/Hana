@@ -420,6 +420,40 @@
     </div>
   </div>
 
+  <!-- TRACKER BULK EDIT MODAL -->
+  <div id="bulkTableEditModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large bulk-table-modal-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">BULK TRACKER EDIT</p><h2 id="bulkTableEditTitle">Edit selected rows</h2><small id="bulkTableEditMeta" class="bulk-modal-meta"></small></div>
+        <button class="modal-close" data-close-modal="bulkTableEditModal">×</button>
+      </div>
+      <input id="bulkTableEditId" type="hidden" />
+      <div id="bulkTableEditGrid" class="bulk-edit-grid-wrap"></div>
+      <p class="field-help">Edit several cells, then save once. This is faster and safer than saving each row separately.</p>
+      <div class="modal-actions task-modal-actions">
+        <button id="copyBulkEditButton" class="secondary-button" type="button">Copy selected cells</button>
+        <div class="modal-action-spacer"></div>
+        <button class="secondary-button" data-close-modal="bulkTableEditModal">Cancel</button>
+        <button id="saveBulkTableEditButton" class="primary-button" type="button">Save all changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACKER BULK PASTE MODAL -->
+  <div id="bulkTablePasteModal" class="modal-overlay hidden">
+    <div class="modal-card bulk-paste-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">PASTE INTO TRACKER</p><h2>Paste multiple cells</h2></div>
+        <button class="modal-close" data-close-modal="bulkTablePasteModal">×</button>
+      </div>
+      <input id="bulkPasteTableId" type="hidden" />
+      <p id="bulkPasteMeta" class="bulk-modal-meta"></p>
+      <div class="form-group"><label for="bulkPasteArea">Spreadsheet cells</label><textarea id="bulkPasteArea" rows="8" placeholder="Copy cells from Hana, Excel, Numbers, or Google Sheets and paste them here."></textarea></div>
+      <small class="field-help">Rows and columns are mapped in the order you selected them. If you paste only one row, Hana repeats it across every selected row — useful for changing Status + Due Date together.</small>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="bulkTablePasteModal">Cancel</button><button id="applyBulkPasteButton" class="primary-button" type="button">Apply pasted cells</button></div>
+    </div>
+  </div>
+
   <!-- CHECKLIST / LIST MODAL -->
   <div id="listModal" class="modal-overlay hidden">
     <div class="modal-card list-modal-card">

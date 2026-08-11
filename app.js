@@ -2137,6 +2137,128 @@ function getSortedTableRows(table){
     return String(av??"").localeCompare(String(bv??""),undefined,{numeric:true,sensitivity:"base"})*dir;
   });
 }
+
+/* ===== v1.9.1 TRACKER BULK EDIT / CLIPBOARD ===== */
+let tableBulkState={tableId:"",active:false,selectedRows:new Set(),selectedCols:new Set()};
+function resetTableBulkState(table=null,active=false){
+  tableBulkState={tableId:table?.id||"",active:Boolean(active),selectedRows:new Set(),selectedCols:new Set(active&&table?table.columns.map(col=>col.id):[])};
+}
+function ensureTableBulkState(table){
+  if(!table||tableBulkState.tableId!==table.id)resetTableBulkState(table,false);
+  if(tableBulkState.active){
+    const rowIds=new Set(table.rows.map(row=>row.id)),colIds=new Set(table.columns.map(col=>col.id));
+    tableBulkState.selectedRows=new Set([...tableBulkState.selectedRows].filter(id=>rowIds.has(id)));
+    tableBulkState.selectedCols=new Set([...tableBulkState.selectedCols].filter(id=>colIds.has(id)));
+  }
+  return tableBulkState;
+}
+function isTableBulkActive(tableId){return tableBulkState.active&&tableBulkState.tableId===tableId;}
+function selectedBulkRows(table){const bulk=ensureTableBulkState(table);return getSortedTableRows(table).filter(row=>bulk.selectedRows.has(row.id));}
+function selectedBulkCols(table){const bulk=ensureTableBulkState(table);return table.columns.filter(col=>bulk.selectedCols.has(col.id));}
+function toggleTableBulkMode(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  if(isTableBulkActive(tableId))resetTableBulkState(table,false);else resetTableBulkState(table,true);
+  render();
+}
+function refreshBulkControls(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table||!isTableBulkActive(tableId))return;
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table),allRows=getSortedTableRows(table);
+  const summary=document.querySelector(`[data-bulk-summary="${tableId}"]`);
+  if(summary)summary.textContent=`${rows.length} row${rows.length===1?"":"s"} · ${cols.length} column${cols.length===1?"":"s"}`;
+  document.querySelectorAll(`[data-bulk-action-for="${tableId}"]`).forEach(button=>button.disabled=!rows.length||!cols.length);
+  const rowAll=document.querySelector(`[data-bulk-select-all-rows="${tableId}"]`);if(rowAll){rowAll.checked=Boolean(allRows.length&&rows.length===allRows.length);rowAll.indeterminate=rows.length>0&&rows.length<allRows.length;}
+  const colAll=document.querySelector(`[data-bulk-select-all-cols="${tableId}"]`);if(colAll){colAll.checked=Boolean(table.columns.length&&cols.length===table.columns.length);colAll.indeterminate=cols.length>0&&cols.length<table.columns.length;}
+  document.querySelectorAll(`[data-bulk-row="${tableId}"]`).forEach(row=>row.classList.toggle("bulk-selected",tableBulkState.selectedRows.has(row.dataset.rowId)));
+  document.querySelectorAll(`[data-bulk-col-head="${tableId}"]`).forEach(head=>head.classList.toggle("bulk-selected",tableBulkState.selectedCols.has(head.dataset.colId)));
+}
+function bulkCellEditorHTML(col,value,table,rowId){
+  const attrs=`data-bulk-cell data-bulk-row-id="${rowId}" data-bulk-col-id="${col.id}" data-bulk-col-type="${col.type}"`;
+  if(col.type==="checkbox")return `<label class="bulk-cell-check"><input ${attrs} type="checkbox" ${value?"checked":""}/><span>${value?"Yes":"No"}</span></label>`;
+  if(col.type==="status")return `<select ${attrs}>${(table.statusOptions||DEFAULT_TABLE_STATUSES).map(option=>`<option value="${escapeHTML(option)}" ${String(value||"").toLowerCase()===String(option).toLowerCase()?"selected":""}>${escapeHTML(option)}</option>`).join("")}</select>`;
+  if(col.type==="progress")return `<select ${attrs}>${progressOptions(value)}</select>`;
+  const inputType=["date","reminder"].includes(col.type)?"date":(["number","money"].includes(col.type)?"number":col.type==="link"?"url":"text");
+  return `<input ${attrs} type="${inputType}" ${col.type==="money"?'step="0.01"':""} value="${escapeHTML(value??"")}" />`;
+}
+function openBulkTableEdit(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table);if(!rows.length||!cols.length)return showToast("Select at least one row and column 🌸");
+  document.getElementById("bulkTableEditId").value=tableId;
+  document.getElementById("bulkTableEditTitle").textContent=`Edit ${rows.length} row${rows.length===1?"":"s"}`;
+  document.getElementById("bulkTableEditMeta").textContent=`${cols.length} selected column${cols.length===1?"":"s"} · changes save together`;
+  document.getElementById("bulkTableEditGrid").innerHTML=`<table class="bulk-edit-table"><thead><tr><th>Row</th>${cols.map(col=>`<th>${escapeHTML(col.name)}</th>`).join("")}</tr></thead><tbody>${rows.map((row,index)=>`<tr><th>${index+1}</th>${cols.map(col=>`<td>${bulkCellEditorHTML(col,row.values[col.id],table,row.id)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  openModal("bulkTableEditModal");
+}
+function readBulkEditorValue(el){
+  const type=el.dataset.bulkColType;
+  if(type==="checkbox")return el.checked;
+  if(["number","money","progress"].includes(type))return el.value===""?"":Number(el.value||0);
+  return el.value;
+}
+function saveBulkTableEdits(){
+  const table=state.tables.find(item=>item.id===document.getElementById("bulkTableEditId").value);if(!table)return;
+  createSafetySnapshot("pre-bulk-edit",JSON.stringify(state),{force:true});
+  let changedRows=0;const touched=new Set();
+  document.querySelectorAll("#bulkTableEditGrid [data-bulk-cell]").forEach(el=>{const row=table.rows.find(item=>item.id===el.dataset.bulkRowId);if(!row)return;const value=readBulkEditorValue(el);if(row.values[el.dataset.bulkColId]!==value){row.values[el.dataset.bulkColId]=value;row.updatedAt=Date.now();touched.add(row.id);}});
+  changedRows=touched.size;closeModal("bulkTableEditModal");
+  if(changedRows)showToast(`${changedRows} row${changedRows===1?"":"s"} updated 🌸`);else showToast("No changes to save 🌿");
+  render();
+}
+async function copyBulkEditorGrid(){
+  const rows=[...document.querySelectorAll("#bulkTableEditGrid tbody tr")];if(!rows.length)return;
+  const text=rows.map(row=>[...row.querySelectorAll("[data-bulk-cell]")].map(el=>{const value=readBulkEditorValue(el);return el.dataset.bulkColType==="checkbox"?(value?"TRUE":"FALSE"):String(value??"").replace(/\t/g," ").replace(/[\r\n]+/g," ");}).join("\t")).join("\n");
+  const ok=await writeClipboardText(text);showToast(ok?"Bulk edit grid copied 📋":"Couldn’t access the clipboard.");
+}
+function clipboardCellValue(col,value){
+  if(col.type==="checkbox")return value?"TRUE":"FALSE";
+  return String(value??"").replace(/\t/g," ").replace(/[\r\n]+/g," ");
+}
+function bulkClipboardText(table){
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table);
+  return rows.map(row=>cols.map(col=>clipboardCellValue(col,row.values[col.id])).join("\t")).join("\n");
+}
+async function writeClipboardText(text){
+  try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true;}}catch{}
+  try{const area=document.createElement("textarea");area.value=text;area.setAttribute("readonly","");area.style.position="fixed";area.style.opacity="0";document.body.appendChild(area);area.select();const ok=document.execCommand("copy");area.remove();return ok;}catch{return false;}
+}
+async function copyBulkTableCells(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table);if(!rows.length||!cols.length)return showToast("Select rows and columns first 🌸");
+  const ok=await writeClipboardText(bulkClipboardText(table));
+  showToast(ok?`Copied ${rows.length} × ${cols.length} cells 📋`:"Couldn’t access the clipboard. Try Edit selected and copy manually.");
+}
+function openBulkPasteModal(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table);if(!rows.length||!cols.length)return showToast("Select rows and columns first 🌸");
+  document.getElementById("bulkPasteTableId").value=tableId;
+  document.getElementById("bulkPasteMeta").textContent=`Paste ${cols.length} column${cols.length===1?"":"s"} into ${rows.length} selected row${rows.length===1?"":"s"}. One pasted row can be repeated across all selected rows.`;
+  document.getElementById("bulkPasteArea").value="";
+  openModal("bulkTablePasteModal");setTimeout(()=>document.getElementById("bulkPasteArea")?.focus(),80);
+}
+function normalizeBulkDate(value){
+  const text=String(value||"").trim();if(!text)return "";if(/^\d{4}-\d{2}-\d{2}$/.test(text))return text;
+  const date=new Date(text);return Number.isNaN(date.getTime())?text:localDateISO(date);
+}
+function coerceBulkPasteValue(col,value,table){
+  const text=String(value??"").trim();
+  if(col.type==="checkbox")return /^(true|yes|y|1|x|checked|done)$/i.test(text);
+  if(["number","money"].includes(col.type)){if(!text)return "";const n=Number(text.replace(/[^0-9.+-]/g,""));return Number.isFinite(n)?n:"";}
+  if(col.type==="progress"){if(!text)return "";const n=Number(text.replace(/[^0-9.+-]/g,""));return Number.isFinite(n)?Math.max(0,Math.min(100,n)):0;}
+  if(["date","reminder"].includes(col.type))return normalizeBulkDate(text);
+  if(col.type==="status"&&text){const match=(table.statusOptions||[]).find(option=>String(option).toLowerCase()===text.toLowerCase());if(match)return match;table.statusOptions=[...(table.statusOptions||DEFAULT_TABLE_STATUSES),text.toLowerCase()];return text.toLowerCase();}
+  return String(value??"");
+}
+function parseTSV(text){
+  const clean=String(text||"").replace(/\r/g,"").replace(/\n+$/,"");if(!clean)return [];
+  return clean.split("\n").map(line=>line.split("\t"));
+}
+function applyBulkPaste(){
+  const table=state.tables.find(item=>item.id===document.getElementById("bulkPasteTableId").value);if(!table)return;
+  const rows=selectedBulkRows(table),cols=selectedBulkCols(table),matrix=parseTSV(document.getElementById("bulkPasteArea").value);if(!matrix.length)return showToast("Paste some cells first 🌸");
+  createSafetySnapshot("pre-bulk-paste",JSON.stringify(state),{force:true});
+  const first=matrix[0]||[];const looksLikeHeader=cols.length&&cols.every((col,index)=>String(first[index]||"").trim().toLowerCase()===String(col.name).trim().toLowerCase());if(looksLikeHeader)matrix.shift();if(!matrix.length)return showToast("Only a header row was pasted.");
+  let changed=0;rows.forEach((row,rowIndex)=>{const source=matrix.length===1?matrix[0]:matrix[rowIndex];if(!source)return;cols.forEach((col,colIndex)=>{if(colIndex>=source.length)return;const next=coerceBulkPasteValue(col,source[colIndex],table);if(row.values[col.id]!==next){row.values[col.id]=next;row.updatedAt=Date.now();changed++;}});});
+  closeModal("bulkTablePasteModal");showToast(changed?`${changed} cell${changed===1?"":"s"} pasted 🌸`:"No cells changed 🌿");render();
+}
 function refreshTableSortColumnOptions(selected=""){
   const select=document.getElementById("tableSortColumn"); if(!select)return;
   select.innerHTML=tableBuilderColumns.map(c=>`<option value="${c.id}" ${c.id===selected?"selected":""}>${escapeHTML(c.name||"Column")}</option>`).join("");
@@ -2211,9 +2333,19 @@ function inlineFieldHTML(table,col){
   return `<div class="form-group compact"><label>${escapeHTML(col.name)}</label><input id="${id}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} placeholder="${escapeHTML(col.name)}" /></div>`;
 }
 function renderInlineTableRow(table){return `<div id="quickRow_${table.id}" class="inline-table-row-card hidden"><div class="inline-table-row-head"><strong>Quick add row</strong><small>Type directly here when you want a fast entry.</small></div><div class="inline-table-row-grid">${table.columns.map(col=>inlineFieldHTML(table,col)).join("")}</div><div class="inline-table-row-actions"><button class="secondary-button" data-add-row="${table.id}">Open full form</button><button class="primary-button" data-save-inline-row="${table.id}">Save row</button></div></div>`;}
+function renderBulkPreviewCell(col,value,tableId,rowId){
+  if(col.type==="checkbox")return `<span class="bulk-checkbox-preview" aria-label="${value?"Checked":"Unchecked"}">${value?"✓":"—"}</span>`;
+  return renderTableCell(col,value,tableId,rowId);
+}
 function renderSingleTable(table){
-  const rows=getSortedTableRows(table);
-  return `<div class="table-head-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add row</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div>${renderInlineTableRow(table)}<div class="table-wrapper"><table class="smart-table"><thead><tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr class="gesture-table-row" data-gesture-row="${row.id}" data-table-id="${table.id}"><td class="swipe-edge edit-edge">Edit</td>${table.columns.map(c=>`<td>${renderTableCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="swipe-edge delete-edge">Delete</td></tr>`).join(""):`<tr><td colspan="${table.columns.length}">No rows yet.</td></tr>`}</tbody></table></div><p class="gesture-hint">Tip: double-tap to edit · long-press for actions · swipe right to edit · swipe left to delete.</p>`;
+  const rows=getSortedTableRows(table),bulk=ensureTableBulkState(table),bulkActive=bulk.active;
+  const selectedRows=selectedBulkRows(table),selectedCols=selectedBulkCols(table);
+  const normalActions=`<div class="table-head-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add row</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Bulk edit</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div>`;
+  const bulkActions=`<div class="table-bulk-bar"><div><strong data-bulk-summary="${table.id}">${selectedRows.length} row${selectedRows.length===1?"":"s"} · ${selectedCols.length} column${selectedCols.length===1?"":"s"}</strong><small>Select rows and columns, then edit or copy them together.</small></div><div class="table-bulk-actions"><button class="primary-button" data-bulk-edit="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>✎ Edit selected</button><button class="secondary-button" data-bulk-copy="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Copy cells</button><button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button></div></div>`;
+  const head=bulkActive?`<tr><th class="bulk-select-head"><label class="bulk-check-label" title="Select all rows"><input type="checkbox" data-bulk-select-all-rows="${table.id}" ${rows.length&&selectedRows.length===rows.length?"checked":""}/><span>Rows</span></label></th>${table.columns.map(c=>`<th class="bulk-column-head ${bulk.selectedCols.has(c.id)?"bulk-selected":""}" data-bulk-col-head="${table.id}" data-col-id="${c.id}"><label class="bulk-check-label"><input type="checkbox" data-bulk-col-toggle="${c.id}" data-table-id="${table.id}" ${bulk.selectedCols.has(c.id)?"checked":""}/><span>${escapeHTML(c.name)}</span></label></th>`).join("")}</tr>`:`<tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}</tr>`;
+  const body=rows.length?rows.map(row=>bulkActive?`<tr class="bulk-table-row ${bulk.selectedRows.has(row.id)?"bulk-selected":""}" data-bulk-row="${table.id}" data-row-id="${row.id}"><td class="bulk-row-check"><input type="checkbox" data-bulk-row-toggle="${row.id}" data-table-id="${table.id}" ${bulk.selectedRows.has(row.id)?"checked":""} aria-label="Select row" /></td>${table.columns.map(c=>`<td>${renderBulkPreviewCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}</tr>`:`<tr class="gesture-table-row" data-gesture-row="${row.id}" data-table-id="${table.id}"><td class="swipe-edge edit-edge">Edit</td>${table.columns.map(c=>`<td>${renderTableCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="swipe-edge delete-edge">Delete</td></tr>`).join(""):`<tr><td colspan="${table.columns.length+(bulkActive?1:0)}">No rows yet.</td></tr>`;
+  const bulkSelectAll=bulkActive?`<div class="bulk-selection-shortcuts"><label><input type="checkbox" data-bulk-select-all-cols="${table.id}" ${selectedCols.length===table.columns.length?"checked":""}/> All columns</label><span>Tip: select one column + all rows to copy a whole column.</span></div>`:"";
+  return `${bulkActive?bulkActions:normalActions}${bulkActive?"":renderInlineTableRow(table)}${bulkSelectAll}<div class="table-wrapper ${bulkActive?"bulk-table-wrapper":""}"><table class="smart-table ${bulkActive?"smart-table-bulk":""}"><thead>${head}</thead><tbody>${body}</tbody></table></div><p class="gesture-hint">${bulkActive?"Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.":"Tip: double-tap to edit · long-press for actions · swipe right to edit · swipe left to delete."}</p>`;
 }
 function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase().replace(/\s+/g,"-")}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
@@ -3989,12 +4121,17 @@ document.addEventListener("click", event => {
   const completeRem=event.target.closest("[data-complete-reminder]");if(completeRem){completeReminder(completeRem.dataset.completeReminder);return;}
   const snooze=event.target.closest("[data-snooze-reminder]");if(snooze){snoozeReminder(snooze.dataset.snoozeReminder,snooze.dataset.snooze);return;}
 
-  const selectTable=event.target.closest("[data-select-table]");if(selectTable){state.activeTableId=selectTable.dataset.selectTable;render();return;}
+  const selectTable=event.target.closest("[data-select-table]");if(selectTable){state.activeTableId=selectTable.dataset.selectTable;const next=state.tables.find(t=>t.id===state.activeTableId);resetTableBulkState(next,false);render();return;}
   const editTable=event.target.closest("[data-edit-table]");if(editTable){openTableModal(editTable.dataset.editTable);return;}
   const addRow=event.target.closest("[data-add-row]");if(addRow){openTableRowModal(addRow.dataset.addRow);return;}
   const toggleQuickRow=event.target.closest("[data-toggle-quick-row]");if(toggleQuickRow){document.getElementById(`quickRow_${toggleQuickRow.dataset.toggleQuickRow}`)?.classList.toggle("hidden");return;}
   const deleteTableButton=event.target.closest("[data-delete-table]");if(deleteTableButton){deleteTable(deleteTableButton.dataset.deleteTable);return;}
   const saveInlineRow=event.target.closest("[data-save-inline-row]");if(saveInlineRow){saveInlineTableRow(saveInlineRow.dataset.saveInlineRow);return;}
+  const toggleBulkTable=event.target.closest("[data-toggle-bulk-table]");if(toggleBulkTable){toggleTableBulkMode(toggleBulkTable.dataset.toggleBulkTable);return;}
+  const bulkEdit=event.target.closest("[data-bulk-edit]");if(bulkEdit){openBulkTableEdit(bulkEdit.dataset.bulkEdit);return;}
+  const bulkCopy=event.target.closest("[data-bulk-copy]");if(bulkCopy){copyBulkTableCells(bulkCopy.dataset.bulkCopy);return;}
+  const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}
+  const bulkRowTap=event.target.closest("[data-bulk-row]");if(bulkRowTap&&!event.target.closest("input,select,textarea,button,a,label")){const tableId=bulkRowTap.dataset.bulkRow,rowId=bulkRowTap.dataset.rowId,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);const checkbox=bulkRowTap.querySelector(`[data-bulk-row-toggle="${rowId}"]`);const next=!tableBulkState.selectedRows.has(rowId);if(next)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);if(checkbox)checkbox.checked=next;refreshBulkControls(tableId);}return;}
   const removeTableCol=event.target.closest("[data-remove-table-col]");if(removeTableCol){removeTableColumnBuilder(removeTableCol.dataset.removeTableCol);return;}
   const shiftTableCol=event.target.closest("[data-shift-table-col]");if(shiftTableCol){moveTableColumn(shiftTableCol.dataset.colId, shiftTableCol.dataset.shiftTableCol);return;}
   const editRow=event.target.closest("[data-edit-row]");if(editRow){openTableRowModal(editRow.dataset.tableId,editRow.dataset.editRow);return;}
@@ -4059,7 +4196,7 @@ document.addEventListener("click", event => {
 
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
-document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
+document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
 let lastTableTap={tableId:"",rowId:"",time:0};
@@ -4187,6 +4324,9 @@ document.getElementById("saveTableButton").addEventListener("click",saveTable);
 document.getElementById("deleteTableFromModal").addEventListener("click",()=>{const id=document.getElementById("tableEditId").value;if(id)deleteTable(id);});
 document.getElementById("saveTableRowButton").addEventListener("click",saveTableRow);
 document.getElementById("deleteTableRowFromModal").addEventListener("click",()=>{const tid=document.getElementById("tableRowTableId").value,rid=document.getElementById("tableRowEditId").value;if(tid&&rid)deleteTableRow(tid,rid);});
+document.getElementById("saveBulkTableEditButton")?.addEventListener("click",saveBulkTableEdits);
+document.getElementById("applyBulkPasteButton")?.addEventListener("click",applyBulkPaste);
+document.getElementById("copyBulkEditButton")?.addEventListener("click",copyBulkEditorGrid);
 document.getElementById("saveListButton").addEventListener("click",saveList);
 document.getElementById("deleteListFromModal").addEventListener("click",()=>{const id=document.getElementById("listEditId").value;if(id)deleteList(id);});
 document.getElementById("saveListItemButton").addEventListener("click",saveListItem);
