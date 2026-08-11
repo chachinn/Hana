@@ -390,6 +390,7 @@
           <div class="form-group"><label for="tableSortColumn">Sort column</label><select id="tableSortColumn"></select></div>
           <div class="form-group"><label for="tableSortDirection">Direction</label><select id="tableSortDirection"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div>
         </div>
+        <div class="form-group"><label for="tableRowView">Row display</label><select id="tableRowView"><option value="comfortable">Comfortable</option><option value="compact" selected>Compact</option><option value="collapsed">Collapsed</option></select><small class="field-help">Collapsed keeps long text to one line. You can also change this quickly from the tracker’s More menu.</small></div>
       </div>
       <div class="modal-actions task-modal-actions">
         <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete tracker</button>
@@ -455,6 +456,31 @@
   </div>
 
   <!-- CHECKLIST / LIST MODAL -->
+  <div id="trackerImportModal" class="modal-overlay hidden">
+    <div class="modal-card tracker-import-card">
+      <div class="modal-header">
+        <div><p class="eyebrow">IMPORT SPREADSHEET</p><h2 id="trackerImportTitle">Import into tracker</h2></div>
+        <button class="modal-close" data-close-modal="trackerImportModal">×</button>
+      </div>
+      <input id="trackerImportTableId" type="hidden" />
+      <div class="import-sheet-grid">
+        <div class="settings-card import-sheet-option">
+          <h3>Excel / CSV file</h3>
+          <p>Choose an .xlsx, .xls, .csv, or .tsv file. Hana imports the first worksheet.</p>
+          <input id="trackerImportFile" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.txt" />
+        </div>
+        <div class="settings-card import-sheet-option">
+          <h3>Google Sheets / Excel Online</h3>
+          <p>Select cells in your sheet, copy, then paste them here. This works without connecting your Google or Microsoft account.</p>
+          <textarea id="trackerImportPaste" placeholder="Paste copied spreadsheet cells here…"></textarea>
+        </div>
+      </div>
+      <label class="check-row import-header-check"><input id="trackerImportHeaders" type="checkbox" checked /> <span>First row contains column headers</span></label>
+      <small class="field-help">Matching headers go into existing tracker columns. New headers create new text columns. Hana creates a safety snapshot before importing.</small>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="trackerImportModal">Cancel</button><button id="applyTrackerImportButton" class="primary-button" type="button">Import rows</button></div>
+    </div>
+  </div>
+
   <div id="listModal" class="modal-overlay hidden">
     <div class="modal-card list-modal-card">
       <div class="modal-header">

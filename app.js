@@ -411,6 +411,7 @@ function normalizeTable(table = {}) {
     sortMode: table.sortMode === "auto" ? "auto" : "manual",
     sortColumnId: String(table.sortColumnId || ""),
     sortDirection: table.sortDirection === "desc" ? "desc" : "asc",
+    rowView: ["comfortable","compact","collapsed"].includes(table.rowView) ? table.rowView : "compact",
     rows: Array.isArray(table.rows)
       ? table.rows.map(row => ({ id: row.id || createId(), values: row.values || {}, createdAt: Number(row.createdAt || Date.now()) }))
       : [],
@@ -2117,7 +2118,7 @@ function renderTables(){
   const container=document.getElementById("pageContent");
   const tables=filterByMode(state.tables); if(!tables.find(t=>t.id===state.activeTableId))state.activeTableId=tables[0]?.id||"";
   const table=tables.find(t=>t.id===state.activeTableId);
-  container.innerHTML=`<div class="page-heading"><p class="eyebrow">TRACKERS & LIVING TABLES</p><h1>Trackers</h1><p>Track progress, status, due dates, remarks, money, or anything structured. Add or remove rows and columns whenever the tracker changes.</p></div>
+  container.innerHTML=`<div class="page-heading tracker-page-heading"><p class="eyebrow">TRACKERS & LIVING TABLES</p><h1>Trackers</h1><p>Track progress, status, due dates, remarks, money, or anything structured. Add or remove rows and columns whenever the tracker changes.</p></div>
     <div class="table-tabs">${tables.map(t=>`<button class="table-tab ${t.id===state.activeTableId?"active":""}" data-select-table="${t.id}">${escapeHTML(t.name)}</button>`).join("")}<button class="table-tab" data-open="tableModal">+ New tracker</button></div>
     ${table?renderSingleTable(table):emptyState("📋","No trackers yet","Start with the standard Progress Tracker or build your own columns.","Create tracker","open-table")}`;
 }
@@ -2280,7 +2281,7 @@ function cloneTemplateColumns(columns){return columns.map(col => ({ id: col.id |
 function renderTableColumnsBuilder(){
   const wrap = document.getElementById("tableColumnsBuilder");
   if(!wrap) return;
-  wrap.innerHTML = tableBuilderColumns.map((col,index)=>`<div class="table-column-row"><div class="table-column-grip" title="Column ${index+1}">⋮⋮</div><input data-table-col-name="${col.id}" type="text" value="${escapeHTML(col.name)}" placeholder="Column name" /><select data-table-col-type="${col.id}"><option value="text" ${col.type==="text"?"selected":""}>Text</option><option value="number" ${col.type==="number"?"selected":""}>Number</option><option value="progress" ${col.type==="progress"?"selected":""}>Progress</option><option value="date" ${col.type==="date"?"selected":""}>Date</option><option value="checkbox" ${col.type==="checkbox"?"selected":""}>Checkbox</option><option value="status" ${col.type==="status"?"selected":""}>Status</option><option value="money" ${col.type==="money"?"selected":""}>Money</option><option value="tag" ${col.type==="tag"?"selected":""}>Tag</option><option value="link" ${col.type==="link"?"selected":""}>Link</option><option value="reminder" ${col.type==="reminder"?"selected":""}>Reminder date</option></select><div class="table-column-row-actions"><button type="button" class="mini-icon-button" data-shift-table-col="up" data-col-id="${col.id}" ${index===0?"disabled":""}>↑</button><button type="button" class="mini-icon-button" data-shift-table-col="down" data-col-id="${col.id}" ${index===tableBuilderColumns.length-1?"disabled":""}>↓</button><button type="button" class="mini-icon-button danger-outline-button" data-remove-table-col="${col.id}">×</button></div></div>`).join("");
+  wrap.innerHTML = tableBuilderColumns.map((col,index)=>`<div class="table-column-row" data-table-builder-row="${col.id}"><button type="button" class="table-column-grip" data-table-drag-handle="${col.id}" aria-label="Drag to reorder ${escapeHTML(col.name||`column ${index+1}`)}" title="Drag up or down to reorder">⋮⋮</button><input data-table-col-name="${col.id}" type="text" value="${escapeHTML(col.name)}" placeholder="Column name" /><select data-table-col-type="${col.id}"><option value="text" ${col.type==="text"?"selected":""}>Text</option><option value="number" ${col.type==="number"?"selected":""}>Number</option><option value="progress" ${col.type==="progress"?"selected":""}>Progress</option><option value="date" ${col.type==="date"?"selected":""}>Date</option><option value="checkbox" ${col.type==="checkbox"?"selected":""}>Checkbox</option><option value="status" ${col.type==="status"?"selected":""}>Status</option><option value="money" ${col.type==="money"?"selected":""}>Money</option><option value="tag" ${col.type==="tag"?"selected":""}>Tag</option><option value="link" ${col.type==="link"?"selected":""}>Link</option><option value="reminder" ${col.type==="reminder"?"selected":""}>Reminder date</option></select><div class="table-column-row-actions"><button type="button" class="mini-icon-button" data-shift-table-col="up" data-col-id="${col.id}" ${index===0?"disabled":""}>↑</button><button type="button" class="mini-icon-button" data-shift-table-col="down" data-col-id="${col.id}" ${index===tableBuilderColumns.length-1?"disabled":""}>↓</button><button type="button" class="mini-icon-button danger-outline-button" data-remove-table-col="${col.id}">×</button></div></div>`).join("");
   refreshTableSortColumnOptions(document.getElementById("tableSortColumn")?.value || tableBuilderColumns[0]?.id || "");
 }
 function syncTableBuilderFromDOM(){
@@ -2299,10 +2300,10 @@ const TABLE_TEMPLATES={
   blank:{name:"",columns:[{name:"Item",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()}
 };
 function applyTableTemplate(templateId,force=false){const template=getTemplateDefinition(templateId);const name=document.getElementById("tableName");if(force||!name.value.trim())name.value=template.name;setTableBuilderColumns(template.columns);document.getElementById("tableStatusOptions").value=(template.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");}
-function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
-function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
+function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";document.getElementById("tableRowView").value="compact";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
+function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";document.getElementById("tableRowView").value=t.rowView||"compact";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
-function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
+function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
 function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
 function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id],table)).join("");openModal("tableRowModal");}
@@ -2340,13 +2341,107 @@ function renderBulkPreviewCell(col,value,tableId,rowId){
 function renderSingleTable(table){
   const rows=getSortedTableRows(table),bulk=ensureTableBulkState(table),bulkActive=bulk.active;
   const selectedRows=selectedBulkRows(table),selectedCols=selectedBulkCols(table);
-  const normalActions=`<div class="table-head-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add row</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Bulk edit</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div>`;
+  const rowView=table.rowView||"compact";
+  const normalActions=`<div class="tracker-toolbar"><div class="tracker-primary-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add</button></div><details class="tracker-more-actions"><summary>More</summary><div class="tracker-more-menu"><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Bulk edit</button><button class="secondary-button" data-import-table="${table.id}">⇩ Import sheet</button><button class="secondary-button" data-cycle-row-view="${table.id}">Rows: ${rowView[0].toUpperCase()+rowView.slice(1)}</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div></details></div>`;
   const bulkActions=`<div class="table-bulk-bar"><div><strong data-bulk-summary="${table.id}">${selectedRows.length} row${selectedRows.length===1?"":"s"} · ${selectedCols.length} column${selectedCols.length===1?"":"s"}</strong><small>Select rows and columns, then edit or copy them together.</small></div><div class="table-bulk-actions"><button class="primary-button" data-bulk-edit="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>✎ Edit selected</button><button class="secondary-button" data-bulk-copy="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Copy cells</button><button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button></div></div>`;
-  const head=bulkActive?`<tr><th class="bulk-select-head"><label class="bulk-check-label" title="Select all rows"><input type="checkbox" data-bulk-select-all-rows="${table.id}" ${rows.length&&selectedRows.length===rows.length?"checked":""}/><span>Rows</span></label></th>${table.columns.map(c=>`<th class="bulk-column-head ${bulk.selectedCols.has(c.id)?"bulk-selected":""}" data-bulk-col-head="${table.id}" data-col-id="${c.id}"><label class="bulk-check-label"><input type="checkbox" data-bulk-col-toggle="${c.id}" data-table-id="${table.id}" ${bulk.selectedCols.has(c.id)?"checked":""}/><span>${escapeHTML(c.name)}</span></label></th>`).join("")}</tr>`:`<tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}</tr>`;
-  const body=rows.length?rows.map(row=>bulkActive?`<tr class="bulk-table-row ${bulk.selectedRows.has(row.id)?"bulk-selected":""}" data-bulk-row="${table.id}" data-row-id="${row.id}"><td class="bulk-row-check"><input type="checkbox" data-bulk-row-toggle="${row.id}" data-table-id="${table.id}" ${bulk.selectedRows.has(row.id)?"checked":""} aria-label="Select row" /></td>${table.columns.map(c=>`<td>${renderBulkPreviewCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}</tr>`:`<tr class="gesture-table-row" data-gesture-row="${row.id}" data-table-id="${table.id}"><td class="swipe-edge edit-edge">Edit</td>${table.columns.map(c=>`<td>${renderTableCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="swipe-edge delete-edge">Delete</td></tr>`).join(""):`<tr><td colspan="${table.columns.length+(bulkActive?1:0)}">No rows yet.</td></tr>`;
+  const head=bulkActive?`<tr><th class="bulk-select-head"><label class="bulk-check-label" title="Select all rows"><input type="checkbox" data-bulk-select-all-rows="${table.id}" ${rows.length&&selectedRows.length===rows.length?"checked":""}/><span>Rows</span></label></th>${table.columns.map(c=>`<th class="bulk-column-head ${bulk.selectedCols.has(c.id)?"bulk-selected":""}" data-bulk-col-head="${table.id}" data-col-id="${c.id}"><label class="bulk-check-label"><input type="checkbox" data-bulk-col-toggle="${c.id}" data-table-id="${table.id}" ${bulk.selectedCols.has(c.id)?"checked":""}/><span>${escapeHTML(c.name)}</span></label></th>`).join("")}<th class="row-actions-head"></th></tr>`:`<tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}<th class="row-actions-head"></th></tr>`;
+  const body=rows.length?rows.map(row=>bulkActive?`<tr class="bulk-table-row ${bulk.selectedRows.has(row.id)?"bulk-selected":""}" data-bulk-row="${table.id}" data-row-id="${row.id}"><td class="bulk-row-check"><input type="checkbox" data-bulk-row-toggle="${row.id}" data-table-id="${table.id}" ${bulk.selectedRows.has(row.id)?"checked":""} aria-label="Select row" /></td>${table.columns.map(c=>`<td>${renderBulkPreviewCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`:`<tr class="gesture-table-row tracker-row-${rowView}" data-gesture-row="${row.id}" data-table-id="${table.id}">${table.columns.map(c=>`<td><div class="tracker-cell-content">${renderTableCell(c,row.values[c.id],table.id,row.id)}</div></td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`).join(""):`<tr><td colspan="${table.columns.length+(bulkActive?2:1)}">No rows yet.</td></tr>`;
   const bulkSelectAll=bulkActive?`<div class="bulk-selection-shortcuts"><label><input type="checkbox" data-bulk-select-all-cols="${table.id}" ${selectedCols.length===table.columns.length?"checked":""}/> All columns</label><span>Tip: select one column + all rows to copy a whole column.</span></div>`:"";
-  return `${bulkActive?bulkActions:normalActions}${bulkActive?"":renderInlineTableRow(table)}${bulkSelectAll}<div class="table-wrapper ${bulkActive?"bulk-table-wrapper":""}"><table class="smart-table ${bulkActive?"smart-table-bulk":""}"><thead>${head}</thead><tbody>${body}</tbody></table></div><p class="gesture-hint">${bulkActive?"Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.":"Tip: double-tap to edit · long-press for actions · swipe right to edit · swipe left to delete."}</p>`;
+  return `${bulkActive?bulkActions:normalActions}${bulkActive?"":renderInlineTableRow(table)}${bulkSelectAll}<div class="table-wrapper tracker-freeze-wrapper"><table class="smart-table ${bulkActive?"smart-table-bulk":""}"><thead>${head}</thead><tbody>${body}</tbody></table></div><p class="gesture-hint">${bulkActive?"Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.":"Double-tap to edit · long-press to copy row · swipe right to edit · ••• for row actions"}</p>`;
 }
+
+const expandedTrackerRows=new Set();
+function cycleTrackerRowView(tableId){
+  const table=state.tables.find(t=>t.id===tableId);if(!table)return;
+  const modes=["comfortable","compact","collapsed"],current=modes.indexOf(table.rowView||"compact");
+  table.rowView=modes[(current+1)%modes.length];
+  showToast(`Rows: ${table.rowView} 🌸`);render();
+}
+function trackerRowClipboardText(table,row){
+  return table.columns.map(col=>clipboardCellValue(col,row.values[col.id])).join("\t");
+}
+async function copyTrackerRow(tableId,rowId){
+  const table=state.tables.find(t=>t.id===tableId),row=table?.rows.find(r=>r.id===rowId);if(!table||!row)return;
+  const ok=await writeClipboardText(trackerRowClipboardText(table,row));
+  showToast(ok?"Row copied 📋":"Couldn’t copy this row.");
+}
+function openTrackerImport(tableId){
+  const table=state.tables.find(t=>t.id===tableId);if(!table)return;
+  document.getElementById("trackerImportTableId").value=tableId;
+  document.getElementById("trackerImportTitle").textContent=`Import into ${table.name}`;
+  document.getElementById("trackerImportFile").value="";
+  document.getElementById("trackerImportPaste").value="";
+  document.getElementById("trackerImportHeaders").checked=true;
+  openModal("trackerImportModal");
+}
+async function ensureSheetJS(){
+  if(window.XLSX)return window.XLSX;
+  return new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-sheetjs-loader]');
+    if(existing){existing.addEventListener("load",()=>resolve(window.XLSX),{once:true});existing.addEventListener("error",()=>reject(new Error("SheetJS load failed")),{once:true});return;}
+    const script=document.createElement("script");script.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";script.dataset.sheetjsLoader="1";script.onload=()=>resolve(window.XLSX);script.onerror=()=>reject(new Error("SheetJS load failed"));document.head.appendChild(script);
+  });
+}
+function normalizeImportedCell(value){
+  if(value===null||value===undefined)return "";
+  if(value instanceof Date)return localDateISO(value);
+  return String(value).trim();
+}
+function parseDelimitedGrid(text){
+  const raw=String(text||"").replace(/^\uFEFF/,"").trim();if(!raw)return [];
+  const delimiter=raw.includes("\t")?"\t":",";
+  if(delimiter==="\t")return raw.split(/\r?\n/).map(line=>line.split("\t").map(v=>v.trim()));
+  const rows=[];let row=[],cell="",quoted=false;
+  for(let i=0;i<raw.length;i++){const ch=raw[i],next=raw[i+1];if(ch==='"'){if(quoted&&next==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell.trim());cell="";}else if((ch==="\n"||ch==="\r")&&!quoted){if(ch==="\r"&&next==="\n")i++;row.push(cell.trim());rows.push(row);row=[];cell="";}else cell+=ch;}
+  row.push(cell.trim());rows.push(row);return rows.filter(r=>r.some(v=>v!==""));
+}
+function inferImportedColumnType(values){
+  const sample=values.filter(v=>String(v).trim()!=="").slice(0,20);if(!sample.length)return "text";
+  if(sample.every(v=>/^(true|false|yes|no|✓|0|1)$/i.test(String(v))))return "checkbox";
+  if(sample.every(v=>/^\d+(?:\.\d+)?%$/.test(String(v))||(+v>=0&&+v<=100&&String(v).trim()!=="")))return "number";
+  if(sample.every(v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v))))return "date";
+  if(sample.every(v=>!Number.isNaN(Number(String(v).replace(/[,₱$€£¥]/g,"")))))return "number";
+  return "text";
+}
+function coerceImportedValue(col,value){
+  const v=normalizeImportedCell(value);
+  if(col.type==="checkbox")return /^(true|yes|✓|1)$/i.test(v);
+  if(["number","money","progress"].includes(col.type)){const n=Number(v.replace(/[%,$₱€£¥]/g,""));return Number.isFinite(n)?n:0;}
+  if(["date","reminder"].includes(col.type)){if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;const d=new Date(v);return Number.isNaN(d.getTime())?"":localDateISO(d);}
+  return v;
+}
+function importGridIntoTracker(table,grid,headers=true){
+  if(!grid.length)return showToast("No spreadsheet rows found.");
+  createSafetySnapshot("pre-tracker-import",JSON.stringify(state),{force:true});
+  const width=Math.max(...grid.map(r=>r.length));
+  const headerRow=headers?grid[0].map((v,i)=>String(v||`Column ${i+1}`).trim()||`Column ${i+1}`):Array.from({length:width},(_,i)=>table.columns[i]?.name||`Column ${i+1}`);
+  const dataRows=(headers?grid.slice(1):grid).filter(r=>r.some(v=>String(v??"").trim()!==""));
+  const mapping=[];
+  headerRow.forEach((name,i)=>{
+    let col=table.columns.find(c=>c.name.trim().toLowerCase()===name.trim().toLowerCase());
+    if(!col){col={id:createId(),name,type:inferImportedColumnType(dataRows.map(r=>r[i]))};table.columns.push(col);}
+    mapping.push(col);
+  });
+  dataRows.forEach(r=>{const values={};table.columns.forEach(c=>values[c.id]="");mapping.forEach((col,i)=>{values[col.id]=coerceImportedValue(col,r[i]??"");});table.rows.push({id:createId(),values,createdAt:Date.now(),updatedAt:Date.now()});});
+  closeModal("trackerImportModal");showToast(`${dataRows.length} row${dataRows.length===1?"":"s"} imported 📊`);render();
+}
+async function applyTrackerImport(){
+  const table=state.tables.find(t=>t.id===document.getElementById("trackerImportTableId").value);if(!table)return;
+  const file=document.getElementById("trackerImportFile").files?.[0],paste=document.getElementById("trackerImportPaste").value,headers=document.getElementById("trackerImportHeaders").checked;
+  try{
+    let grid=[];
+    if(file){
+      const ext=(file.name.split(".").pop()||"").toLowerCase();
+      if(["csv","tsv","txt"].includes(ext)){grid=parseDelimitedGrid(await file.text());}
+      else if(["xlsx","xls","xlsm","xlsb","ods"].includes(ext)){
+        showToast("Reading spreadsheet…");const XLSX=await ensureSheetJS();const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:"array",cellDates:true});const ws=wb.Sheets[wb.SheetNames[0]];grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+      } else return showToast("Choose an Excel, CSV, or TSV file.");
+    } else if(paste.trim()) grid=parseDelimitedGrid(paste);
+    else return showToast("Choose a file or paste spreadsheet cells.");
+    importGridIntoTracker(table,grid,headers);
+  }catch(error){console.error("Tracker import failed",error);showToast("Couldn’t import that sheet. For Excel files, make sure you’re online the first time.");}
+}
+
 function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase().replace(/\s+/g,"-")}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
 
@@ -4123,6 +4218,9 @@ document.addEventListener("click", event => {
 
   const selectTable=event.target.closest("[data-select-table]");if(selectTable){state.activeTableId=selectTable.dataset.selectTable;const next=state.tables.find(t=>t.id===state.activeTableId);resetTableBulkState(next,false);render();return;}
   const editTable=event.target.closest("[data-edit-table]");if(editTable){openTableModal(editTable.dataset.editTable);return;}
+  const rowMore=event.target.closest("[data-row-more]");if(rowMore){event.preventDefault();event.stopPropagation();openRowActionMenu(rowMore.dataset.tableId,rowMore.dataset.rowMore);return;}
+  const cycleRows=event.target.closest("[data-cycle-row-view]");if(cycleRows){cycleTrackerRowView(cycleRows.dataset.cycleRowView);return;}
+  const importTable=event.target.closest("[data-import-table]");if(importTable){openTrackerImport(importTable.dataset.importTable);return;}
   const addRow=event.target.closest("[data-add-row]");if(addRow){openTableRowModal(addRow.dataset.addRow);return;}
   const toggleQuickRow=event.target.closest("[data-toggle-quick-row]");if(toggleQuickRow){document.getElementById(`quickRow_${toggleQuickRow.dataset.toggleQuickRow}`)?.classList.toggle("hidden");return;}
   const deleteTableButton=event.target.closest("[data-delete-table]");if(deleteTableButton){deleteTable(deleteTableButton.dataset.deleteTable);return;}
@@ -4201,18 +4299,32 @@ document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilt
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
 let lastTableTap={tableId:"",rowId:"",time:0};
 function openRowActionMenu(tableId,rowId){
-  document.getElementById("rowGestureSheet")?.remove();
-  const sheet=document.createElement("div");sheet.id="rowGestureSheet";sheet.className="row-gesture-sheet";sheet.innerHTML=`<div class="row-gesture-card"><div class="action-sheet-handle"></div><strong>Row actions</strong><button data-gesture-edit="${rowId}" data-table-id="${tableId}">✎ Edit row</button><button data-gesture-move="up" data-row-id="${rowId}" data-table-id="${tableId}">↑ Move row up</button><button data-gesture-move="down" data-row-id="${rowId}" data-table-id="${tableId}">↓ Move row down</button><button class="danger-action" data-gesture-delete="${rowId}" data-table-id="${tableId}">🗑 Delete row</button><button data-close-gesture>Cancel</button></div>`;document.body.appendChild(sheet);
+  const table=state.tables.find(t=>t.id===tableId),row=table?.rows.find(r=>r.id===rowId);if(!table||!row)return;
+  document.getElementById("rowGestureSheet")?.remove();const sheet=document.createElement("div");sheet.id="rowGestureSheet";sheet.className="row-gesture-sheet";
+  const index=table.rows.findIndex(r=>r.id===rowId);
+  sheet.innerHTML=`<div class="row-gesture-card"><strong>Row actions</strong><button data-row-sheet-edit>Edit row</button><button data-row-sheet-copy>Copy row</button>${table.sortMode!=="auto"?`<button data-row-sheet-up ${index<=0?"disabled":""}>Move up</button><button data-row-sheet-down ${index>=table.rows.length-1?"disabled":""}>Move down</button>`:""}<button class="danger-action" data-row-sheet-delete>Delete row</button><button data-row-sheet-close>Cancel</button></div>`;
+  document.body.appendChild(sheet);
+  sheet.addEventListener("click",async e=>{if(e.target===sheet||e.target.closest("[data-row-sheet-close]")){sheet.remove();return;}if(e.target.closest("[data-row-sheet-edit]")){sheet.remove();openTableRowModal(tableId,rowId);return;}if(e.target.closest("[data-row-sheet-copy]")){await copyTrackerRow(tableId,rowId);sheet.remove();return;}if(e.target.closest("[data-row-sheet-up]")){moveTableRow(tableId,rowId,"up");sheet.remove();return;}if(e.target.closest("[data-row-sheet-down]")){moveTableRow(tableId,rowId,"down");sheet.remove();return;}if(e.target.closest("[data-row-sheet-delete]")){sheet.remove();deleteTableRow(tableId,rowId);}});
 }
+
 document.addEventListener("contextmenu",event=>{if(event.target.closest("[data-gesture-row]"))event.preventDefault();});
 document.addEventListener("selectstart",event=>{if(event.target.closest("[data-gesture-row]"))event.preventDefault();});
-document.addEventListener("click",event=>{const e=event.target.closest("[data-gesture-edit]");if(e){document.getElementById("rowGestureSheet")?.remove();openTableRowModal(e.dataset.tableId,e.dataset.gestureEdit);return;}const m=event.target.closest("[data-gesture-move]");if(m){document.getElementById("rowGestureSheet")?.remove();moveTableRow(m.dataset.tableId,m.dataset.rowId,m.dataset.gestureMove);return;}const d=event.target.closest("[data-gesture-delete]");if(d){document.getElementById("rowGestureSheet")?.remove();deleteTableRow(d.dataset.tableId,d.dataset.gestureDelete);return;}if(event.target.closest("[data-close-gesture]"))document.getElementById("rowGestureSheet")?.remove();});
-document.addEventListener("dblclick",event=>{const row=event.target.closest("[data-gesture-row]");if(!row)return;event.preventDefault();openTableRowModal(row.dataset.tableId,row.dataset.gestureRow);});
-document.addEventListener("touchstart",event=>{const row=event.target.closest("[data-gesture-row]");if(!row)return;const t=event.touches[0];const tableId=row.dataset.tableId,rowId=row.dataset.gestureRow;tableGesture={row,tableId,rowId,startX:t.clientX,startY:t.clientY,timer:null,moved:false,longPressed:false};tableGesture.timer=setTimeout(()=>{if(!tableGesture.row||tableGesture.moved)return;tableGesture.longPressed=true;lastTableTap={tableId:"",rowId:"",time:0};openRowActionMenu(tableId,rowId);},650);},{passive:true});
+document.addEventListener("dblclick",event=>{const row=event.target.closest("[data-gesture-row]");if(!row||event.target.closest("button,input,select,a"))return;event.preventDefault();openTableRowModal(row.dataset.tableId,row.dataset.gestureRow);});
+document.addEventListener("touchstart",event=>{
+  const row=event.target.closest("[data-gesture-row]");if(!row||event.target.closest("button,input,select,a"))return;
+  const t=event.touches[0],tableId=row.dataset.tableId,rowId=row.dataset.gestureRow;
+  tableGesture={row,tableId,rowId,startX:t.clientX,startY:t.clientY,timer:null,moved:false,longPressed:false};
+  tableGesture.timer=setTimeout(async()=>{if(!tableGesture.row||tableGesture.moved)return;tableGesture.longPressed=true;lastTableTap={tableId:"",rowId:"",time:0};navigator.vibrate?.(18);await copyTrackerRow(tableId,rowId);},560);
+},{passive:true});
 document.addEventListener("touchmove",event=>{if(!tableGesture.row)return;const t=event.touches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10){tableGesture.moved=true;clearTimeout(tableGesture.timer);}},{passive:true});
-document.addEventListener("touchend",event=>{if(!tableGesture.row)return;clearTimeout(tableGesture.timer);const t=event.changedTouches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;const {tableId,rowId,moved,longPressed}=tableGesture;tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};if(longPressed){event.preventDefault();return;}if(Math.abs(dx)>=65&&Math.abs(dx)>=Math.abs(dy)*1.3){lastTableTap={tableId:"",rowId:"",time:0};if(dx>0)openTableRowModal(tableId,rowId);else deleteTableRow(tableId,rowId);return;}if(moved||Math.abs(dx)>12||Math.abs(dy)>12)return;const now=Date.now();if(lastTableTap.tableId===tableId&&lastTableTap.rowId===rowId&&now-lastTableTap.time<=340){lastTableTap={tableId:"",rowId:"",time:0};event.preventDefault();openTableRowModal(tableId,rowId);return;}lastTableTap={tableId,rowId,time:now};},{passive:false});
+document.addEventListener("touchend",event=>{
+  if(!tableGesture.row)return;clearTimeout(tableGesture.timer);
+  const {row,tableId,rowId,startX,startY,moved,longPressed}=tableGesture;const t=event.changedTouches[0],dx=t.clientX-startX,dy=t.clientY-startY;tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
+  if(longPressed)return;
+  if(Math.abs(dx)>=65&&Math.abs(dx)>Math.abs(dy)*1.3){if(dx>0)openTableRowModal(tableId,rowId);return;}
+  if(!moved){const now=Date.now();if(lastTableTap.tableId===tableId&&lastTableTap.rowId===rowId&&now-lastTableTap.time<=340){lastTableTap={tableId:"",rowId:"",time:0};openTableRowModal(tableId,rowId);}else lastTableTap={tableId,rowId,time:now};}
+},{passive:true});
 
-let taskGesture={card:null,taskId:"",startX:0,startY:0,lastX:0,lastY:0,timer:null,longPressed:false};
 let taskGestureSuppressUntil=0;
 let openTaskSwipeShell=null;
 function closeTaskSwipeActions(exceptShell=null){
@@ -4298,6 +4410,18 @@ document.getElementById("mainAddButton").addEventListener("click",()=>openModal(
 document.getElementById("saveQuickTaskButton")?.addEventListener("click",saveQuickTask);
 document.getElementById("saveQuickAccessButton")?.addEventListener("click", saveQuickAccess);
 document.getElementById("addTableColumnButton")?.addEventListener("click",()=>addTableColumnBuilder());
+let tableColumnDrag=null;
+document.addEventListener("pointerdown",event=>{
+  const handle=event.target.closest("[data-table-drag-handle]");if(!handle)return;
+  event.preventDefault();syncTableBuilderFromDOM();handle.setPointerCapture?.(event.pointerId);tableColumnDrag={colId:handle.dataset.tableDragHandle,startY:event.clientY,pointerId:event.pointerId};handle.closest(".table-column-row")?.classList.add("dragging-column");
+});
+document.addEventListener("pointermove",event=>{
+  if(!tableColumnDrag||event.pointerId!==tableColumnDrag.pointerId)return;const dy=event.clientY-tableColumnDrag.startY;if(Math.abs(dy)<38)return;
+  const id=tableColumnDrag.colId,index=tableBuilderColumns.findIndex(c=>c.id===id),target=index+(dy>0?1:-1);if(index<0||target<0||target>=tableBuilderColumns.length){tableColumnDrag.startY=event.clientY;return;}
+  [tableBuilderColumns[index],tableBuilderColumns[target]]=[tableBuilderColumns[target],tableBuilderColumns[index]];tableColumnDrag.startY=event.clientY;renderTableColumnsBuilder();document.querySelector(`[data-table-builder-row="${id}"]`)?.classList.add("dragging-column");
+});
+document.addEventListener("pointerup",event=>{if(!tableColumnDrag||event.pointerId!==tableColumnDrag.pointerId)return;document.querySelector(`[data-table-builder-row="${tableColumnDrag.colId}"]`)?.classList.remove("dragging-column");tableColumnDrag=null;});
+document.getElementById("applyTrackerImportButton")?.addEventListener("click",applyTrackerImport);
 document.getElementById("tableTemplate")?.addEventListener("change",event=>applyTableTemplate(event.target.value, true));
 document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
