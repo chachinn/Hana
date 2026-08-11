@@ -3380,3 +3380,54 @@ body.wallpaper-active .nav-drawer {
 .add-menu-more > summary::after { content: "  +"; }
 .add-menu-more[open] > summary::after { content: "  −"; }
 .secondary-action-grid { padding: 0 10px 10px; }
+
+/* =====================================================
+   HANA v1.8.1 — TASK SWIPE ACTION REVEAL
+   ===================================================== */
+.task-swipe-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  margin-bottom: 10px;
+  background: #f6edf1;
+}
+.task-swipe-shell .gesture-task-item {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 0;
+  background: var(--surface, #fff);
+  transition: transform .2s ease;
+  will-change: transform;
+}
+.task-swipe-action {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 86px;
+  border: 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-swipe-edit {
+  left: 0;
+  background: #d98aa7;
+}
+.task-swipe-delete {
+  right: 0;
+  background: #c8556f;
+}
+.task-swipe-shell.swipe-edit-open .gesture-task-item {
+  transform: translateX(86px);
+}
+.task-swipe-shell.swipe-delete-open .gesture-task-item {
+  transform: translateX(-86px);
+}
+.task-swipe-shell.swipe-edit-open .task-swipe-delete,
+.task-swipe-shell.swipe-delete-open .task-swipe-edit {
+  pointer-events: none;
+}

@@ -1204,19 +1204,23 @@ function taskCard(task) {
   if (task.reminderEnabled) secondary.push("Reminder");
   if (task.rescheduleCount >= 2) secondary.push(`Moved ${task.rescheduleCount}×`);
 
-  return `<div class="task-item gesture-task-item ${task.completed ? "completed" : ""}" data-gesture-task="${task.id}">
-    <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}" aria-label="Toggle task">${task.completed ? "✓" : ""}</button>
-    <div class="task-main" data-edit-task="${task.id}">
-      <div class="task-title">${escapeHTML(task.title)}</div>
-      <div class="task-meta task-meta-primary">
-        <span class="badge ${modeBadge(task.space)}">${modeLabel(task.space)}</span>
-        ${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}
-        ${task.dueDate ? `<span class="${overdue ? "overdue-text" : ""}">${overdue ? "⚠️ " : "📅 "}${formatDate(task.dueDate)}</span>` : ""}
-        <span class="badge badge-${task.status}">${statusLabel(task.status)}</span>
+  return `<div class="task-swipe-shell" data-task-swipe-shell="${task.id}">
+    <button class="task-swipe-action task-swipe-edit" data-swipe-task-edit="${task.id}" aria-label="Edit ${escapeHTML(task.title)}">Edit</button>
+    <button class="task-swipe-action task-swipe-delete" data-swipe-task-delete="${task.id}" aria-label="Delete ${escapeHTML(task.title)}">Delete</button>
+    <div class="task-item gesture-task-item ${task.completed ? "completed" : ""}" data-gesture-task="${task.id}">
+      <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}" aria-label="Toggle task">${task.completed ? "✓" : ""}</button>
+      <div class="task-main" data-edit-task="${task.id}">
+        <div class="task-title">${escapeHTML(task.title)}</div>
+        <div class="task-meta task-meta-primary">
+          <span class="badge ${modeBadge(task.space)}">${modeLabel(task.space)}</span>
+          ${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}
+          ${task.dueDate ? `<span class="${overdue ? "overdue-text" : ""}">${overdue ? "⚠️ " : "📅 "}${formatDate(task.dueDate)}</span>` : ""}
+          <span class="badge badge-${task.status}">${statusLabel(task.status)}</span>
+        </div>
+        ${secondary.length ? `<div class="task-secondary-meta">${secondary.map(item=>`<span>${escapeHTML(item)}</span>`).join("<i>·</i>")}</div>` : ""}
+        ${task.status === "waiting" && (task.waitingOn || task.followUpDate) ? `<div class="task-waiting-note"><strong>Waiting:</strong> ${escapeHTML(task.waitingOn || "Follow-up")}${task.followUpDate ? ` · ${formatDate(task.followUpDate)}` : ""}</div>` : ""}
+        ${task.rescheduleCount >= 2 && !task.completed ? `<button class="no-guilt-inline" data-reflect-reschedule="${task.id}">🌿 Help me rethink this</button>` : ""}
       </div>
-      ${secondary.length ? `<div class="task-secondary-meta">${secondary.map(item=>`<span>${escapeHTML(item)}</span>`).join("<i>·</i>")}</div>` : ""}
-      ${task.status === "waiting" && (task.waitingOn || task.followUpDate) ? `<div class="task-waiting-note"><strong>Waiting:</strong> ${escapeHTML(task.waitingOn || "Follow-up")}${task.followUpDate ? ` · ${formatDate(task.followUpDate)}` : ""}</div>` : ""}
-      ${task.rescheduleCount >= 2 && !task.completed ? `<button class="no-guilt-inline" data-reflect-reschedule="${task.id}">🌿 Help me rethink this</button>` : ""}
     </div>
   </div>`;
 }
@@ -1513,9 +1517,11 @@ function cycleTaskStatus(id) {
   task.updatedAt = Date.now(); showToast(`Status: ${statusLabel(task.status)}`); render();
 }
 
-function deleteTask(id) {
+function deleteTask(id, options = {}) {
   const task = state.tasks.find(t => t.id === id);
-  if (!task || !confirm("Move this task to Trash?")) return;
+  if (!task) return;
+  const needsConfirm = options.confirm !== false;
+  if (needsConfirm && !confirm("Move this task to Trash?")) return;
   const linkedReminders = state.reminders.filter(r => r.linkedTaskId === id);
   moveToTrash("task", task, { linkedReminders });
   state.tasks = state.tasks.filter(t => t.id !== id);
@@ -3378,18 +3384,82 @@ document.addEventListener("touchstart",event=>{const row=event.target.closest("[
 document.addEventListener("touchmove",event=>{if(!tableGesture.row)return;const t=event.touches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10){tableGesture.moved=true;clearTimeout(tableGesture.timer);}},{passive:true});
 document.addEventListener("touchend",event=>{if(!tableGesture.row)return;clearTimeout(tableGesture.timer);const t=event.changedTouches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;const {tableId,rowId}=tableGesture;tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false};if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.3)return;if(dx>0)openTableRowModal(tableId,rowId);else deleteTableRow(tableId,rowId);},{passive:true});
 
-let taskGesture={card:null,taskId:"",startX:0,startY:0,timer:null,longPressed:false};
+let taskGesture={card:null,taskId:"",startX:0,startY:0,lastX:0,lastY:0,timer:null,longPressed:false};
 let taskGestureSuppressUntil=0;
+let openTaskSwipeShell=null;
+function closeTaskSwipeActions(exceptShell=null){
+  document.querySelectorAll(".task-swipe-shell.swipe-edit-open,.task-swipe-shell.swipe-delete-open").forEach(shell=>{
+    if(shell!==exceptShell) shell.classList.remove("swipe-edit-open","swipe-delete-open");
+  });
+  if(openTaskSwipeShell && openTaskSwipeShell!==exceptShell) openTaskSwipeShell=null;
+}
+function revealTaskSwipeAction(taskId, action){
+  const shell=document.querySelector(`[data-task-swipe-shell="${taskId}"]`);if(!shell)return;
+  closeTaskSwipeActions(shell);
+  shell.classList.remove("swipe-edit-open","swipe-delete-open");
+  shell.classList.add(action==="edit"?"swipe-edit-open":"swipe-delete-open");
+  openTaskSwipeShell=shell;
+}
+document.addEventListener("click",event=>{
+  if(!openTaskSwipeShell) return;
+  if(event.target.closest("[data-swipe-task-edit],[data-swipe-task-delete]")) return;
+  const tappedShell=event.target.closest(".task-swipe-shell");
+  if(tappedShell===openTaskSwipeShell){
+    closeTaskSwipeActions();
+    event.preventDefault();
+    event.stopPropagation();
+  }
+},true);
+
 function openTaskGestureMenu(taskId){
   const task=state.tasks.find(item=>item.id===taskId);if(!task)return;
+  closeTaskSwipeActions();
   taskGestureSuppressUntil=Date.now()+800;
   document.getElementById("taskGestureSheet")?.remove();
   const sheet=document.createElement("div");sheet.id="taskGestureSheet";sheet.className="row-gesture-sheet";sheet.innerHTML=`<div class="row-gesture-card"><div class="action-sheet-handle"></div><strong>${escapeHTML(task.title)}</strong><button data-task-gesture-edit="${task.id}">✎ Edit task</button><button data-task-gesture-breakdown="${task.id}">☷ Break down</button><button class="danger-action" data-task-gesture-delete="${task.id}">🗑 Delete task</button><button data-close-task-gesture>Cancel</button></div>`;document.body.appendChild(sheet);
 }
-document.addEventListener("click",event=>{const edit=event.target.closest("[data-task-gesture-edit]");if(edit){document.getElementById("taskGestureSheet")?.remove();openTaskModal(edit.dataset.taskGestureEdit);return;}const breakdown=event.target.closest("[data-task-gesture-breakdown]");if(breakdown){document.getElementById("taskGestureSheet")?.remove();openBreakdownModal(breakdown.dataset.taskGestureBreakdown);return;}const del=event.target.closest("[data-task-gesture-delete]");if(del){document.getElementById("taskGestureSheet")?.remove();deleteTask(del.dataset.taskGestureDelete);return;}if(event.target.closest("[data-close-task-gesture]"))document.getElementById("taskGestureSheet")?.remove();});
-document.addEventListener("touchstart",event=>{const card=event.target.closest("[data-gesture-task]");if(!card)return;if(event.target.closest("button,input,select,textarea,a"))return;const touch=event.touches[0];taskGesture={card,taskId:card.dataset.gestureTask,startX:touch.clientX,startY:touch.clientY,timer:null,longPressed:false};taskGesture.timer=setTimeout(()=>{taskGesture.longPressed=true;openTaskGestureMenu(taskGesture.taskId);},620);},{passive:true});
-document.addEventListener("touchmove",event=>{if(!taskGesture.card)return;const touch=event.touches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10)clearTimeout(taskGesture.timer);},{passive:true});
-document.addEventListener("touchend",event=>{if(!taskGesture.card)return;clearTimeout(taskGesture.timer);const touch=event.changedTouches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;const taskId=taskGesture.taskId,longPressed=taskGesture.longPressed;taskGesture={card:null,taskId:"",startX:0,startY:0,timer:null,longPressed:false};if(longPressed){taskGestureSuppressUntil=Date.now()+800;event.preventDefault();return;}if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.35)return;taskGestureSuppressUntil=Date.now()+700;event.preventDefault();if(dx>0)openTaskModal(taskId);else deleteTask(taskId);},{passive:false});
+document.addEventListener("click",event=>{
+  const swipeEdit=event.target.closest("[data-swipe-task-edit]");if(swipeEdit){taskGestureSuppressUntil=Date.now()+500;closeTaskSwipeActions();openTaskModal(swipeEdit.dataset.swipeTaskEdit);return;}
+  const swipeDelete=event.target.closest("[data-swipe-task-delete]");if(swipeDelete){const id=swipeDelete.dataset.swipeTaskDelete;taskGestureSuppressUntil=Date.now()+500;closeTaskSwipeActions();deleteTask(id,{confirm:false});return;}
+  const edit=event.target.closest("[data-task-gesture-edit]");if(edit){document.getElementById("taskGestureSheet")?.remove();openTaskModal(edit.dataset.taskGestureEdit);return;}
+  const breakdown=event.target.closest("[data-task-gesture-breakdown]");if(breakdown){document.getElementById("taskGestureSheet")?.remove();openBreakdownModal(breakdown.dataset.taskGestureBreakdown);return;}
+  const del=event.target.closest("[data-task-gesture-delete]");if(del){document.getElementById("taskGestureSheet")?.remove();deleteTask(del.dataset.taskGestureDelete);return;}
+  if(event.target.closest("[data-close-task-gesture]")){document.getElementById("taskGestureSheet")?.remove();return;}
+  if(openTaskSwipeShell && !event.target.closest(".task-swipe-shell")) closeTaskSwipeActions();
+});
+document.addEventListener("touchstart",event=>{
+  const card=event.target.closest("[data-gesture-task]");if(!card)return;
+  if(event.target.closest("button,input,select,textarea,a"))return;
+  const touch=event.touches[0],shell=card.closest(".task-swipe-shell");
+  if(openTaskSwipeShell){
+    closeTaskSwipeActions();
+  }
+  taskGesture={card,taskId:card.dataset.gestureTask,startX:touch.clientX,startY:touch.clientY,lastX:touch.clientX,lastY:touch.clientY,timer:null,longPressed:false};
+  taskGesture.timer=setTimeout(()=>{taskGesture.longPressed=true;openTaskGestureMenu(taskGesture.taskId);},620);
+},{passive:true});
+document.addEventListener("touchmove",event=>{
+  if(!taskGesture.card)return;
+  const touch=event.touches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;
+  taskGesture.lastX=touch.clientX;taskGesture.lastY=touch.clientY;
+  if(Math.abs(dx)>10||Math.abs(dy)>10)clearTimeout(taskGesture.timer);
+  if(Math.abs(dx)>Math.abs(dy)*1.25 && Math.abs(dx)>12){
+    const limited=Math.max(-92,Math.min(92,dx));
+    taskGesture.card.style.transform=`translateX(${limited}px)`;
+    taskGesture.card.style.transition="none";
+  }
+},{passive:true});
+document.addEventListener("touchend",event=>{
+  if(!taskGesture.card)return;
+  clearTimeout(taskGesture.timer);
+  const touch=event.changedTouches[0],dx=touch.clientX-taskGesture.startX,dy=touch.clientY-taskGesture.startY;
+  const taskId=taskGesture.taskId,longPressed=taskGesture.longPressed,card=taskGesture.card;
+  card.style.transform="";card.style.transition="";
+  taskGesture={card:null,taskId:"",startX:0,startY:0,lastX:0,lastY:0,timer:null,longPressed:false};
+  if(longPressed){taskGestureSuppressUntil=Date.now()+800;event.preventDefault();return;}
+  if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.35)return;
+  taskGestureSuppressUntil=Date.now()+550;event.preventDefault();
+  revealTaskSwipeAction(taskId,dx>0?"edit":"delete");
+},{passive:false});
 
 document.addEventListener("dragstart",event=>{const card=event.target.closest("[data-calendar-drag-task]");if(!card)return;state.calendarDragTaskId=card.dataset.calendarDragTask;event.dataTransfer?.setData("text/plain",state.calendarDragTaskId);if(event.dataTransfer)event.dataTransfer.effectAllowed="move";});
 document.addEventListener("dragover",event=>{const slot=event.target.closest("[data-time-slot]");if(!slot)return;event.preventDefault();slot.classList.add("drag-over");});
