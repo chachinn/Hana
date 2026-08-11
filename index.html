@@ -175,6 +175,19 @@
     </div>
   </div>
 
+  <!-- QUICK TASK MODAL -->
+  <div id="quickTaskModal" class="modal-overlay hidden">
+    <div class="modal-card quick-task-card">
+      <div class="modal-header"><div><p class="eyebrow">QUICK TASK</p><h2>Add in seconds</h2></div><button class="modal-close" data-close-modal="quickTaskModal">×</button></div>
+      <div class="form-group"><label for="quickTaskTitle">Task</label><input id="quickTaskTitle" type="text" placeholder="What needs doing?" /></div>
+      <div class="form-row">
+        <div class="form-group"><label for="quickTaskSpace">Space</label><select id="quickTaskSpace" data-space-select></select></div>
+        <div class="form-group"><label for="quickTaskDue">Due <span class="optional-label">optional</span></label><input id="quickTaskDue" type="date" /></div>
+      </div>
+      <div class="modal-actions"><button class="secondary-button" data-close-modal="quickTaskModal">Cancel</button><button id="saveQuickTaskButton" class="primary-button">Add task</button></div>
+    </div>
+  </div>
+
   <!-- TASK MODAL -->
   <div id="taskModal" class="modal-overlay hidden">
     <div class="modal-card modal-large task-modal-card">
@@ -400,6 +413,13 @@
         <input id="tableStatusOptions" type="text" placeholder="Upcoming, To Do, Doing, Waiting, Done" />
         <small class="field-help">Used by any status column. Separate options with commas.</small>
       </div>
+      <div class="table-sort-settings">
+        <div class="form-group"><label for="tableSortMode">Row order</label><select id="tableSortMode"><option value="manual">Manual — keep my row order</option><option value="auto">Automatic — sort by a column</option></select></div>
+        <div id="tableAutoSortFields" class="form-row hidden">
+          <div class="form-group"><label for="tableSortColumn">Sort column</label><select id="tableSortColumn"></select></div>
+          <div class="form-group"><label for="tableSortDirection">Direction</label><select id="tableSortDirection"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div>
+        </div>
+      </div>
       <div class="modal-actions task-modal-actions">
         <button id="deleteTableFromModal" class="danger-button hidden" type="button">Delete tracker</button>
         <div class="modal-action-spacer"></div>
@@ -431,7 +451,7 @@
 
   <!-- CHECKLIST / LIST MODAL -->
   <div id="listModal" class="modal-overlay hidden">
-    <div class="modal-card">
+    <div class="modal-card list-modal-card">
       <div class="modal-header">
         <div><p id="listModalEyebrow" class="eyebrow">NEW CHECKLIST</p><h2 id="listModalTitle">Create a list</h2></div>
         <button class="modal-close" data-close-modal="listModal">×</button>
@@ -618,7 +638,8 @@
       <div class="action-sheet-title">What would you like to plant?</div>
       <div class="action-grid">
         <button data-action="quick"><span>✨</span>Quick Capture</button>
-        <button data-action="task"><span>✅</span>Task</button>
+        <button data-action="quick-task"><span>⚡</span>Quick Task</button>
+        <button data-action="task"><span>✅</span>Full Task</button>
         <button data-action="event"><span>📅</span>Event</button>
         <button data-action="note"><span>📝</span>Note</button>
         <button data-action="future"><span>💌</span>Future Me</button>
