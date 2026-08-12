@@ -377,40 +377,40 @@
           }
         }
 
-        let inviteSnap;
-        try {
-          inviteSnap = await firestoreSdk.getDoc(partnerInviteDocRef(ownerUid, token));
-        } catch (error) {
-          rethrowPartnerPermission(error, "Reading the Partner invite");
-        }
-        if (!inviteSnap.exists()) throw new Error("That Partner invite was not found. Ask your partner to create a new one.");
-        let invite = inviteSnap.data();
-        if (invite.ownerUid !== ownerUid || cleanInviteToken(invite.token) !== token) throw new Error("That Partner invite does not match its owner.");
-        if (invite.status === "cancelled") throw new Error("That Partner invite was cancelled.");
-        if (invite.status === "disconnected") throw new Error("That Partner Link was disconnected. Ask for a new invite.");
-        if (invite.status === "accepted" && invite.acceptedUid !== uid) throw new Error("That Partner invite has already been used.");
-        if (!['open', 'accepted'].includes(invite.status)) throw new Error("That Partner invite is no longer available.");
-        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) throw new Error("That Partner invite has expired. Ask for a new one.");
-
-        const partnerName = invite.ownerName || invite.ownerEmail?.split("@")[0] || "Partner";
+        const inviteRef = partnerInviteDocRef(ownerUid, token);
         const myName = displayName || user.displayName || user.email?.split("@")[0] || "Hana user";
         const now = new Date().toISOString();
-
-        if (invite.status === "open") {
-          try {
-            await firestoreSdk.updateDoc(inviteSnap.ref, {
-              status: "accepted",
-              acceptedUid: uid,
-              acceptedName: myName,
-              acceptedEmail: user.email || "",
-              acceptedAt: now,
-              schemaVersion: 7
-            });
-          } catch (error) {
-            rethrowPartnerPermission(error, "Accepting the Partner invite");
-          }
-          invite = { ...invite, status: "accepted", acceptedUid: uid, acceptedName: myName, acceptedEmail: user.email || "" };
+        let invite;
+        try {
+          invite = await firestoreSdk.runTransaction(db, async transaction => {
+            const inviteSnap = await transaction.get(inviteRef);
+            if (!inviteSnap.exists()) throw new Error("That Partner invite was not found. Ask your partner to create a new one.");
+            const current = inviteSnap.data();
+            if (current.ownerUid !== ownerUid || cleanInviteToken(current.token) !== token) throw new Error("That Partner invite does not match its owner.");
+            if (current.status === "cancelled") throw new Error("That Partner invite was cancelled.");
+            if (current.status === "disconnected") throw new Error("That Partner Link was disconnected. Ask for a new invite.");
+            if (current.status === "accepted" && current.acceptedUid !== uid) throw new Error("That Partner invite has already been used.");
+            if (!['open', 'accepted'].includes(current.status)) throw new Error("That Partner invite is no longer available.");
+            if (current.expiresAt && new Date(current.expiresAt).getTime() < Date.now()) throw new Error("That Partner invite has expired. Ask for a new one.");
+            if (current.status === "open") {
+              transaction.update(inviteRef, {
+                status: "accepted",
+                acceptedUid: uid,
+                acceptedName: myName,
+                acceptedEmail: user.email || "",
+                acceptedAt: now,
+                schemaVersion: 7
+              });
+              return { ...current, status: "accepted", acceptedUid: uid, acceptedName: myName, acceptedEmail: user.email || "", acceptedAt: now };
+            }
+            return current;
+          });
+        } catch (error) {
+          if (isPartnerPermissionError(error)) rethrowPartnerPermission(error, "Accepting the Partner invite");
+          throw error;
         }
+
+        const partnerName = invite.ownerName || invite.ownerEmail?.split("@")[0] || "Partner";
 
         try {
           await firestoreSdk.setDoc(partnerProfileRef(uid), {
@@ -516,7 +516,9 @@
         let profile = null, ownPointer = null, ownInvite = null, linkInvite = null;
         let profileLoaded = false, pointerLoaded = false;
         let ownInviteLoading = false, linkInviteLoading = false;
+        let profilePromotionInFlight = false;
         let stopOwnInvite = () => {}, stopLinkInvite = () => {};
+        let attachLinkInvite = () => {};
 
         const validOpenInvite = () => {
           if (!ownPointer?.token || !ownInvite || ownInvite.status !== "open") return false;
@@ -524,7 +526,6 @@
           return !expiresAt || expiresAt > Date.now();
         };
         const memberOf = invite => Boolean(invite && invite.status === "accepted" && (invite.ownerUid === uid || invite.acceptedUid === uid));
-        const promotingAcceptedInvite = () => Boolean(!profile && ownInvite?.status === "accepted" && ownInvite.ownerUid === uid && ownInvite.acceptedUid);
         const publish = () => {
           // Do not emit a false "disconnected" state while Firestore is still
           // hydrating the documents that determine Partner Link membership.
@@ -533,7 +534,7 @@
           if (!profileLoaded || !pointerLoaded) return;
           if (profile && linkInviteLoading) return;
           if (!profile && ownPointer?.token && ownInviteLoading) return;
-          if (promotingAcceptedInvite()) return;
+          if (profilePromotionInFlight) return;
           if (profile && memberOf(linkInvite)) {
             callback({ connected: true, linkId: profile.linkId, partnerUid: profile.partnerUid, partnerName: profile.partnerName, partnerEmail: profile.partnerEmail });
             return;
@@ -545,6 +546,39 @@
           callback({ connected: false });
         };
 
+        const promoteAcceptedInvite = async (invite, token) => {
+          if (profilePromotionInFlight || profile) return;
+          if (!invite || invite.status !== "accepted" || invite.ownerUid !== uid || !invite.acceptedUid) return;
+          profilePromotionInFlight = true;
+          const now = new Date().toISOString();
+          const code = invite.code || makePartnerCode(uid, token);
+          const promotedProfile = {
+            linkId: code,
+            ownerUid: uid,
+            inviteToken: token,
+            partnerUid: invite.acceptedUid,
+            partnerName: invite.acceptedName || invite.acceptedEmail?.split("@")[0] || "Partner",
+            partnerEmail: invite.acceptedEmail || "",
+            connectedAt: now,
+            schemaVersion: 7
+          };
+          try {
+            await firestoreSdk.setDoc(partnerProfileRef(uid), promotedProfile);
+            // Do not wait on listener ordering after the successful write. Use the
+            // profile we just persisted immediately, then hydrate membership before
+            // publishing connected:true.
+            if (!profile) {
+              profile = promotedProfile;
+              profileLoaded = true;
+              attachLinkInvite(code);
+            }
+          } catch (error) {
+            console.warn("Hana Partner profile promotion:", error);
+          } finally {
+            profilePromotionInFlight = false;
+          }
+        };
+
         const attachOwnInvite = pointer => {
           stopOwnInvite(); stopOwnInvite = () => {}; ownInvite = null; ownInviteLoading = false;
           const token = cleanInviteToken(pointer?.token || "");
@@ -554,18 +588,7 @@
             ownInviteLoading = false;
             ownInvite = snap.exists() ? snap.data() : null;
             if (ownInvite?.status === "accepted" && ownInvite.ownerUid === uid && ownInvite.acceptedUid && !profile) {
-              const now = new Date().toISOString();
-              const code = ownInvite.code || makePartnerCode(uid, token);
-              await firestoreSdk.setDoc(partnerProfileRef(uid), {
-                linkId: code,
-                ownerUid: uid,
-                inviteToken: token,
-                partnerUid: ownInvite.acceptedUid,
-                partnerName: ownInvite.acceptedName || ownInvite.acceptedEmail?.split("@")[0] || "Partner",
-                partnerEmail: ownInvite.acceptedEmail || "",
-                connectedAt: now,
-                schemaVersion: 7
-              }).catch(() => {});
+              await promoteAcceptedInvite(ownInvite, token);
             }
             const expiresAt = ownInvite?.expiresAt ? new Date(ownInvite.expiresAt).getTime() : 0;
             if (ownInvite?.status === "open" && expiresAt && expiresAt <= Date.now()) {
@@ -581,7 +604,7 @@
           });
         };
 
-        const attachLinkInvite = linkId => {
+        attachLinkInvite = linkId => {
           stopLinkInvite(); stopLinkInvite = () => {}; linkInvite = null; linkInviteLoading = false;
           if (!linkId) return publish();
           let parsed;
