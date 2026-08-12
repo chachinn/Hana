@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
-  <meta name="hana-app-version" content="2.0.20" />
+  <meta name="hana-app-version" content="2.0.21" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.20" />
+  <link rel="stylesheet" href="style.css?v=2.0.21" />
 </head>
 <body>
   <div id="app">
@@ -304,6 +304,7 @@
         <button class="modal-close" data-close-modal="noteModal">×</button>
       </div>
       <input id="noteEditId" type="hidden" />
+      <input id="noteStructuredType" type="hidden" />
 
       <div class="form-row">
         <div class="form-group"><label for="noteTitle">Title</label><input id="noteTitle" type="text" placeholder="Note title" /></div>
@@ -317,19 +318,65 @@
 
       <div class="form-group"><label for="noteProject">🌷 Project <span class="optional-label">optional</span></label><input id="noteProject" type="text" list="hanaProjectOptions" placeholder="Link this note to a project" /></div>
 
-      <div class="note-toolbar" aria-label="Note formatting shortcuts">
+      <div id="meetingFieldsWrap" class="meeting-fields hidden">
+        <section class="meeting-form-section">
+          <div class="meeting-form-section-head"><div><small>MEETING SETUP</small><strong>Details</strong></div></div>
+          <div class="form-row">
+            <div class="form-group"><label for="meetingKind">Meeting format</label><select id="meetingKind"><option value="agenda">📋 Meeting Agenda</option><option value="minutes">📝 Minutes of the Meeting</option></select></div>
+            <div class="form-group"><label for="meetingDate">Date</label><input id="meetingDate" type="date" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="meetingStartTime">Start time</label><input id="meetingStartTime" type="time" /></div>
+            <div class="form-group"><label for="meetingEndTime">End time <span class="optional-label">optional</span></label><input id="meetingEndTime" type="time" /></div>
+          </div>
+          <div class="form-group"><label for="meetingLocation">Location / meeting link <span class="optional-label">optional</span></label><input id="meetingLocation" type="text" placeholder="Conference room, Teams/Meet link..." /></div>
+          <div class="form-group"><label for="meetingFacilitator">Facilitator / Chair</label><input id="meetingFacilitator" type="text" placeholder="Who is leading the meeting?" /></div>
+        </section>
+
+        <section class="meeting-form-section">
+          <div class="meeting-form-section-head"><div><small>PURPOSE & PEOPLE</small><strong>Why are we meeting?</strong></div></div>
+          <div class="form-group"><label for="meetingObjective">Objective / desired outcome</label><textarea id="meetingObjective" placeholder="What should this meeting accomplish or decide?"></textarea></div>
+          <div class="form-group"><label for="meetingAttendees">Attendees</label><textarea id="meetingAttendees" placeholder="Names or teams attending"></textarea></div>
+          <div id="meetingAbsentWrap" class="form-group hidden"><label for="meetingAbsent">Absent / apologies</label><textarea id="meetingAbsent" placeholder="People invited but not present"></textarea></div>
+        </section>
+
+        <section class="meeting-form-section">
+          <div class="meeting-form-section-head meeting-agenda-head"><div><small>AGENDA</small><strong>Topics</strong><span>Give each topic an owner and time box.</span></div><button type="button" class="secondary-button compact-button" data-add-meeting-agenda-item>+ Add topic</button></div>
+          <div class="meeting-agenda-column-head" aria-hidden="true"><span>Topic</span><span>Owner</span><span>Time</span><span></span></div>
+          <div id="meetingAgendaItems" class="meeting-agenda-items"></div>
+        </section>
+
+        <section id="meetingAgendaOnlyWrap" class="meeting-form-section">
+          <div class="meeting-form-section-head"><div><small>BEFORE THE MEETING</small><strong>Preparation</strong></div></div>
+          <div class="form-group"><label for="meetingDecisionsNeeded">Decisions needed <span class="optional-label">optional</span></label><textarea id="meetingDecisionsNeeded" placeholder="What decisions should be reached during this meeting?"></textarea></div>
+          <div class="form-group"><label for="meetingPrepMaterials">Prep / reference materials <span class="optional-label">optional</span></label><textarea id="meetingPrepMaterials" placeholder="Links, files, reports, data, pre-reading..."></textarea></div>
+        </section>
+
+        <section id="meetingMinutesOnlyWrap" class="meeting-form-section hidden">
+          <div class="meeting-form-section-head"><div><small>MEETING RECORD</small><strong>What happened?</strong></div></div>
+          <div class="form-group"><label for="meetingDiscussion">Discussion summary</label><textarea id="meetingDiscussion" class="large-textarea" placeholder="Key points discussed under the agenda..."></textarea></div>
+          <div class="form-group"><label for="meetingDecisions">Decisions made</label><textarea id="meetingDecisions" placeholder="Record agreed decisions and outcomes clearly"></textarea></div>
+          <div class="form-row">
+            <div class="form-group"><label for="meetingNextDate">Next meeting <span class="optional-label">optional</span></label><input id="meetingNextDate" type="date" /></div>
+            <div class="form-group"><label for="meetingNextTime">Time <span class="optional-label">optional</span></label><input id="meetingNextTime" type="time" /></div>
+          </div>
+          <div class="form-group"><label for="meetingPreparedBy">Minutes prepared by <span class="optional-label">optional</span></label><input id="meetingPreparedBy" type="text" placeholder="Name / role" /></div>
+        </section>
+      </div>
+
+      <div id="noteToolbar" class="note-toolbar" aria-label="Note formatting shortcuts">
         <button type="button" data-note-insert="# ">H1</button>
         <button type="button" data-note-insert="## ">H2</button>
         <button type="button" data-note-insert="• ">• List</button>
         <button type="button" data-note-insert="**text**">B</button>
       </div>
 
-      <div class="form-group"><label for="noteContent">Note</label><textarea id="noteContent" class="large-textarea" placeholder="Write anything..."></textarea></div>
+      <div id="noteContentWrap" class="form-group"><label id="noteContentLabel" for="noteContent">Note</label><textarea id="noteContent" class="large-textarea" placeholder="Write anything..."></textarea></div>
 
       <div id="noteChecklistWrap" class="form-group hidden">
-        <label for="noteChecklist">Checklist / action items</label>
+        <label id="noteChecklistLabel" for="noteChecklist">Checklist / action items</label>
         <textarea id="noteChecklist" placeholder="One item per line\nSend revised tracker\nAsk Finance about approval"></textarea>
-        <small class="field-help">Meeting notes can turn these lines into tasks.</small>
+        <small id="noteChecklistHelp" class="field-help">Checklist items can be managed here.</small>
       </div>
 
       <label id="noteResettableWrap" class="check-row hidden"><input id="noteResettable" type="checkbox" /><span>Resettable checklist<small>Useful for groceries, packing, routines and repeatable procedures.</small></span></label>
@@ -916,6 +963,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.20"></script>
+  <script src="app.js?v=2.0.21"></script>
 </body>
 </html>

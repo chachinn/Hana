@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.20
+   HANA 🌸 Version 2 · internal build 2.0.21
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -85,10 +85,17 @@ const STARTER_TEMPLATES = [
     kind: "task"
   },
   {
-    id: "meeting-note",
-    icon: "👥",
-    title: "Meeting Notes",
-    description: "Agenda + decisions + action items that can become tasks.",
+    id: "meeting-agenda",
+    icon: "📋",
+    title: "Meeting Agenda",
+    description: "Plan the purpose, attendees, topics, owners, time boxes, prep materials and actions before a meeting.",
+    kind: "note"
+  },
+  {
+    id: "meeting-minutes",
+    icon: "📝",
+    title: "Minutes of the Meeting",
+    description: "Record attendance, discussion summaries, decisions, action items and next-meeting details.",
     kind: "note"
   },
   {
@@ -420,7 +427,44 @@ function skincareStepsForDay(note, day, time, variant = "primary") {
   return routine.steps.filter(step => step.days.includes(Number(day)) && step.times.includes(time) && step.variant === normalizedVariant);
 }
 
+function normalizeMeetingAgendaItem(item = {}) {
+  return {
+    id: item.id || createId(),
+    topic: String(item.topic || ""),
+    owner: String(item.owner || ""),
+    minutes: String(item.minutes || "")
+  };
+}
+
+function normalizeMeetingData(data = {}) {
+  const kind = data.kind === "minutes" ? "minutes" : "agenda";
+  return {
+    kind,
+    date: String(data.date || ""),
+    startTime: String(data.startTime || ""),
+    endTime: String(data.endTime || ""),
+    location: String(data.location || ""),
+    facilitator: String(data.facilitator || ""),
+    attendees: String(data.attendees || ""),
+    absent: String(data.absent || ""),
+    objective: String(data.objective || ""),
+    agendaItems: Array.isArray(data.agendaItems)
+      ? data.agendaItems.map(normalizeMeetingAgendaItem).filter(item => item.topic || item.owner || item.minutes)
+      : [],
+    prepMaterials: String(data.prepMaterials || ""),
+    decisionsNeeded: String(data.decisionsNeeded || ""),
+    discussion: String(data.discussion || ""),
+    decisions: String(data.decisions || ""),
+    nextMeetingDate: String(data.nextMeetingDate || ""),
+    nextMeetingTime: String(data.nextMeetingTime || ""),
+    preparedBy: String(data.preparedBy || "")
+  };
+}
+
 function normalizeNote(note = {}) {
+  const allowedStructuredTypes = ["skincare-weekly", "meeting-agenda", "meeting-minutes"];
+  const structuredType = allowedStructuredTypes.includes(note.structuredType) ? note.structuredType : "";
+  const meetingKind = structuredType === "meeting-minutes" ? "minutes" : structuredType === "meeting-agenda" ? "agenda" : (note.meetingData?.kind === "minutes" ? "minutes" : "agenda");
   return {
     id: note.id || createId(),
     title: String(note.title || "Untitled note"),
@@ -434,8 +478,9 @@ function normalizeNote(note = {}) {
       : [],
     resettable: Boolean(note.resettable),
     pinned: Boolean(note.pinned),
-    structuredType: note.structuredType === "skincare-weekly" ? "skincare-weekly" : "",
-    skincareRoutine: note.structuredType === "skincare-weekly" ? normalizeSkincareRoutine(note.skincareRoutine || {}) : null,
+    structuredType,
+    skincareRoutine: structuredType === "skincare-weekly" ? normalizeSkincareRoutine(note.skincareRoutine || {}) : null,
+    meetingData: note.type === "meeting" ? normalizeMeetingData({...(note.meetingData || {}), kind: meetingKind}) : null,
     createdAt: Number(note.createdAt || Date.now()),
     updatedAt: Number(note.updatedAt || note.createdAt || Date.now()),
     ...normalizeShareMeta(note)
@@ -786,20 +831,21 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.20";
+const HANA_APP_VERSION = "2.0.21";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Optional alternate skincare routines 🌸",
-  intro: "Hana Version 2 now keeps alternate morning and evening routines out of the way until you choose to add them.",
+  title: "Real meeting templates 👥",
+  intro: "Hana Version 2 now gives meeting agendas and minutes their own structured fields instead of putting headings inside one note box.",
   items: [
-    { icon: "☀️", title: "Alternates stay hidden", text: "AM and PM show only the main routine unless you tap Add alternate routine." },
-    { icon: "🌙", title: "Add one only when needed", text: "Alternate AM and Alternate PM are independent for every day and disappear again when they have no products." },
-    { icon: "🧴", title: "Blank alternates are ignored", text: "Opening an alternate and leaving it empty will not create or save an empty routine." },
-    { icon: "🌸", title: "Officially Version 2", text: "Hana now shows Version 2 as the product version. Small maintenance releases use an internal build number only for updates and caching." }
+    { icon: "📋", title: "Meeting Agenda", text: "Plan meeting details, objective, attendees, agenda topics with owners and time boxes, decisions needed, prep materials, and action items." },
+    { icon: "📝", title: "Minutes of the Meeting", text: "Record attendance, agenda topics, discussion summary, decisions made, action items, next meeting details, and who prepared the minutes." },
+    { icon: "✅", title: "Action items still become tasks", text: "Meeting action items remain structured checklist items so Hana can turn them into tasks after the meeting." },
+    { icon: "🌸", title: "Old meeting notes stay safe", text: "Existing meeting-note text is preserved as Additional notes while new templates use the structured meeting form." }
   ]
 };
+
 let hanaAccountState = {
   status: "loading",
   user: null,
@@ -2038,7 +2084,7 @@ function skincareRoutineCard(note) {
   const am = skincareStepsForDay(note,today,"am");
   const pm = skincareStepsForDay(note,today,"pm");
   const focus = String(note.skincareRoutine?.focus || "").trim();
-  return `<article class="note-card skincare-note-card ${note.pinned ? "pinned" : ""}">
+  return `<article class="note-card skincare-note-card note-card-openable ${note.pinned ? "pinned" : ""}" data-open-skincare-card="${note.id}" role="button" tabindex="0" aria-label="Open skincare routine: ${escapeHTML(note.title)}">
     <div class="skincare-note-card-top"><h3>${note.pinned ? "📌 " : ""}🧴 ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3><span class="skincare-today-pill">Today · ${day.short}</span></div>
     ${focus ? `<div class="note-preview">${escapeHTML(focus).slice(0,220)}</div>` : `<div class="note-preview">Weekly AM / PM routine · products can repeat across multiple days.</div>`}
     <div class="skincare-card-counts"><span>☀️ ${am.length} AM</span><span>🌙 ${pm.length} PM</span><span>🗓️ 7-day planner</span></div>
@@ -2051,12 +2097,21 @@ function skincareRoutineCard(note) {
   </article>`;
 }
 
+function meetingNotePreview(note) {
+  const data=normalizeMeetingData(note.meetingData||{}),topics=data.agendaItems.map(item=>item.topic).filter(Boolean);
+  if(data.kind==="minutes")return data.decisions||data.discussion||data.objective||topics.slice(0,3).join(" · ")||note.content||"Meeting minutes";
+  return data.objective||topics.slice(0,3).join(" · ")||data.decisionsNeeded||note.content||"Meeting agenda";
+}
+
 function noteCard(note) {
   if (isSkincarePlanner(note)) return skincareRoutineCard(note);
   const done = note.checklist.filter(i=>i.completed).length;
-  return `<article class="note-card ${note.pinned ? "pinned" : ""}">
+  const preview=note.type==="meeting"?meetingNotePreview(note):note.content;
+  const meetingMeta=note.type==="meeting"?normalizeMeetingData(note.meetingData||{}):null;
+  return `<article class="note-card note-card-openable ${note.pinned ? "pinned" : ""}" data-open-note-card="${note.id}" role="button" tabindex="0" aria-label="Open note: ${escapeHTML(note.title)}">
     <h3>${note.pinned ? "📌 " : ""}${noteTypeIcon(note.type)} ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3>
-    <div class="note-preview">${escapeHTML(note.content).slice(0,320)}</div>
+    ${meetingMeta?`<div class="meeting-note-meta"><span>${meetingMeta.kind==="minutes"?"Minutes":"Agenda"}</span>${meetingMeta.date?`<span>${escapeHTML(formatFullDate(meetingMeta.date))}</span>`:""}${meetingMeta.startTime?`<span>${escapeHTML(formatTime(meetingMeta.startTime))}</span>`:""}</div>`:""}
+    <div class="note-preview">${escapeHTML(preview).slice(0,320)}</div>
     ${note.checklist.length ? `<div class="note-checklist">${note.checklist.slice(0,5).map(item=>`<button class="note-check-row ${item.completed?"done":""}" data-toggle-note-check="${note.id}" data-note-check-id="${item.id}"><span class="note-check-box">${item.completed?"✓":""}</span><span>${escapeHTML(item.title)}</span></button>`).join("")}</div><div class="task-meta" style="margin-top:7px;">${done}/${note.checklist.length} complete</div>` : ""}
     <div class="note-footer"><span>${modeLabel(note.space)}</span><span>${note.tags.map(t=>`#${escapeHTML(t)}`).join(" ")}</span></div>
     <div class="note-actions">
@@ -2075,8 +2130,10 @@ function renderNotes() {
     <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Jot something down instantly, or use detailed notes and reusable templates when you need more structure.</p></div>
     <div class="notes-quick-actions"><button type="button" class="primary-button" data-open-quick-note>📝 Quick Note</button><button type="button" class="secondary-button" data-open="noteModal">Detailed note</button></div>
     <details class="note-template-launcher">
-      <summary><span>🧩 Start from a note template</span><small>Weekly skincare · Bionote · Strategy · Measurements</small></summary>
+      <summary><span>🧩 Start from a note template</span><small>Meetings · Weekly skincare · Bionote · Strategy · Measurements</small></summary>
       <div class="note-template-chip-grid">
+        <button type="button" data-use-template="meeting-agenda">📋 Meeting Agenda</button>
+        <button type="button" data-use-template="meeting-minutes">📝 Minutes of the Meeting</button>
         <button type="button" data-use-template="skincare-routine-note">🧴 Weekly Skincare</button>
         <button type="button" data-use-template="professional-bionote">👤 Professional Bionote</button>
         <button type="button" data-use-template="strategy-outline-note">🧭 Strategy / Meeting Outline</button>
@@ -2100,40 +2157,134 @@ function saveQuickNote(){
   closeModal("quickNoteModal");showToast("Quick note saved 📝");render();
 }
 
+function meetingAgendaItemRowHTML(item = {}) {
+  const normalized=normalizeMeetingAgendaItem(item);
+  return `<div class="meeting-agenda-row" data-meeting-agenda-row data-meeting-agenda-id="${escapeHTML(normalized.id)}">
+    <label><span>Topic</span><input type="text" data-meeting-agenda-topic value="${escapeHTML(normalized.topic)}" placeholder="Topic / discussion item" /></label>
+    <label><span>Owner</span><input type="text" data-meeting-agenda-owner value="${escapeHTML(normalized.owner)}" placeholder="Who leads?" /></label>
+    <label><span>Time</span><input type="text" data-meeting-agenda-minutes value="${escapeHTML(normalized.minutes)}" placeholder="10 min" /></label>
+    <button type="button" class="meeting-agenda-remove" data-remove-meeting-agenda-item aria-label="Remove agenda item">×</button>
+  </div>`;
+}
+
+function renderMeetingAgendaItems(items = []) {
+  const container=document.getElementById("meetingAgendaItems");if(!container)return;
+  const rows=Array.isArray(items)&&items.length?items:[{id:createId(),topic:"",owner:"",minutes:""}];
+  container.innerHTML=rows.map(meetingAgendaItemRowHTML).join("");
+}
+
+function readMeetingAgendaItems() {
+  return [...document.querySelectorAll("#meetingAgendaItems [data-meeting-agenda-row]")].map(row=>normalizeMeetingAgendaItem({
+    id:row.dataset.meetingAgendaId||createId(),
+    topic:row.querySelector("[data-meeting-agenda-topic]")?.value.trim()||"",
+    owner:row.querySelector("[data-meeting-agenda-owner]")?.value.trim()||"",
+    minutes:row.querySelector("[data-meeting-agenda-minutes]")?.value.trim()||""
+  })).filter(item=>item.topic||item.owner||item.minutes);
+}
+
+function addMeetingAgendaItem() {
+  const container=document.getElementById("meetingAgendaItems");if(!container)return;
+  container.insertAdjacentHTML("beforeend",meetingAgendaItemRowHTML({id:createId()}));
+  const rows=container.querySelectorAll("[data-meeting-agenda-row]");rows[rows.length-1]?.querySelector("[data-meeting-agenda-topic]")?.focus();
+}
+
+function removeMeetingAgendaItem(button) {
+  const row=button?.closest?.("[data-meeting-agenda-row]");if(!row)return;
+  row.remove();
+  if(!document.querySelector("#meetingAgendaItems [data-meeting-agenda-row]"))renderMeetingAgendaItems([]);
+}
+
+function readMeetingData() {
+  return normalizeMeetingData({
+    kind:document.getElementById("meetingKind")?.value||"agenda",
+    date:document.getElementById("meetingDate")?.value||"",
+    startTime:document.getElementById("meetingStartTime")?.value||"",
+    endTime:document.getElementById("meetingEndTime")?.value||"",
+    location:document.getElementById("meetingLocation")?.value.trim()||"",
+    facilitator:document.getElementById("meetingFacilitator")?.value.trim()||"",
+    attendees:document.getElementById("meetingAttendees")?.value.trim()||"",
+    absent:document.getElementById("meetingAbsent")?.value.trim()||"",
+    objective:document.getElementById("meetingObjective")?.value.trim()||"",
+    agendaItems:readMeetingAgendaItems(),
+    prepMaterials:document.getElementById("meetingPrepMaterials")?.value.trim()||"",
+    decisionsNeeded:document.getElementById("meetingDecisionsNeeded")?.value.trim()||"",
+    discussion:document.getElementById("meetingDiscussion")?.value.trim()||"",
+    decisions:document.getElementById("meetingDecisions")?.value.trim()||"",
+    nextMeetingDate:document.getElementById("meetingNextDate")?.value||"",
+    nextMeetingTime:document.getElementById("meetingNextTime")?.value||"",
+    preparedBy:document.getElementById("meetingPreparedBy")?.value.trim()||""
+  });
+}
+
+function populateMeetingData(note = null) {
+  const data=normalizeMeetingData(note?.meetingData||{kind:note?.structuredType==="meeting-minutes"?"minutes":"agenda"});
+  const values={meetingKind:data.kind,meetingDate:data.date,meetingStartTime:data.startTime,meetingEndTime:data.endTime,meetingLocation:data.location,meetingFacilitator:data.facilitator,meetingAttendees:data.attendees,meetingAbsent:data.absent,meetingObjective:data.objective,meetingPrepMaterials:data.prepMaterials,meetingDecisionsNeeded:data.decisionsNeeded,meetingDiscussion:data.discussion,meetingDecisions:data.decisions,meetingNextDate:data.nextMeetingDate,meetingNextTime:data.nextMeetingTime,meetingPreparedBy:data.preparedBy};
+  Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value||"";});
+  renderMeetingAgendaItems(data.agendaItems);
+  updateMeetingKindFields();
+}
+
 function clearNoteForm() {
-  ["noteEditId","noteTitle","noteTags","noteContent","noteChecklist","noteProject"].forEach(id=>document.getElementById(id).value="");
+  ["noteEditId","noteStructuredType","noteTitle","noteTags","noteContent","noteChecklist","noteProject","meetingDate","meetingStartTime","meetingEndTime","meetingLocation","meetingFacilitator","meetingAttendees","meetingAbsent","meetingObjective","meetingPrepMaterials","meetingDecisionsNeeded","meetingDiscussion","meetingDecisions","meetingNextDate","meetingNextTime","meetingPreparedBy"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   refreshProjectDatalist();
   document.getElementById("noteType").value="note";
+  document.getElementById("meetingKind").value="agenda";
   document.getElementById("noteSpace").value=preferredSpace();
   document.getElementById("notePinned").checked=false; document.getElementById("noteResettable").checked=false;
   document.getElementById("noteModalEyebrow").textContent="NEW NOTE"; document.getElementById("noteModalTitle").textContent="Capture a thought"; document.getElementById("saveNoteButton").textContent="Save note";
-  document.getElementById("deleteNoteFromModal").classList.add("hidden"); updateNoteConditionalFields();
+  document.getElementById("deleteNoteFromModal").classList.add("hidden");
+  renderMeetingAgendaItems([]);updateNoteConditionalFields();
 }
 
 function openNoteModal(noteId="") {
   clearNoteForm();
   const note = state.notes.find(n=>n.id===noteId);
   if (note) {
-    document.getElementById("noteEditId").value=note.id; document.getElementById("noteTitle").value=note.title; document.getElementById("noteType").value=note.type; document.getElementById("noteSpace").value=note.space; document.getElementById("noteTags").value=note.tags.join(", "); document.getElementById("noteProject").value=note.project||""; document.getElementById("noteContent").value=note.content; document.getElementById("noteChecklist").value=note.checklist.map(i=>i.title).join("\n"); document.getElementById("noteResettable").checked=note.resettable; document.getElementById("notePinned").checked=note.pinned;
+    document.getElementById("noteEditId").value=note.id; document.getElementById("noteStructuredType").value=note.structuredType||""; document.getElementById("noteTitle").value=note.title; document.getElementById("noteType").value=note.type; document.getElementById("noteSpace").value=note.space; document.getElementById("noteTags").value=note.tags.join(", "); document.getElementById("noteProject").value=note.project||""; document.getElementById("noteContent").value=note.content; document.getElementById("noteChecklist").value=note.checklist.map(i=>i.title).join("\n"); document.getElementById("noteResettable").checked=note.resettable; document.getElementById("notePinned").checked=note.pinned;
+    if(note.type==="meeting")populateMeetingData(note);
     document.getElementById("noteModalEyebrow").textContent="NOTE DETAILS"; document.getElementById("noteModalTitle").textContent="Edit note"; document.getElementById("saveNoteButton").textContent="Save changes"; document.getElementById("deleteNoteFromModal").classList.remove("hidden"); updateNoteConditionalFields();
   }
   openModal("noteModal");
 }
 
+function updateMeetingKindFields() {
+  const kind=document.getElementById("meetingKind")?.value==="minutes"?"minutes":"agenda";
+  document.getElementById("meetingAgendaOnlyWrap")?.classList.toggle("hidden",kind!=="agenda");
+  document.getElementById("meetingMinutesOnlyWrap")?.classList.toggle("hidden",kind!=="minutes");
+  document.getElementById("meetingAbsentWrap")?.classList.toggle("hidden",kind!=="minutes");
+  const structured=document.getElementById("noteStructuredType");if(structured&&document.getElementById("noteType")?.value==="meeting")structured.value=kind==="minutes"?"meeting-minutes":"meeting-agenda";
+}
+
 function updateNoteConditionalFields() {
   const type = document.getElementById("noteType")?.value;
-  const show = ["checklist","meeting"].includes(type);
-  document.getElementById("noteChecklistWrap")?.classList.toggle("hidden", !show);
+  const meeting=type==="meeting";
+  const showChecklist=["checklist","meeting"].includes(type);
+  document.getElementById("meetingFieldsWrap")?.classList.toggle("hidden",!meeting);
+  document.getElementById("noteToolbar")?.classList.toggle("hidden",meeting);
   document.getElementById("noteResettableWrap")?.classList.toggle("hidden", type !== "checklist");
+  document.getElementById("noteChecklistWrap")?.classList.toggle("hidden", !showChecklist);
+  const contentLabel=document.getElementById("noteContentLabel");if(contentLabel)contentLabel.textContent=meeting?"Additional notes":"Note";
+  const content=document.getElementById("noteContent");if(content)content.placeholder=meeting?"Anything else worth keeping from this meeting...":"Write anything...";
+  const checklistLabel=document.getElementById("noteChecklistLabel");if(checklistLabel)checklistLabel.textContent=meeting?"Action items / next steps":"Checklist / action items";
+  const checklistHelp=document.getElementById("noteChecklistHelp");if(checklistHelp)checklistHelp.textContent=meeting?"One action per line. Hana can turn these into tasks.":"Checklist items can be managed here.";
+  if(meeting){if(!document.querySelector("#meetingAgendaItems [data-meeting-agenda-row]"))renderMeetingAgendaItems([]);updateMeetingKindFields();}
+}
+
+function meetingHasMeaningfulData(data) {
+  if(!data)return false;
+  return Boolean(data.date||data.startTime||data.endTime||data.location||data.facilitator||data.attendees||data.absent||data.objective||data.agendaItems.length||data.prepMaterials||data.decisionsNeeded||data.discussion||data.decisions||data.nextMeetingDate||data.nextMeetingTime||data.preparedBy);
 }
 
 function saveNote() {
   const id=document.getElementById("noteEditId").value; const old=id?state.notes.find(n=>n.id===id):null;
-  const title=document.getElementById("noteTitle").value.trim(); const content=document.getElementById("noteContent").value.trim();
-  if (!title && !content) return showToast("Write something first 🌸");
+  const type=document.getElementById("noteType").value,title=document.getElementById("noteTitle").value.trim(),content=document.getElementById("noteContent").value.trim();
   const oldChecks=old?.checklist||[];
   const checks=parseLines(document.getElementById("noteChecklist").value).map(title=>{ const e=oldChecks.find(i=>i.title===title); return e?{...e}:{id:createId(),title,completed:false}; });
-  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||"Untitled note",type:document.getElementById("noteType").value,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const meetingData=type==="meeting"?readMeetingData():null;
+  if (!title && !content && !checks.length && !meetingHasMeaningfulData(meetingData)) return showToast("Write something first 🌸");
+  const structuredType=type==="meeting"?(meetingData.kind==="minutes"?"meeting-minutes":"meeting-agenda"):(old?.structuredType==="skincare-weekly"?"skincare-weekly":"");
+  const fallbackTitle=type==="meeting"?(meetingData.kind==="minutes"?"Minutes of the Meeting":"Meeting Agenda"):"Untitled note";
+  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||fallbackTitle,type,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,structuredType,meetingData,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old) state.notes[state.notes.findIndex(n=>n.id===id)]=note; else state.notes.push(note);
   ensureProjectRecord(note.project, note.space);
   closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
@@ -2162,7 +2313,9 @@ function searchNotes(query) {
   const q=query.trim().toLowerCase(); let notes=filterByMode(state.notes);
   if(q)notes=notes.filter(n=>{
     const skincare=isSkincarePlanner(n)?(n.skincareRoutine?.steps||[]).flatMap(step=>[step.category,step.product,step.notes]):[];
-    return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare].join(" ").toLowerCase().includes(q);
+    const meeting=n.type==="meeting"?normalizeMeetingData(n.meetingData||{}):null;
+    const meetingText=meeting?[meeting.kind,meeting.date,meeting.location,meeting.facilitator,meeting.attendees,meeting.absent,meeting.objective,meeting.prepMaterials,meeting.decisionsNeeded,meeting.discussion,meeting.decisions,meeting.nextMeetingDate,meeting.preparedBy,...meeting.agendaItems.flatMap(item=>[item.topic,item.owner,item.minutes])]:[];
+    return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare,...meetingText].join(" ").toLowerCase().includes(q);
   });
   const el=document.getElementById("notesResults"); if(el)el.innerHTML=notes.length?`<div class="note-grid">${notes.map(noteCard).join("")}</div>`:emptyState("🔎","No matching notes","Try another search.","","");
 }
@@ -4032,21 +4185,22 @@ function useTemplate(templateId) {
     return openTaskModal(task.id);
   }
 
-  if (templateId === "meeting-note") {
-    const note = normalizeNote({
-      title: "Meeting Notes",
-      type: "meeting",
+  if (["meeting-agenda","meeting-minutes"].includes(templateId)) {
+    const isMinutes=templateId==="meeting-minutes";
+    const note=normalizeNote({
+      title:isMinutes?"Minutes of the Meeting":"Meeting Agenda",
+      type:"meeting",
+      structuredType:isMinutes?"meeting-minutes":"meeting-agenda",
       space,
-      tags: ["meeting"],
-      content: "## Agenda\n\n## Decisions\n\n## Notes",
-      checklist: [
-        { id:createId(), title:"Action item", completed:false }
-      ],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      tags:isMinutes?["meeting","minutes"]:["meeting","agenda"],
+      content:"",
+      checklist:[],
+      meetingData:{kind:isMinutes?"minutes":"agenda",date:todayISO(),agendaItems:[]},
+      createdAt:Date.now(),
+      updatedAt:Date.now()
     });
     state.notes.push(note);
-    showToast("Meeting note created 👥");
+    showToast(isMinutes?"Meeting minutes created 📝":"Meeting agenda created 📋");
     return openNoteModal(note.id);
   }
 
@@ -5496,11 +5650,32 @@ function installNoZoomGuards() {
   }, { passive: false });
 }
 
+function noteCardTapIsInteractive(target) {
+  return Boolean(target?.closest?.("button,a,input,textarea,select,label,summary,[contenteditable='true']"));
+}
+
+function openNoteCardElement(card) {
+  if(!card)return false;
+  if(card.dataset.openSkincareCard){openSkincareRoutineModal(card.dataset.openSkincareCard,{edit:false});return true;}
+  if(card.dataset.openNoteCard){openNoteModal(card.dataset.openNoteCard);return true;}
+  return false;
+}
+
 installNoZoomGuards();
+
+document.addEventListener("keydown", event => {
+  if(!["Enter"," "].includes(event.key)||noteCardTapIsInteractive(event.target))return;
+  const card=event.target.closest?.("[data-open-note-card],[data-open-skincare-card]");
+  if(!card||event.target!==card)return;
+  event.preventDefault();
+  openNoteCardElement(card);
+});
 
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
+  const tappedNoteCard=event.target.closest?.("[data-open-note-card],[data-open-skincare-card]");
+  if(tappedNoteCard&&!noteCardTapIsInteractive(event.target)){openNoteCardElement(tappedNoteCard);return;}
   if(event.target.closest("[data-open-whats-new]")){openWhatsNew({markSeen:true});return;}
   if(event.target.closest("[data-tutorial-next]")){tutorialNext();return;}
   if(event.target.closest("[data-tutorial-back]")){tutorialBack();return;}
@@ -5609,6 +5784,9 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-save-skincare]")){saveSkincareRoutine();return;}
   if(event.target.closest("[data-skincare-note-settings]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";closeModal("skincareRoutineModal");if(id)openNoteModal(id);return;}
 
+  if(event.target.closest("[data-add-meeting-agenda-item]")){addMeetingAgendaItem();return;}
+  const removeMeetingAgenda=event.target.closest("[data-remove-meeting-agenda-item]");if(removeMeetingAgenda){removeMeetingAgendaItem(removeMeetingAgenda);return;}
+
   if(event.target.closest("[data-open-quick-note]")){openQuickNoteModal();return;}
   if(event.target.closest("[data-save-quick-note]")){saveQuickNote();return;}
   const editNote=event.target.closest("[data-edit-note]");if(editNote){openNoteModal(editNote.dataset.editNote);return;}
@@ -5712,7 +5890,7 @@ document.addEventListener("click",async event=>{
 let taskSearchRenderTimer=null;
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="partnerJoinCode")updatePartnerJoinCodeStatus();if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;const pos=event.target.selectionStart;clearTimeout(taskSearchRenderTimer);taskSearchRenderTimer=setTimeout(()=>{if(state.currentPage!=="tasks")return;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(Math.min(pos,input.value.length),Math.min(pos,input.value.length));}},80);}});
 
-document.addEventListener("change",event=>{if(event.target.id==="listColumnMode"||event.target.id==="listColumnCount")updateListColumnSettingsVisibility();if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
+document.addEventListener("change",event=>{if(event.target.id==="listColumnMode"||event.target.id==="listColumnCount")updateListColumnSettingsVisibility();if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="meetingKind")updateMeetingKindFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
 let lastTableTap={tableId:"",rowId:"",time:0};
