@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.4
+   HANA 🌸 v2.0.5
    Partner Link stability + UI polish
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -679,18 +679,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.4";
+const HANA_APP_VERSION = "2.0.5";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Partner Link permission fix 💕",
-  intro: "A focused Firebase permission fix for creating Partner Link invite codes, with clearer guidance if Hana detects outdated Firestore rules.",
+  title: "Partner invite creation fix 💕",
+  intro: "A deeper Partner Link correction that removes an unnecessary Firestore read which could block invite creation before Hana even attempted the real write.",
   items: [
-    { icon: "🛠️", title: "Partner Link rebuilt", text: "Invite creation now tests Firebase permissions directly, avoids the unguarded pre-read that caused raw permission errors, and uses a recoverable connection flow." },
-    { icon: "💕", title: "Safer connection retries", text: "Joining a partner is now split into recoverable steps so an interrupted connection can safely continue instead of leaving Hana stuck." },
-    { icon: "🔐", title: "Rules tightened", text: "Private Hana data remains UID-protected, and only the original owner can delete an entire shared top-level item." },
-    { icon: "🧭", title: "Clearer Firebase errors", text: "If Partner Link permissions are outdated, Hana tells you exactly where to publish the latest rules instead of only showing a generic permission error." },
-    { icon: "🌸", title: "All v2.0.1 fixes retained", text: "Realtime retry, reconnect recovery, safer simultaneous edits, compact UI, list gestures and tracker fixes remain unchanged." }
+    { icon: "🧹", title: "Bad permission probe removed", text: "Create invite no longer reads a probe document or queries Partner invites first. Hana now goes straight to the real invite write." },
+    { icon: "🎟️", title: "Direct invite creation", text: "The random 8-character code is created directly; only actual create failures are reported as Firestore rule problems." },
+    { icon: "💕", title: "Recoverable Partner flow retained", text: "Partner acceptance still uses recoverable stages so interrupted connections can safely continue." },
+    { icon: "🔐", title: "Privacy model unchanged", text: "Private Hana data stays private by default and shared top-level items remain owner-controlled." },
+    { icon: "🌸", title: "All stability fixes retained", text: "Realtime retry, reconnect recovery, safer simultaneous edits, compact UI, list gestures and tracker fixes remain unchanged." }
   ]
 };
 let hanaAccountState = {

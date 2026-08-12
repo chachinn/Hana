@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.4 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.5 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
@@ -62,7 +62,6 @@
     async backupSnapshot() { throw new Error("Firebase is still loading."); },
     async restoreSnapshot() { throw new Error("Firebase is still loading."); },
     async createPartnerInvite() { throw new Error("Firebase is still loading."); },
-    async probePartnerRules() { throw new Error("Firebase is still loading."); },
     async acceptPartnerInvite() { throw new Error("Firebase is still loading."); },
     async cancelPartnerInvite() { throw new Error("Firebase is still loading."); },
     async disconnectPartner() { throw new Error("Firebase is still loading."); },
@@ -201,47 +200,13 @@
       };
       const rethrowPartnerPermission = (error, stage = "Partner Link") => {
         if (isPartnerPermissionError(error)) {
-          throw new Error(`${stage} was blocked by Firestore. Publish the v2.0.4 Partner Link firestore.rules in Firebase → Firestore Database → Rules, wait about a minute, then try again.`);
+          throw new Error(`${stage} was blocked by Firestore. The actual Partner Link request was denied by Firestore. Verify the published Partner Link rules in Firebase → Firestore Database → Rules, then try again.`);
         }
         throw error;
       };
 
-      async function probePartnerRules(uid) {
-        assertUser(uid);
-        const probeCode = `HPRB${generateInviteCode().slice(0, 4)}`;
-        const probeRef = partnerInviteRef(probeCode);
-        const now = new Date().toISOString();
-        const probe = {
-          code: probeCode,
-          ownerUid: uid,
-          ownerName: "Hana rules probe",
-          ownerEmail: "",
-          status: "open",
-          createdAt: now,
-          expiresAt: now,
-          probe: true
-        };
-        try {
-          // A single-document GET on a missing code verifies the read rule without
-          // needing any existing Partner Link data.
-          await firestoreSdk.getDoc(partnerInviteRef("HANA_RULES_PROBE"));
-        } catch (error) {
-          rethrowPartnerPermission(error, "Reading the Partner invite collection");
-        }
-        try {
-          await firestoreSdk.setDoc(probeRef, probe);
-        } catch (error) {
-          rethrowPartnerPermission(error, "Writing the Partner invite collection");
-        }
-        try {
-          await firestoreSdk.deleteDoc(probeRef);
-        } catch (error) {
-          // A stranded probe is harmless and expires immediately, but surface the
-          // permission mismatch because owner cleanup should be allowed.
-          rethrowPartnerPermission(error, "Cleaning up the Partner rule test");
-        }
-        return true;
-      }
+      // Invite creation deliberately performs no collection/query permission probe.
+      // Hana only touches the exact invite document it is creating or a code the user already knows.
 
       async function createPartnerInvite(uid, displayName = "") {
         const user = assertUser(uid);
@@ -268,10 +233,6 @@
             rethrowPartnerPermission(error, "Reading your previous Partner invite");
           }
         }
-
-        // Verify both Partner invite read + write rules before creating a real code.
-        // This gives a precise error instead of Firestore's generic permission text.
-        await probePartnerRules(uid);
 
         // Do NOT pre-read random candidate codes. An 8-character code from this
         // alphabet has roughly a trillion possible values; a collision is vastly
@@ -618,7 +579,6 @@
         backupSnapshot,
         restoreSnapshot,
         createPartnerInvite,
-        probePartnerRules,
         acceptPartnerInvite,
         cancelPartnerInvite,
         disconnectPartner,
