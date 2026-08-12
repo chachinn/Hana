@@ -2,8 +2,7 @@ name: Hana 2.0.18 bulk row delete update
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
@@ -28,7 +27,6 @@ jobs:
           app_path = Path('app.js')
           index_path = Path('index.html')
           sw_path = Path('service-worker.js')
-
           app = app_path.read_text(encoding='utf-8')
           index = index_path.read_text(encoding='utf-8')
           sw = sw_path.read_text(encoding='utf-8')
@@ -39,77 +37,34 @@ jobs:
                   raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
               return text.replace(old, new, 1)
 
-          # Bulk controls: cell actions need rows + columns; delete only needs rows.
           old_refresh = 'document.querySelectorAll(`[data-bulk-action-for="${tableId}"]`).forEach(button=>button.disabled=!rows.length||!cols.length);'
           new_refresh = 'document.querySelectorAll(`[data-bulk-action-for="${tableId}"]`).forEach(button=>{const needsColumns=button.dataset.bulkRequires!=="rows";button.disabled=!rows.length||(needsColumns&&!cols.length);});'
           app = replace_once(app, old_refresh, new_refresh, 'bulk action enabling')
 
-          # Add safe multi-row deletion next to the existing bulk helpers.
-          insert_after = '''function toggleTableBulkMode(tableId){
-  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
-  if(isTableBulkActive(tableId))resetTableBulkState(table,false);else resetTableBulkState(table,true);
-  render();
-}
-'''
-          delete_fn = '''function deleteSelectedTableRows(tableId){
-  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
-  const rows=selectedBulkRows(table);if(!rows.length)return showToast("Select at least one row to delete 🌸");
-  if(!confirm(`Move ${rows.length} selected row${rows.length===1?"":"s"} to Trash?`))return;
-  createSafetySnapshot("pre-bulk-row-delete",JSON.stringify(state),{force:true});
-  const rowIds=new Set(rows.map(row=>row.id));
-  rows.forEach(row=>{
-    const linkedReminders=state.reminders.filter(reminder=>reminder.linkedTableId===tableId&&reminder.linkedRowId===row.id);
-    moveToTrash("tableRow",row,{tableId,tableName:table.name,linkedReminders});
-  });
-  table.rows=table.rows.filter(row=>!rowIds.has(row.id));
-  table.updatedAt=Date.now();
-  state.reminders=state.reminders.filter(reminder=>!(reminder.linkedTableId===tableId&&rowIds.has(reminder.linkedRowId)));
-  tableBulkState.selectedRows.clear();
-  showToast(`${rows.length} row${rows.length===1?"":"s"} moved to Trash 🗑️`);
-  render();
-}
-'''
-          if delete_fn.strip() not in app:
-              app = replace_once(app, insert_after, insert_after + delete_fn, 'bulk delete function insertion')
+          anchor = 'function refreshBulkControls(tableId){'
+          delete_fn = 'function deleteSelectedTableRows(tableId){\n  const table=state.tables.find(item=>item.id===tableId);if(!table)return;\n  const rows=selectedBulkRows(table);if(!rows.length)return showToast("Select at least one row to delete 🌸");\n  if(!confirm(`Move ${rows.length} selected row${rows.length===1?"":"s"} to Trash?`))return;\n  createSafetySnapshot("pre-bulk-row-delete",JSON.stringify(state),{force:true});\n  const rowIds=new Set(rows.map(row=>row.id));\n  rows.forEach(row=>{\n    const linkedReminders=state.reminders.filter(reminder=>reminder.linkedTableId===tableId&&reminder.linkedRowId===row.id);\n    moveToTrash("tableRow",row,{tableId,tableName:table.name,linkedReminders});\n  });\n  table.rows=table.rows.filter(row=>!rowIds.has(row.id));\n  table.updatedAt=Date.now();\n  state.reminders=state.reminders.filter(reminder=>!(reminder.linkedTableId===tableId&&rowIds.has(reminder.linkedRowId)));\n  tableBulkState.selectedRows.clear();\n  showToast(`${rows.length} row${rows.length===1?"":"s"} moved to Trash 🗑️`);\n  render();\n}\n'
+          if 'function deleteSelectedTableRows(tableId)' not in app:
+              app = replace_once(app, anchor, delete_fn + anchor, 'bulk delete function insertion')
 
-          # Add Delete selected to the existing bulk toolbar.
-          old_bulk_actions = '''<button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button>'''
-          new_bulk_actions = '''<button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="danger-button" data-bulk-delete-rows="${table.id}" data-bulk-action-for="${table.id}" data-bulk-requires="rows" ${!selectedRows.length?"disabled":""}>Delete selected</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button>'''
-          app = replace_once(app, old_bulk_actions, new_bulk_actions, 'bulk toolbar delete button')
+          old_toolbar = '<button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button>'
+          new_toolbar = '<button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="danger-button" data-bulk-delete-rows="${table.id}" data-bulk-action-for="${table.id}" data-bulk-requires="rows" ${!selectedRows.length?"disabled":""}>Delete selected</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button>'
+          app = replace_once(app, old_toolbar, new_toolbar, 'bulk toolbar delete button')
 
-          # Update the bulk-mode hint so the destructive action is discoverable.
-          old_hint = 'Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.'
-          new_hint = 'Bulk mode: choose rows and columns. Edit/Copy/Paste works on selected cells; Delete selected removes all checked rows together.'
-          app = replace_once(app, old_hint, new_hint, 'bulk mode hint')
+          app = replace_once(app, 'Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.', 'Bulk mode: choose rows and columns. Edit/Copy/Paste works on selected cells; Delete selected removes all checked rows together.', 'bulk mode hint')
 
-          # Wire the new button into the delegated click handler.
-          old_events = '''const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}'''
-          new_events = '''const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}\n  const bulkDeleteRows=event.target.closest("[data-bulk-delete-rows]");if(bulkDeleteRows){deleteSelectedTableRows(bulkDeleteRows.dataset.bulkDeleteRows);return;}'''
-          app = replace_once(app, old_events, new_events, 'bulk delete click handler')
+          old_event = 'const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}'
+          new_event = old_event + '\n  const bulkDeleteRows=event.target.closest("[data-bulk-delete-rows]");if(bulkDeleteRows){deleteSelectedTableRows(bulkDeleteRows.dataset.bulkDeleteRows);return;}'
+          app = replace_once(app, old_event, new_event, 'bulk delete click handler')
 
-          # Make this a real PWA update rather than a silent main-branch code change.
           app = replace_once(app, 'HANA 🌸 v2.0.17', 'HANA 🌸 v2.0.18', 'app header version')
-
           release_pattern = re.compile(r'const HANA_APP_VERSION = "2\.0\.17";\nconst HANA_RELEASE_NOTES = \{.*?\n\};', re.S)
-          release_replacement = '''const HANA_APP_VERSION = "2.0.18";
-const HANA_RELEASE_NOTES = {
-  version: HANA_APP_VERSION,
-  date: "August 13, 2026",
-  title: "Faster skincare + safer tracker cleanup 🌸",
-  intro: "Hana 2.0.18 makes recurring skincare easier to enter and gives large trackers a much faster, safer cleanup flow.",
-  items: [
-    { icon: "🧴", title: "AM and PM are now grouped tables", text: "Skincare products are entered directly under one AM routine table or one PM routine table, with Product Type, Product, and Notes columns." },
-    { icon: "🗑️", title: "Delete multiple tracker rows", text: "Open Bulk edit, check the rows you want gone, then use Delete selected. Hana confirms first, creates a safety copy, and moves every deleted row to Trash." },
-    { icon: "🌸", title: "Built for the real app", text: "The update keeps existing skincare plans and tracker data compatible while preserving Hana's local-first safety behavior." }
-  ]
-};'''
+          release_replacement = 'const HANA_APP_VERSION = "2.0.18";\nconst HANA_RELEASE_NOTES = {\n  version: HANA_APP_VERSION,\n  date: "August 13, 2026",\n  title: "Faster skincare + safer tracker cleanup 🌸",\n  intro: "Hana 2.0.18 makes recurring skincare easier to enter and gives large trackers a much faster, safer cleanup flow.",\n  items: [\n    { icon: "🧴", title: "AM and PM are now grouped tables", text: "Skincare products are entered directly under one AM routine table or one PM routine table, with Product Type, Product, and Notes columns." },\n    { icon: "🗑️", title: "Delete multiple tracker rows", text: "Open Bulk edit, check the rows you want gone, then use Delete selected. Hana confirms first, creates a safety copy, and moves every deleted row to Trash." },\n    { icon: "🌸", title: "Built for the real app", text: "The update keeps existing skincare plans and tracker data compatible while preserving Hana local-first safety behavior." }\n  ]\n};'
           app, count = release_pattern.subn(release_replacement, app, count=1)
           if count != 1:
               raise SystemExit(f'release notes/version: expected 1 replacement, found {count}')
 
           index = replace_once(index, '<meta name="hana-app-version" content="2.0.17" />', '<meta name="hana-app-version" content="2.0.18" />', 'index version meta')
           index = replace_once(index, '<script src="app.js?v=2.0.17"></script>', '<script src="app.js?v=2.0.18"></script>', 'index app query version')
-
           sw = replace_once(sw, 'Service Worker v50', 'Service Worker v51', 'service worker header')
           sw = replace_once(sw, 'const CACHE_NAME = "hana-shell-v50";', 'const CACHE_NAME = "hana-shell-v51";', 'service worker cache')
           sw = replace_once(sw, '"./app.js?v=2.0.17"', '"./app.js?v=2.0.18"', 'service worker app query version')
@@ -118,26 +73,25 @@ const HANA_RELEASE_NOTES = {
           index_path.write_text(index, encoding='utf-8')
           sw_path.write_text(sw, encoding='utf-8')
 
-          checks = {
-              'bulk delete function': 'function deleteSelectedTableRows(tableId)' in app,
-              'bulk delete button': 'data-bulk-delete-rows' in app,
-              'row-only enable rule': 'data-bulk-requires="rows"' in app,
-              'trash preservation': 'moveToTrash("tableRow",row' in app,
-              'safety snapshot': 'pre-bulk-row-delete' in app,
-              'release version': 'const HANA_APP_VERSION = "2.0.18";' in app,
-              'index version': 'hana-app-version" content="2.0.18"' in index,
-              'service worker cache': 'hana-shell-v51' in sw,
-          }
-          failed = [name for name, ok in checks.items() if not ok]
-          if failed:
-              raise SystemExit('Static QA failed: ' + ', '.join(failed))
-          print('Hana 2.0.18 static QA passed:', ', '.join(checks))
+          checks = [
+              'function deleteSelectedTableRows(tableId)' in app,
+              'data-bulk-delete-rows' in app,
+              'data-bulk-requires="rows"' in app,
+              'moveToTrash("tableRow",row' in app,
+              'pre-bulk-row-delete' in app,
+              'const HANA_APP_VERSION = "2.0.18";' in app,
+              'hana-app-version" content="2.0.18"' in index,
+              'hana-shell-v51' in sw,
+          ]
+          if not all(checks):
+              raise SystemExit('Static QA failed')
+          print('Hana 2.0.18 static QA passed')
           PY
 
       - name: JavaScript syntax check
         run: node --check app.js
 
-      - name: Verify no accidental workflow remains and commit
+      - name: Commit release
         shell: bash
         run: |
           git config user.name "Hana Release Bot"
