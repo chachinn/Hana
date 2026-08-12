@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.10
+   HANA 🌸 v2.0.11
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -460,6 +460,86 @@ function normalizeList(list = {}) {
   };
 }
 
+function normalizeFutureNote(note = {}) {
+  return {
+    id: note.id || createId(),
+    title: String(note.title || "A note for future me"),
+    content: String(note.content || ""),
+    date: note.date || todayISO(),
+    space: String(note.space || "personal"),
+    archived: Boolean(note.archived),
+    createdAt: Number(note.createdAt || Date.now()),
+    updatedAt: Number(note.updatedAt || note.createdAt || Date.now())
+  };
+}
+
+function normalizeThread(thread = {}) {
+  return {
+    id: thread.id || createId(),
+    title: String(thread.title || "Memory Thread"),
+    emoji: String(thread.emoji || "🧵").slice(0, 4),
+    space: String(thread.space || "personal"),
+    description: String(thread.description || ""),
+    links: Array.isArray(thread.links) ? thread.links.filter(link => link && link.type && link.id).map(link => ({ type:String(link.type), id:String(link.id), tableId:String(link.tableId || "") })) : [],
+    createdAt: Number(thread.createdAt || Date.now()),
+    updatedAt: Number(thread.updatedAt || thread.createdAt || Date.now())
+  };
+}
+
+function normalizeTinyWin(win = {}) {
+  return { id: win.id || createId(), title: String(win.title || "Tiny win"), date: win.date || todayISO(), space: String(win.space || "personal"), createdAt: Number(win.createdAt || Date.now()) };
+}
+
+function normalizeRelease(entry = {}) {
+  return { id: entry.id || createId(), title: String(entry.title || "Released item"), date: entry.date || todayISO(), action: String(entry.action || "released"), taskId: String(entry.taskId || ""), createdAt: Number(entry.createdAt || Date.now()) };
+}
+
+function normalizeSpace(space = {}) {
+  const id = String(space.id || "").trim() || `space-${createId()}`;
+  return {
+    id,
+    name: String(space.name || "Space").trim() || "Space",
+    emoji: String(space.emoji || "🌸").trim().slice(0, 4) || "🌸"
+  };
+}
+
+
+function normalizeEvent(event = {}) {
+  return {
+    id: event.id || createId(),
+    title: String(event.title || "Untitled event"),
+    space: String(event.space || "personal"),
+    date: event.date || todayISO(),
+    startTime: event.startTime || "09:00",
+    endTime: event.endTime || "10:00",
+    location: String(event.location || ""),
+    notes: String(event.notes || ""),
+    repeatType: ["none","daily","weekly","monthly","yearly"].includes(event.repeatType) ? event.repeatType : "none",
+    reminderEnabled: Boolean(event.reminderEnabled),
+    createdAt: Number(event.createdAt || Date.now()),
+    updatedAt: Number(event.updatedAt || event.createdAt || Date.now()),
+    ...normalizeShareMeta(event)
+  };
+}
+
+function normalizeProject(project = {}) {
+  return {
+    id: project.id || createId(),
+    name: String(project.name || "Untitled project").trim() || "Untitled project",
+    emoji: String(project.emoji || "🌷").slice(0,4),
+    space: String(project.space || "personal"),
+    description: String(project.description || ""),
+    dueDate: project.dueDate || "",
+    status: ["active","onhold","done"].includes(project.status) ? project.status : "active",
+    milestones: Array.isArray(project.milestones) ? project.milestones.map(m => ({
+      id: m.id || createId(), title: String(m.title || "Milestone"), dueDate: m.dueDate || "", completed: Boolean(m.completed)
+    })).filter(m=>m.title) : [],
+    createdAt: Number(project.createdAt || Date.now()),
+    updatedAt: Number(project.updatedAt || project.createdAt || Date.now()),
+    ...normalizeShareMeta(project)
+  };
+}
+
 function normalizeState(data = {}) {
   const base = clone(defaultState);
   const migratedTables = Array.isArray(data.tables)
@@ -607,25 +687,35 @@ function loadState() {
   }
 }
 
-let state = loadState();
+let state;
+try {
+  state = loadState();
+} catch (error) {
+  // Last-resort startup guard: never let a state-normalization regression turn
+  // Hana into a blank screen. Keep the stored data untouched and start from
+  // an in-memory default state so recovery/export remains possible.
+  stateLoadStatus = "corrupt";
+  console.error("Hana startup state recovery activated:", error);
+  state = clone(defaultState);
+}
 let lastSavedStateJSON = stateLoadStatus === "ok" ? rawStateAtLoad : "";
 let queuedSafetyStateJSON = "";
 let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.10";
+const HANA_APP_VERSION = "2.0.11";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Flexible List columns 🌸",
-  intro: "Lists can now use anywhere from 1 to 5 custom columns. Three is still the default when you turn columns on, but you can expand or simplify each List whenever you need.",
+  title: "Startup stability repair 🌸",
+  intro: "Hana 2.0.11 repairs a startup crash from the previous build while keeping flexible 1–5 List columns and the recent Partner Link improvements.",
   items: [
-    { icon: "1️⃣", title: "Choose 1–5 columns", text: "Every List can choose its own number of columns. New column layouts begin with 3, and you can change that later." },
-    { icon: "✏️", title: "Fully custom labels", text: "Name every column to fit the List: Me / Martin / Both, Produce / Pantry / Frozen / Drinks / Other, or anything else." },
-    { icon: "⚡", title: "Quick add follows your layout", text: "Quick add and the item editor automatically show only the columns enabled for that List." },
-    { icon: "🔒", title: "Still private when you want", text: "Columns organize a List locally. Partner Link remains a separate choice that controls whether someone else can see or edit it." },
-    { icon: "🔄", title: "Update banner retained", text: "Hana still tells you when a newer build is ready and lets you refresh when you choose." }
+    { icon: "🛠️", title: "Startup crash fixed", text: "Core state-normalization helpers accidentally removed in 2.0.10 have been restored, so Hana can open normally again." },
+    { icon: "🛡️", title: "Safer startup fallback", text: "If a future runtime problem happens while opening, Hana now falls back safely instead of leaving you with a blank screen." },
+    { icon: "1️⃣", title: "1–5 List columns retained", text: "Choose 1 to 5 custom columns per List. Three remains the default, and private Lists can use columns without Partner Link." },
+    { icon: "🔄", title: "Fresh build forced", text: "The app and service-worker versions were bumped so the repaired files are fetched instead of reusing the broken 2.0.10 cache." },
+    { icon: "💕", title: "Partner Link retained", text: "The working Partner Link architecture and Firebase sharing changes from the recent builds are unchanged." }
   ]
 };
 let hanaAccountState = {
@@ -5430,9 +5520,20 @@ if("serviceWorker" in navigator){
 }
 
 setInterval(checkReminders,30*1000);checkReminders();
-applyAppearance();
-render();
+let hanaStartupReady = true;
+try {
+  applyAppearance();
+  render();
+} catch (error) {
+  hanaStartupReady = false;
+  console.error("Hana could not finish rendering during startup:", error);
+  const container = document.getElementById("pageContent");
+  if (container) {
+    container.innerHTML = `<section class="empty-state startup-recovery-state"><div class="empty-icon">🌸</div><h3>Hana needs a quick refresh</h3><p>A startup error was caught before it could affect your saved data.</p><button class="primary-button" type="button" onclick="window.location.reload()">Refresh Hana</button></section>`;
+  }
+}
 (async()=>{
+  if (!hanaStartupReady) return;
   try{if(navigator.storage?.persist)await navigator.storage.persist();}catch{}
   await maybeRecoverFromSafetySnapshot();
   await startAccountOnboarding();

@@ -1,12 +1,12 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.10 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.11 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
 (() => {
   const SDK_VERSION = "12.16.0";
   const CHUNK_BYTES = 240000;
-  const BRIDGE_VERSION = "2.0.10";
+  const BRIDGE_VERSION = "2.0.11";
   const FIREBASE_PROJECT_ID = "hana-e78b1";
 
   const firebaseConfig = {
