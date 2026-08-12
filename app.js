@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.16
+   HANA 🌸 v2.0.17
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -379,9 +379,14 @@ const SKINCARE_WEEKDAYS = [
 ];
 
 const SKINCARE_PRODUCT_TYPES = [
-  "Cleanser", "Toner / Essence", "Ampoule", "Serum", "Treatment / Active",
-  "Mask", "Exfoliant", "Moisturizer", "Sunscreen", "Lip Care",
-  "Spot Treatment", "Eye Care", "Face Oil", "Mist", "Other"
+  "Cleansing Oil / Balm", "Micellar Water", "Water-Based Cleanser", "Powder / Enzyme Cleanser",
+  "Cleanser", "Toner / Essence", "Toner", "Exfoliating Toner", "Essence", "First Treatment Essence",
+  "Booster", "Ampoule", "Serum", "Vitamin C", "Niacinamide", "Azelaic Acid",
+  "AHA / BHA / PHA", "Retinoid / Retinal / Retinol", "Treatment / Active", "Acne Treatment",
+  "Spot Treatment", "Pimple Patch", "Sheet Mask", "Wash-Off Mask", "Clay Mask",
+  "Sleeping Mask", "Exfoliant", "Eye Serum / Cream", "Emulsion / Lotion",
+  "Gel Cream", "Moisturizer", "Moisturizer / Cream", "Face Oil", "Mist", "Sunscreen",
+  "Lip Care", "Lip Balm / Lip Mask", "Eye Care", "Mask", "Neck Care", "Prescription Treatment", "Other"
 ];
 
 function normalizeSkincareRoutine(routine = {}) {
@@ -391,7 +396,7 @@ function normalizeSkincareRoutine(routine = {}) {
     steps: Array.isArray(routine.steps) ? routine.steps.map((step,index) => {
       const rawDays = Array.isArray(step.days) ? [...new Set(step.days.map(Number).filter(day => validDays.has(day)))] : [];
       const rawTimes = Array.isArray(step.times) ? [...new Set(step.times.map(String).filter(time => ["am","pm"].includes(time)))] : [];
-      const category = SKINCARE_PRODUCT_TYPES.includes(String(step.category || "")) ? String(step.category) : "Other";
+      const category = String(step.category || "").trim() || "Other";
       return {
         id: step.id || createId(),
         category,
@@ -778,18 +783,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.16";
+const HANA_APP_VERSION = "2.0.17";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Focus Bouquet + skincare + Partner fixes 🌸",
-  intro: "Hana 2.0.16 bundles the recent unpushed updates into one stable build: a real Top 3 Focus Bouquet, reliable update refresh, the weekly skincare planner, and the full H2 Partner invite paste fix.",
+  title: "Skincare pages, Quick Notes + Partner repair 🌸",
+  intro: "Hana 2.0.17 makes recurring routines faster to edit, Notes quicker to capture, and Partner Link much more tolerant of real iPhone copy/paste behavior.",
   items: [
-    { icon: "💐", title: "Focus Bouquet is now a real Top 3", text: "Choose up to three focus tasks. Each selected task starts as a bud and visibly blooms when completed, with direct choose, quick-add, complete and remove controls." },
-    { icon: "🧴", title: "Weekly skincare planner", text: "Edit the full week in one form, reuse products across multiple days, choose AM/PM/both, and open directly to today's routine." },
-    { icon: "💕", title: "Full Partner keys paste correctly", text: "The join field accepts the complete H2 invite key, preserves case-sensitive data, and gives a clear message if a key was cut off." },
-    { icon: "🔄", title: "Reliable Update → Refresh", text: "Hana checks both the service worker and the deployed app version so future updates are much more likely to surface on iPhone." },
-    { icon: "🛟", title: "Recent stability work retained", text: "Startup recovery, local/cloud backup protections, private List columns, note templates and the repaired Partner architecture all remain included." }
+    { icon: "🧴", title: "Skincare now edits one day at a time", text: "Move Monday through Sunday with Previous/Next, then copy a full AM/PM day to any combination of other days." },
+    { icon: "✨", title: "More skincare product types", text: "The dropdown now covers cleansing oils, micellar water, acids, retinoids, acne treatments, masks, eye care, pimple patches and more." },
+    { icon: "📝", title: "Quick Note", text: "Capture a simple Apple Notes-style note with just an optional title and body. Detailed note settings remain available separately." },
+    { icon: "💕", title: "Partner invite repair", text: "Hana extracts valid H2 keys from surrounding text, repairs legacy stored invite codes, and stops mislabeling malformed text as an old app version." },
+    { icon: "🛟", title: "Stability cleanup", text: "Partner reconnect logic, duplicate preparation work and update/cache versioning were cleaned up without changing your existing data." }
   ]
 };
 let hanaAccountState = {
@@ -1270,7 +1275,7 @@ function resetDailyFocusIfNeeded() {
     state.focusDate = todayISO();
     state.focusTaskIds = [];
   }
-  // v2.0.16 keeps the Focus Bouquet intentionally small. Existing users who
+  // v2.0.17 keeps the Focus Bouquet intentionally small. Existing users who
   // had more than three focus tasks are migrated safely to the first three.
   if (state.focusTaskIds.length > FOCUS_BOUQUET_LIMIT) state.focusTaskIds = state.focusTaskIds.slice(0, FOCUS_BOUQUET_LIMIT);
 }
@@ -2064,7 +2069,8 @@ function renderNotes() {
   const container = document.getElementById("pageContent");
   const notes = filterByMode(state.notes).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||b.updatedAt-a.updatedAt);
   container.innerHTML = `
-    <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Keep free-form thoughts, structured references, meeting actions and resettable checklists.</p></div>
+    <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Jot something down instantly, or use detailed notes and reusable templates when you need more structure.</p></div>
+    <div class="notes-quick-actions"><button type="button" class="primary-button" data-open-quick-note>📝 Quick Note</button><button type="button" class="secondary-button" data-open="noteModal">Detailed note</button></div>
     <details class="note-template-launcher">
       <summary><span>🧩 Start from a note template</span><small>Weekly skincare · Bionote · Strategy · Measurements</small></summary>
       <div class="note-template-chip-grid">
@@ -2077,6 +2083,18 @@ function renderNotes() {
     <div class="search-box"><input id="noteSearch" type="search" placeholder="Search notes and tags..." /></div>
     <div id="notesResults">${notes.length ? `<div class="note-grid">${notes.map(noteCard).join("")}</div>` : emptyState("📝","Your pages are waiting","Capture anything worth remembering.","Add note","open-note")}</div>
   `;
+}
+
+function openQuickNoteModal(){
+  const title=document.getElementById("quickNoteTitle"),body=document.getElementById("quickNoteContent");
+  if(title)title.value="";if(body)body.value="";openModal("quickNoteModal");setTimeout(()=>body?.focus(),80);
+}
+function saveQuickNote(){
+  const title=document.getElementById("quickNoteTitle")?.value.trim()||"",content=document.getElementById("quickNoteContent")?.value.trim()||"";
+  if(!title&&!content)return showToast("Write something first 🌸");
+  const firstLine=content.split(/\n+/).map(line=>line.trim()).find(Boolean)||"",resolvedTitle=title||(firstLine?firstLine.slice(0,72):"Quick Note");
+  state.notes.push(normalizeNote({id:createId(),title:resolvedTitle,type:"note",space:preferredSpace(),tags:[],content,checklist:[],resettable:false,pinned:false,createdAt:Date.now(),updatedAt:Date.now()}));
+  closeModal("quickNoteModal");showToast("Quick note saved 📝");render();
 }
 
 function clearNoteForm() {
@@ -2149,154 +2167,60 @@ function searchNotes(query) {
 /* ================= WEEKLY SKINCARE PLANNER ================= */
 
 let activeSkincareViewDay = new Date().getDay();
+let activeSkincareEditDay = new Date().getDay();
+let skincareEditorDraft = null;
 
 function skincareCategoryOptions(selected="Cleanser") {
-  return SKINCARE_PRODUCT_TYPES.map(type=>`<option value="${escapeHTML(type)}" ${type===selected?"selected":""}>${escapeHTML(type)}</option>`).join("");
+  const types=SKINCARE_PRODUCT_TYPES.includes(selected)?SKINCARE_PRODUCT_TYPES:[selected,...SKINCARE_PRODUCT_TYPES];
+  return [...new Set(types)].map(type=>`<option value="${escapeHTML(type)}" ${type===selected?"selected":""}>${escapeHTML(type)}</option>`).join("");
 }
-
 function skincareEditorRow(step = {}) {
-  const normalized = normalizeSkincareRoutine({steps:[step]}).steps[0];
+  const normalized=normalizeSkincareRoutine({steps:[{...step,days:[activeSkincareEditDay]}]}).steps[0];
   return `<div class="skincare-step-editor" data-skincare-step-row data-step-id="${normalized.id}">
-    <div class="skincare-step-head">
-      <strong>Skincare step</strong>
-      <button type="button" class="icon-text-button danger-soft" data-skincare-remove-step>Remove</button>
-    </div>
-    <div class="skincare-step-fields">
-      <label><span>Type</span><select data-skincare-category>${skincareCategoryOptions(normalized.category)}</select></label>
-      <label><span>Product</span><input data-skincare-product type="text" value="${escapeHTML(normalized.product)}" placeholder="e.g. Azelaic Acid 10%" /></label>
-    </div>
-    <div class="skincare-editor-section">
-      <div class="skincare-editor-label"><span>Days</span><div class="skincare-preset-buttons"><button type="button" data-skincare-day-preset="all">Every day</button><button type="button" data-skincare-day-preset="weekdays">Weekdays</button><button type="button" data-skincare-day-preset="weekends">Weekend</button></div></div>
-      <div class="skincare-day-pickers">${SKINCARE_WEEKDAYS.map(meta=>`<button type="button" class="skincare-toggle-chip ${normalized.days.includes(meta.day)?"selected":""}" aria-pressed="${normalized.days.includes(meta.day)}" data-skincare-toggle-day="${meta.day}">${meta.short}</button>`).join("")}</div>
-    </div>
-    <div class="skincare-editor-section">
-      <span class="skincare-editor-label">Routine</span>
-      <div class="skincare-time-pickers">
-        <button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("am")?"selected":""}" aria-pressed="${normalized.times.includes("am")}" data-skincare-toggle-time="am">☀️ AM</button>
-        <button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("pm")?"selected":""}" aria-pressed="${normalized.times.includes("pm")}" data-skincare-toggle-time="pm">🌙 PM</button>
-      </div>
-    </div>
-    <label class="skincare-notes-field"><span>Notes <small>optional</small></span><input data-skincare-notes type="text" value="${escapeHTML(normalized.notes)}" placeholder="e.g. after toner · avoid if irritated" /></label>
+    <div class="skincare-step-head"><strong>Skincare step</strong><button type="button" class="icon-text-button danger-soft" data-skincare-remove-step>Remove</button></div>
+    <div class="skincare-step-fields"><label><span>Product type</span><select data-skincare-category>${skincareCategoryOptions(normalized.category)}</select></label><label><span>Product</span><input data-skincare-product type="text" value="${escapeHTML(normalized.product)}" placeholder="e.g. Azelaic Acid 10%" /></label></div>
+    <div class="skincare-editor-section"><span class="skincare-editor-label">Routine</span><div class="skincare-time-pickers"><button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("am")?"selected":""}" aria-pressed="${normalized.times.includes("am")}" data-skincare-toggle-time="am">☀️ AM</button><button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("pm")?"selected":""}" aria-pressed="${normalized.times.includes("pm")}" data-skincare-toggle-time="pm">🌙 PM</button></div></div>
+    <label class="skincare-notes-field"><span>Notes <small>optional</small></span><input data-skincare-notes type="text" value="${escapeHTML(normalized.notes)}" placeholder="e.g. after toner · skip if irritated" /></label>
   </div>`;
 }
-
-function populateSkincareEditor(note = null) {
-  const title=document.getElementById("skincareTitle");
-  const focus=document.getElementById("skincareFocus");
-  const space=document.getElementById("skincareSpace");
-  const steps=document.getElementById("skincareStepsEditor");
-  document.getElementById("skincareEditId").value=note?.id||"";
-  title.value=note?.title||"Skincare Routine";
-  focus.value=note?.skincareRoutine?.focus||"";
-  refreshSpaceSelects();
-  space.value=note?.space||preferredSpace();
-  const rows=note?.skincareRoutine?.steps||[];
-  steps.innerHTML=rows.length?rows.map(skincareEditorRow).join(""):skincareEditorRow({category:"Cleanser",days:[1,2,3,4,5,6,0],times:["am","pm"]});
+function skincareDraftFromNote(note = null) {
+  const routine=normalizeSkincareRoutine(note?.skincareRoutine||{}),days={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
+  SKINCARE_WEEKDAYS.forEach(meta=>{days[meta.day]=routine.steps.filter(step=>step.days.includes(meta.day)).map((step,index)=>({id:createId(),category:step.category,product:step.product,times:[...step.times],notes:step.notes,order:index}));});
+  return {days,focus:routine.focus,title:note?.title||"Skincare Routine",space:note?.space||preferredSpace()};
 }
-
-function skincareViewStepHTML(step) {
-  const name=step.product.trim()||step.category;
-  return `<div class="skincare-view-step"><div><span class="skincare-category-pill">${escapeHTML(step.category)}</span><strong>${escapeHTML(name)}</strong></div>${step.notes?`<small>${escapeHTML(step.notes)}</small>`:""}</div>`;
-}
-
-function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
-  const body=document.getElementById("skincareViewBody"); if(!body||!note)return;
-  const meta=skincareDayMeta(day);
-  const am=skincareStepsForDay(note,day,"am"), pm=skincareStepsForDay(note,day,"pm");
-  const today=new Date().getDay();
-  const routineSection=(icon,label,steps)=>`<section class="skincare-routine-period"><div class="skincare-period-title"><span>${icon}</span><div><strong>${label}</strong><small>${steps.length} step${steps.length===1?"":"s"}</small></div></div>${steps.length?`<div class="skincare-view-step-list">${steps.map(skincareViewStepHTML).join("")}</div>`:`<div class="skincare-empty-period">Nothing planned for ${label.toLowerCase()}.</div>`}</section>`;
-  body.innerHTML=`
-    ${note.skincareRoutine?.focus?`<div class="skincare-focus-card"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:""}
-    <div class="skincare-day-tabs" role="tablist" aria-label="Skincare day">${SKINCARE_WEEKDAYS.map(item=>`<button type="button" role="tab" data-skincare-view-day="${item.day}" class="${Number(day)===item.day?"active":""} ${today===item.day?"today":""}" aria-selected="${Number(day)===item.day}"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:""}</button>`).join("")}</div>
-    <div class="skincare-selected-day"><span>${meta.label}</span>${today===Number(day)?`<strong>Today</strong>`:""}</div>
-    <div class="skincare-period-grid">${routineSection("☀️","AM",am)}${routineSection("🌙","PM",pm)}</div>
-  `;
-}
-
-function openSkincareRoutineModal(noteId="", options={}) {
-  const note=noteId?state.notes.find(item=>item.id===noteId):null;
-  const edit=Boolean(options.edit || !note);
-  activeSkincareViewDay=new Date().getDay();
-  const modal=document.getElementById("skincareRoutineModal"); if(modal)modal.dataset.noteId=note?.id||"";
-  document.getElementById("skincarePlannerTitle").textContent=note?.title||"Weekly skincare planner";
-  document.getElementById("skincareViewMode").classList.toggle("hidden",edit);
-  document.getElementById("skincareEditMode").classList.toggle("hidden",!edit);
-  document.getElementById("skincarePlannerEditButton").classList.toggle("hidden",edit||!note);
-  document.getElementById("skincarePlannerSettingsButton").classList.toggle("hidden",edit||!note);
-  document.getElementById("skincarePlannerBackToView").classList.toggle("hidden",!edit||!note);
-  if(edit) populateSkincareEditor(note); else renderSkincareRoutineView(note,activeSkincareViewDay);
-  openModal("skincareRoutineModal");
-}
-
-function collectSkincareEditorSteps() {
-  const rows=[...document.querySelectorAll("#skincareStepsEditor [data-skincare-step-row]")];
-  const steps=[];
+function skincareEditDayIndex(day=activeSkincareEditDay){const index=SKINCARE_WEEKDAYS.findIndex(meta=>meta.day===Number(day));return index<0?0:index;}
+function readSkincareEditorPage() {
+  const rows=[...document.querySelectorAll("#skincareStepsEditor [data-skincare-step-row]")],steps=[];
   for(let index=0;index<rows.length;index++){
-    const row=rows[index];
-    const days=[...row.querySelectorAll("[data-skincare-toggle-day].selected")].map(button=>Number(button.dataset.skincareToggleDay));
-    const times=[...row.querySelectorAll("[data-skincare-toggle-time].selected")].map(button=>button.dataset.skincareToggleTime);
-    if(!days.length){showToast(`Choose at least one day for skincare step ${index+1}.`);row.scrollIntoView({behavior:"smooth",block:"center"});return null;}
-    if(!times.length){showToast(`Choose AM, PM, or both for skincare step ${index+1}.`);row.scrollIntoView({behavior:"smooth",block:"center"});return null;}
-    steps.push({
-      id:row.dataset.stepId||createId(),
-      category:row.querySelector("[data-skincare-category]")?.value||"Other",
-      product:row.querySelector("[data-skincare-product]")?.value.trim()||"",
-      days,times,
-      notes:row.querySelector("[data-skincare-notes]")?.value.trim()||"",
-      order:index
-    });
+    const row=rows[index],times=[...row.querySelectorAll("[data-skincare-toggle-time].selected")].map(button=>button.dataset.skincareToggleTime);
+    if(!times.length){showToast("Choose AM, PM, or both for every skincare step.");return null;}
+    steps.push({id:row.dataset.stepId||createId(),category:row.querySelector("[data-skincare-category]")?.value||"Other",product:row.querySelector("[data-skincare-product]")?.value.trim()||"",times,notes:row.querySelector("[data-skincare-notes]")?.value.trim()||"",order:index});
   }
   return steps;
 }
-
-function saveSkincareRoutine() {
-  const id=document.getElementById("skincareEditId").value;
-  const old=id?state.notes.find(note=>note.id===id):null;
-  const steps=collectSkincareEditorSteps(); if(!steps)return;
-  const title=document.getElementById("skincareTitle").value.trim()||"Skincare Routine";
-  const note=normalizeNote({
-    ...(old||{}), id:id||createId(), title, type:"note",
-    space:document.getElementById("skincareSpace").value||preferredSpace(),
-    tags:old?.tags?.length?old.tags:["reference","skincare","routine"],
-    content:"", checklist:[], resettable:false,
-    structuredType:"skincare-weekly",
-    skincareRoutine:{focus:document.getElementById("skincareFocus").value.trim(),steps},
-    createdAt:old?.createdAt||Date.now(), updatedAt:Date.now()
-  });
-  if(old)state.notes[state.notes.findIndex(item=>item.id===id)]=note; else state.notes.push(note);
-  saveState(); showToast(old?"Weekly skincare updated 🧴":"Weekly skincare planner created 🧴");
-  document.getElementById("skincareRoutineModal").dataset.noteId=note.id;
-  document.getElementById("skincarePlannerTitle").textContent=note.title;
-  document.getElementById("skincareViewMode").classList.remove("hidden");
-  document.getElementById("skincareEditMode").classList.add("hidden");
-  document.getElementById("skincarePlannerEditButton").classList.remove("hidden");
-  document.getElementById("skincarePlannerSettingsButton").classList.remove("hidden");
-  document.getElementById("skincarePlannerBackToView").classList.add("hidden");
-  activeSkincareViewDay=new Date().getDay();
-  renderSkincareRoutineView(note,activeSkincareViewDay);
-  render();
+function commitSkincareEditorPage() {
+  if(!skincareEditorDraft)return true;const steps=readSkincareEditorPage();if(steps===null)return false;
+  skincareEditorDraft.days[activeSkincareEditDay]=steps;skincareEditorDraft.title=document.getElementById("skincareTitle")?.value.trim()||"Skincare Routine";skincareEditorDraft.focus=document.getElementById("skincareFocus")?.value.trim()||"";skincareEditorDraft.space=document.getElementById("skincareSpace")?.value||preferredSpace();return true;
 }
-
-function addSkincareEditorStep() {
-  const container=document.getElementById("skincareStepsEditor"); if(!container)return;
-  container.insertAdjacentHTML("beforeend",skincareEditorRow({category:"Serum",days:[1,2,3,4,5,6,0],times:["pm"]}));
-  container.lastElementChild?.scrollIntoView({behavior:"smooth",block:"nearest"});
+function renderSkincareSyncChoices(){
+  const wrap=document.getElementById("skincareSyncDayChoices");if(!wrap)return;wrap.innerHTML=SKINCARE_WEEKDAYS.filter(meta=>meta.day!==activeSkincareEditDay).map(meta=>`<button type="button" class="skincare-toggle-chip" aria-pressed="false" data-skincare-sync-day="${meta.day}">${meta.short}</button>`).join("");const title=document.getElementById("skincareSyncTitle");if(title)title.textContent=`Copy ${skincareDayMeta(activeSkincareEditDay).label} to…`;
 }
-
-function toggleSkincareChip(button, selector) {
-  const row=button.closest("[data-skincare-step-row]"); if(!row)return;
-  const selected=button.classList.toggle("selected");
-  button.setAttribute("aria-pressed",String(selected));
-  if(selector==="time"&&!row.querySelector("[data-skincare-toggle-time].selected")){
-    button.classList.add("selected");button.setAttribute("aria-pressed","true");showToast("Keep at least AM or PM selected.");
-  }
+function renderSkincareEditorDay() {
+  if(!skincareEditorDraft)return;const meta=skincareDayMeta(activeSkincareEditDay),index=skincareEditDayIndex(activeSkincareEditDay),rows=skincareEditorDraft.days[activeSkincareEditDay]||[];
+  const title=document.getElementById("skincareEditDayTitle");if(title)title.textContent=meta.label;const progress=document.getElementById("skincareEditProgress");if(progress)progress.textContent=`Day ${index+1} of 7`;const prev=document.querySelector("[data-skincare-edit-prev]");if(prev)prev.disabled=index===0;const next=document.querySelector("[data-skincare-edit-next]");if(next){next.disabled=index===6;next.textContent=index===6?"Sunday ✓":"Next ›";}
+  const container=document.getElementById("skincareStepsEditor");if(container)container.innerHTML=rows.length?rows.map(skincareEditorRow).join(""):`<div class="skincare-day-empty-editor"><span>🌱</span><strong>No steps for ${meta.label} yet</strong><p>Add an AM or PM product, or copy another day here.</p></div>`;renderSkincareSyncChoices();
 }
-
-function applySkincareDayPreset(button,preset) {
-  const row=button.closest("[data-skincare-step-row]"); if(!row)return;
-  const days=preset==="weekdays"?new Set([1,2,3,4,5]):preset==="weekends"?new Set([6,0]):new Set([0,1,2,3,4,5,6]);
-  row.querySelectorAll("[data-skincare-toggle-day]").forEach(dayButton=>{const active=days.has(Number(dayButton.dataset.skincareToggleDay));dayButton.classList.toggle("selected",active);dayButton.setAttribute("aria-pressed",String(active));});
+function populateSkincareEditor(note = null, day = new Date().getDay()) {skincareEditorDraft=skincareDraftFromNote(note);activeSkincareEditDay=SKINCARE_WEEKDAYS.some(meta=>meta.day===Number(day))?Number(day):1;document.getElementById("skincareEditId").value=note?.id||"";document.getElementById("skincareTitle").value=skincareEditorDraft.title;document.getElementById("skincareFocus").value=skincareEditorDraft.focus;refreshSpaceSelects();document.getElementById("skincareSpace").value=skincareEditorDraft.space;renderSkincareEditorDay();}
+function skincareViewStepHTML(step) {const name=step.product.trim()||step.category;return `<div class="skincare-view-step"><div><span class="skincare-category-pill">${escapeHTML(step.category)}</span><strong>${escapeHTML(name)}</strong></div>${step.notes?`<small>${escapeHTML(step.notes)}</small>`:""}</div>`;}
+function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
+  const body=document.getElementById("skincareViewBody");if(!body||!note)return;const meta=skincareDayMeta(day),am=skincareStepsForDay(note,day,"am"),pm=skincareStepsForDay(note,day,"pm"),today=new Date().getDay();const routineSection=(icon,label,steps)=>`<section class="skincare-routine-period"><div class="skincare-period-title"><span>${icon}</span><div><strong>${label}</strong><small>${steps.length} step${steps.length===1?"":"s"}</small></div></div>${steps.length?`<div class="skincare-view-step-list">${steps.map(skincareViewStepHTML).join("")}</div>`:`<div class="skincare-empty-period">Nothing planned for ${label.toLowerCase()}.</div>`}</section>`;body.innerHTML=`${note.skincareRoutine?.focus?`<div class="skincare-focus-card"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:""}<div class="skincare-day-tabs" role="tablist" aria-label="Skincare day">${SKINCARE_WEEKDAYS.map(item=>`<button type="button" role="tab" data-skincare-view-day="${item.day}" class="${Number(day)===item.day?"active":""} ${today===item.day?"today":""}" aria-selected="${Number(day)===item.day}"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:""}</button>`).join("")}</div><div class="skincare-selected-day"><span>${meta.label}</span>${today===Number(day)?`<strong>Today</strong>`:""}</div><div class="skincare-period-grid">${routineSection("☀️","AM",am)}${routineSection("🌙","PM",pm)}</div>`;
 }
+function openSkincareRoutineModal(noteId="", options={}) {const note=noteId?state.notes.find(item=>item.id===noteId):null,edit=Boolean(options.edit||!note);activeSkincareViewDay=Number.isInteger(options.day)?options.day:new Date().getDay();const modal=document.getElementById("skincareRoutineModal");if(modal)modal.dataset.noteId=note?.id||"";document.getElementById("skincarePlannerTitle").textContent=note?.title||"Weekly skincare planner";document.getElementById("skincareViewMode").classList.toggle("hidden",edit);document.getElementById("skincareEditMode").classList.toggle("hidden",!edit);document.getElementById("skincarePlannerEditButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerSettingsButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerBackToView").classList.toggle("hidden",!edit||!note);if(edit)populateSkincareEditor(note,activeSkincareViewDay);else renderSkincareRoutineView(note,activeSkincareViewDay);openModal("skincareRoutineModal");}
+function navigateSkincareEditor(direction){if(!commitSkincareEditorPage())return;const index=skincareEditDayIndex(activeSkincareEditDay),next=Math.max(0,Math.min(6,index+direction));activeSkincareEditDay=SKINCARE_WEEKDAYS[next].day;renderSkincareEditorDay();document.querySelector(".skincare-planner-modal")?.scrollTo({top:0,behavior:"smooth"});}
+function syncSkincareEditorDay(){if(!commitSkincareEditorPage())return;const selected=[...document.querySelectorAll("[data-skincare-sync-day].selected")].map(button=>Number(button.dataset.skincareSyncDay));if(!selected.length)return showToast("Choose at least one day to sync to.");const source=(skincareEditorDraft.days[activeSkincareEditDay]||[]).map(step=>({...step,times:[...step.times]}));selected.forEach(day=>{skincareEditorDraft.days[day]=source.map((step,index)=>({...step,id:createId(),order:index,times:[...step.times]}));});renderSkincareSyncChoices();showToast(`${skincareDayMeta(activeSkincareEditDay).label} copied to ${selected.map(day=>skincareDayMeta(day).short).join(", ")} 🧴`);}
+function saveSkincareRoutine() {if(!commitSkincareEditorPage())return;const id=document.getElementById("skincareEditId").value,old=id?state.notes.find(note=>note.id===id):null,steps=[];SKINCARE_WEEKDAYS.forEach(meta=>(skincareEditorDraft?.days?.[meta.day]||[]).forEach(step=>steps.push({id:createId(),category:step.category||"Other",product:step.product||"",days:[meta.day],times:[...(step.times||[])],notes:step.notes||"",order:steps.length})));const note=normalizeNote({...(old||{}),id:id||createId(),title:skincareEditorDraft?.title||"Skincare Routine",type:"note",space:skincareEditorDraft?.space||preferredSpace(),tags:old?.tags?.length?old.tags:["reference","skincare","routine"],content:"",checklist:[],resettable:false,structuredType:"skincare-weekly",skincareRoutine:{focus:skincareEditorDraft?.focus||"",steps},createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.notes[state.notes.findIndex(item=>item.id===id)]=note;else state.notes.push(note);saveState();showToast(old?"Weekly skincare updated 🧴":"Weekly skincare planner created 🧴");document.getElementById("skincareRoutineModal").dataset.noteId=note.id;document.getElementById("skincarePlannerTitle").textContent=note.title;document.getElementById("skincareViewMode").classList.remove("hidden");document.getElementById("skincareEditMode").classList.add("hidden");document.getElementById("skincarePlannerEditButton").classList.remove("hidden");document.getElementById("skincarePlannerSettingsButton").classList.remove("hidden");document.getElementById("skincarePlannerBackToView").classList.add("hidden");activeSkincareViewDay=new Date().getDay();skincareEditorDraft=null;renderSkincareRoutineView(note,activeSkincareViewDay);render();}
+function addSkincareEditorStep() {if(!skincareEditorDraft)return;const container=document.getElementById("skincareStepsEditor");if(!container)return;container.querySelector(".skincare-day-empty-editor")?.remove();container.insertAdjacentHTML("beforeend",skincareEditorRow({category:"Serum",times:["pm"]}));container.lastElementChild?.scrollIntoView({behavior:"smooth",block:"nearest"});}
+function toggleSkincareChip(button) {const row=button.closest("[data-skincare-step-row]");if(!row)return;const selected=button.classList.toggle("selected");button.setAttribute("aria-pressed",String(selected));if(!row.querySelector("[data-skincare-toggle-time].selected")){button.classList.add("selected");button.setAttribute("aria-pressed","true");showToast("Keep at least AM or PM selected.");}}
 
 /* ================= REMINDERS ================= */
 
@@ -4669,7 +4593,7 @@ function renderPartnerSettingsCard(){
   if(!user)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Share only what you choose</h3><p>Sign in to Hana first. Partner Link connects one person and keeps everything private by default.</p></div></div><button class="secondary-button" type="button" data-auth-email-mode="signin">Sign in to use Partner Link</button></div></section>`;
   if(hanaPartnerState.status==="loading")return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><h3>Checking your Partner Link…</h3><p>Your private Hana data stays local while this loads.</p></div></section>`;
   if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2>${partnerSyncBadgeHTML()}</div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
-  if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Tap the invite key to copy it, then send it to your partner. They can paste the whole key into Hana.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy Partner invite"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy Partner invite</small></button><p class="field-help">This invite is longer than the old 8-character code because it securely points to one exact private invite document. It expires after 7 days.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
+  if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Tap the invite key to copy it, then send it to your partner. They can paste the whole key into Hana.</p></div></div><div class="partner-invite-code"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Full H2 invite key · expires after 7 days</small></div><div class="partner-invite-actions"><button class="primary-button" type="button" data-copy-partner-code>Copy full key</button><button class="secondary-button" type="button" data-share-partner-code>Share invite</button></div><p class="field-help">Use Copy full key or Share invite. Hana can extract the H2 key even if your messaging app adds surrounding text.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
   return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small>${hanaPartnerState.error?`<div class="partner-diagnostic-card"><strong>Partner Link needs attention</strong><small>${escapeHTML(hanaPartnerState.error)}</small><button class="secondary-button compact-button" type="button" data-run-partner-diagnostics>Run diagnostics</button></div>`:""}</div></section>`;
 }
 
@@ -4730,11 +4654,25 @@ async function runPartnerDiagnostics(){
     }
   }catch(error){showToast(firebaseFriendlyError(error));}
 }
+function updatePartnerJoinCodeStatus(){
+  const input=document.getElementById("partnerJoinCode"),status=document.getElementById("partnerJoinCodeStatus");
+  if(!input||!status)return;const raw=input.value||"";input.classList.remove("is-valid","is-invalid");status.classList.remove("valid","invalid");
+  if(!raw.trim()){status.textContent="Paste the complete H2 invite. Hana can also extract it from surrounding message text.";return;}
+  const fb=window.HanaFirebase,result=typeof fb?.validatePartnerCode==="function"?fb.validatePartnerCode(raw):{valid:/H2\s*[.。．]\s*[A-Za-z0-9_-]+\s*[.。．]\s*[A-Za-z0-9]{8,}/i.test(raw),message:"Checking H2 invite…"};
+  if(result.valid){input.classList.add("is-valid");status.classList.add("valid");status.textContent=result.message||"Valid H2 invite detected ✓";}
+  else{input.classList.add("is-invalid");status.classList.add("invalid");status.textContent=result.message||"This does not look like a complete H2 invite yet.";}
+}
+
 async function acceptPartnerInvite(){
-  const code=String(document.getElementById("partnerJoinCode")?.value||"").trim();
-  if(!code)return showToast("Enter the invite code first 💕");
-  try{const fb=await firebaseReady();const result=await fb.acceptPartnerInvite(hanaAccountState.user.uid,code,accountDisplayName(hanaAccountState.user));closeModal("partnerJoinModal");showToast(`Connected to ${result.partnerName||"your partner"} 💕`);}
-  catch(error){showToast(firebaseFriendlyError(error));}
+  const raw=String(document.getElementById("partnerJoinCode")?.value||"").trim();
+  if(!raw)return showToast("Enter the invite code first 💕");
+  try{
+    const fb=await firebaseReady();
+    const validation=typeof fb.validatePartnerCode==="function"?fb.validatePartnerCode(raw):{valid:true,code:raw};
+    if(!validation.valid)throw new Error(validation.message||"That Partner invite is not valid.");
+    const result=await fb.acceptPartnerInvite(hanaAccountState.user.uid,validation.code||raw,accountDisplayName(hanaAccountState.user));
+    closeModal("partnerJoinModal");showToast(`Connected to ${result.partnerName||"your partner"} 💕`);
+  }catch(error){showToast(firebaseFriendlyError(error));}
 }
 async function cancelPartnerInvite(){
   if(!hanaPartnerState.inviteCode)return;
@@ -5565,16 +5503,20 @@ document.addEventListener("click", event => {
   const openSkincare=event.target.closest("[data-open-skincare]");if(openSkincare){openSkincareRoutineModal(openSkincare.dataset.openSkincare,{edit:false});return;}
   const editSkincare=event.target.closest("[data-edit-skincare]");if(editSkincare){openSkincareRoutineModal(editSkincare.dataset.editSkincare,{edit:true});return;}
   const skincareDay=event.target.closest("[data-skincare-view-day]");if(skincareDay){activeSkincareViewDay=Number(skincareDay.dataset.skincareViewDay);const id=document.getElementById("skincareEditId")?.value||document.getElementById("skincareRoutineModal")?.dataset.noteId||"";const note=state.notes.find(item=>item.id===id);if(note)renderSkincareRoutineView(note,activeSkincareViewDay);return;}
-  if(event.target.closest("[data-skincare-edit-week]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";const note=state.notes.find(item=>item.id===id);if(note)openSkincareRoutineModal(note.id,{edit:true});return;}
+  if(event.target.closest("[data-skincare-edit-week]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";const note=state.notes.find(item=>item.id===id);if(note)openSkincareRoutineModal(note.id,{edit:true,day:activeSkincareViewDay});return;}
   if(event.target.closest("[data-skincare-back-view]")){const id=document.getElementById("skincareEditId")?.value||"";const note=state.notes.find(item=>item.id===id);if(note)openSkincareRoutineModal(note.id,{edit:false});return;}
   if(event.target.closest("[data-skincare-add-step]")){addSkincareEditorStep();return;}
-  const removeSkincare=event.target.closest("[data-skincare-remove-step]");if(removeSkincare){const row=removeSkincare.closest("[data-skincare-step-row]");const container=document.getElementById("skincareStepsEditor");if(container?.children.length<=1){showToast("Keep at least one skincare row in the planner.");return;}row?.remove();return;}
-  const skincareDayToggle=event.target.closest("[data-skincare-toggle-day]");if(skincareDayToggle){toggleSkincareChip(skincareDayToggle,"day");return;}
-  const skincareTimeToggle=event.target.closest("[data-skincare-toggle-time]");if(skincareTimeToggle){toggleSkincareChip(skincareTimeToggle,"time");return;}
-  const skincarePreset=event.target.closest("[data-skincare-day-preset]");if(skincarePreset){applySkincareDayPreset(skincarePreset,skincarePreset.dataset.skincareDayPreset);return;}
+  const removeSkincare=event.target.closest("[data-skincare-remove-step]");if(removeSkincare){const row=removeSkincare.closest("[data-skincare-step-row]");const container=document.getElementById("skincareStepsEditor");row?.remove();if(container&&!container.querySelector("[data-skincare-step-row]"))container.innerHTML=`<div class="skincare-day-empty-editor"><span>🌱</span><strong>Rest day</strong><p>No skincare steps are planned for this day yet.</p></div>`;return;}
+  const skincareTimeToggle=event.target.closest("[data-skincare-toggle-time]");if(skincareTimeToggle){toggleSkincareChip(skincareTimeToggle);return;}
+  if(event.target.closest("[data-skincare-edit-prev]")){navigateSkincareEditor(-1);return;}
+  if(event.target.closest("[data-skincare-edit-next]")){navigateSkincareEditor(1);return;}
+  const skincareSyncDay=event.target.closest("[data-skincare-sync-day]");if(skincareSyncDay){const active=skincareSyncDay.classList.toggle("selected");skincareSyncDay.setAttribute("aria-pressed",String(active));return;}
+  if(event.target.closest("[data-skincare-sync-apply]")){syncSkincareEditorDay();return;}
   if(event.target.closest("[data-save-skincare]")){saveSkincareRoutine();return;}
   if(event.target.closest("[data-skincare-note-settings]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";closeModal("skincareRoutineModal");if(id)openNoteModal(id);return;}
 
+  if(event.target.closest("[data-open-quick-note]")){openQuickNoteModal();return;}
+  if(event.target.closest("[data-save-quick-note]")){saveQuickNote();return;}
   const editNote=event.target.closest("[data-edit-note]");if(editNote){openNoteModal(editNote.dataset.editNote);return;}
   const noteCheck=event.target.closest("[data-toggle-note-check]");if(noteCheck){toggleNoteCheck(noteCheck.dataset.toggleNoteCheck,noteCheck.dataset.noteCheckId);return;}
   const noteTask=event.target.closest("[data-note-to-task]");if(noteTask){noteToTask(noteTask.dataset.noteToTask);return;}
@@ -5662,17 +5604,18 @@ document.addEventListener("click", event => {
   if(event.target.id==="restoreSafetyBackupButton"){restoreSafetyCopyFromSettings();return;}
 });
 
-document.addEventListener("click",event=>{
+document.addEventListener("click",async event=>{
   if(event.target.closest("[data-create-partner-invite]")){createPartnerInvite();return;}
   if(event.target.closest("[data-run-partner-diagnostics]")){runPartnerDiagnostics();return;}
-  if(event.target.closest("[data-open-partner-join]")){document.getElementById("partnerJoinCode").value="";openModal("partnerJoinModal");setTimeout(()=>document.getElementById("partnerJoinCode")?.focus(),80);return;}
-  if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(code)navigator.clipboard?.writeText(code).then(()=>showToast("Partner invite copied 💌")).catch(()=>showToast(`Partner invite: ${code}`));return;}
+  if(event.target.closest("[data-open-partner-join]")){document.getElementById("partnerJoinCode").value="";const status=document.getElementById("partnerJoinCodeStatus");if(status){status.textContent="Paste the complete H2 invite. Hana can also extract it from surrounding message text.";status.className="partner-code-status";}openModal("partnerJoinModal");setTimeout(()=>document.getElementById("partnerJoinCode")?.focus(),80);return;}
+  if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(!code)return;try{await navigator.clipboard.writeText(code);showToast("Full Partner invite copied 💌");}catch{showToast("Copy was blocked by iPhone. Use Share invite instead.");}return;}
+  if(event.target.closest("[data-share-partner-code]")){const code=hanaPartnerState.inviteCode;if(!code)return;try{if(navigator.share)await navigator.share({title:"Hana Partner Link",text:`Hana Partner invite: ${code}`});else{await navigator.clipboard.writeText(code);showToast("Partner invite copied 💌");}}catch(error){if(error?.name!=="AbortError")showToast("Could not share the invite. Try Copy full key.");}return;}
   if(event.target.closest("[data-cancel-partner-invite]")){cancelPartnerInvite();return;}
   if(event.target.closest("[data-disconnect-partner]")){disconnectPartner();return;}
 });
 
 let taskSearchRenderTimer=null;
-document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;const pos=event.target.selectionStart;clearTimeout(taskSearchRenderTimer);taskSearchRenderTimer=setTimeout(()=>{if(state.currentPage!=="tasks")return;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(Math.min(pos,input.value.length),Math.min(pos,input.value.length));}},80);}});
+document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="partnerJoinCode")updatePartnerJoinCodeStatus();if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;const pos=event.target.selectionStart;clearTimeout(taskSearchRenderTimer);taskSearchRenderTimer=setTimeout(()=>{if(state.currentPage!=="tasks")return;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(Math.min(pos,input.value.length),Math.min(pos,input.value.length));}},80);}});
 
 document.addEventListener("change",event=>{if(event.target.id==="listColumnMode"||event.target.id==="listColumnCount")updateListColumnSettingsVisibility();if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 

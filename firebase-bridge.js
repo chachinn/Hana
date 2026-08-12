@@ -1,12 +1,12 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.16 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.17 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
 (() => {
   const SDK_VERSION = "12.16.0";
   const CHUNK_BYTES = 240000;
-  const BRIDGE_VERSION = "2.0.16";
+  const BRIDGE_VERSION = "2.0.17";
   const FIREBASE_PROJECT_ID = "hana-e78b1";
 
   const firebaseConfig = {
@@ -68,6 +68,7 @@
     async cancelPartnerInvite() { throw new Error("Firebase is still loading."); },
     async disconnectPartner() { throw new Error("Firebase is still loading."); },
     async diagnosePartner() { throw new Error("Firebase is still loading."); },
+    validatePartnerCode() { return { valid: false, message: "Firebase is still loading." }; },
     watchPartner() { return () => {}; },
     watchSharedItems() { return () => {}; },
     async syncSharedChanges() { throw new Error("Firebase is still loading."); }
@@ -211,33 +212,45 @@
       };
       const makePartnerCode = (ownerUid, token) => `H2.${encodeUidForInvite(ownerUid)}.${cleanInviteToken(token)}`;
       const normalizePartnerCodeInput = raw => {
-        // Partner keys are safe ASCII. Messaging apps can add line breaks, spaces
-        // or zero-width characters while copying/wrapping a long key, so strip
-        // only those transport artifacts while preserving case-sensitive UID data.
-        let value = String(raw || "").trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
+        let value = String(raw || "").trim().replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
+        value = value.replace(/[。．]/g, ".");
         if (/^https?:\/\//i.test(value)) {
           try {
             const parsed = new URL(value);
             value = parsed.searchParams.get("hanaPartner") || parsed.searchParams.get("partner") || value;
           } catch {}
         }
-        return value.trim().replace(/\s+/g, "");
+        // Users commonly paste from Messages/Messenger with surrounding words.
+        // Extract the first complete H2 key instead of requiring a perfectly raw field.
+        const embedded = value.match(/H2\s*\.\s*([A-Za-z0-9_-]{6,})\s*\.\s*([A-Za-z0-9]{8,})/i);
+        if (embedded) return `H2.${embedded[1]}.${embedded[2]}`;
+        return value.replace(/\s+/g, "");
       };
       const parsePartnerCode = raw => {
         const value = normalizePartnerCodeInput(raw);
         const parts = value.split(".");
         const hasH2Prefix = parts[0]?.toUpperCase() === "H2";
         if (hasH2Prefix && parts.length !== 3) {
-          throw new Error("That Partner invite key was cut off. Copy the complete H2 invite key from your partner's Hana, then paste the whole key here.");
+          throw new Error("That H2 Partner invite looks incomplete. Copy or Share the full invite again from your partner's Hana.");
         }
-        if (parts.length !== 3 || !hasH2Prefix) {
-          throw new Error("That Partner invite uses the old code format. Ask your partner to create a new H2 invite key in the latest Hana.");
+        if (!hasH2Prefix) {
+          if (/^[A-Z0-9]{6,16}$/i.test(value)) throw new Error("That is a legacy short Partner code. Create a fresh H2 invite in the current Hana and use the full key.");
+          throw new Error("Hana could not find a complete H2 Partner key in what was pasted. Use Copy full key or Share invite from the other phone, then paste again.");
         }
+        if (parts.length !== 3) throw new Error("That H2 Partner invite is incomplete. Copy the full key again.");
         let ownerUid = "";
         try { ownerUid = decodeUidFromInvite(parts[1]); } catch {}
         const token = cleanInviteToken(parts[2]);
-        if (!ownerUid || token.length < 8) throw new Error("That Partner invite key is not valid. Copy it again directly from Hana without editing it.");
-        return { code: `H2.${parts[1]}.${token}`, ownerUid, token };
+        if (!ownerUid || token.length < 8) throw new Error("That H2 Partner invite is not valid. Copy it again directly from Hana without editing it.");
+        return { code: makePartnerCode(ownerUid, token), ownerUid, token };
+      };
+      const validatePartnerCode = raw => {
+        try {
+          const parsed = parsePartnerCode(raw);
+          return { valid: true, code: parsed.code, ownerUid: parsed.ownerUid, token: parsed.token, message: "Valid H2 invite detected ✓" };
+        } catch (error) {
+          return { valid: false, message: String(error?.message || error || "Invalid Partner key") };
+        }
       };
       const sharedItemsRef = linkId => {
         const { ownerUid, token } = parsePartnerCode(linkId);
@@ -285,7 +298,16 @@
                 const existing = existingSnap.data();
                 if (existing.status === "open") {
                   const expiresAt = existing.expiresAt ? new Date(existing.expiresAt).getTime() : 0;
-                  if (!expiresAt || expiresAt > Date.now()) return existing;
+                  if (!expiresAt || expiresAt > Date.now()) {
+                    const canonicalCode = makePartnerCode(uid, cleanInviteToken(existing.token || pointer.token));
+                    if (existing.code !== canonicalCode) {
+                      await firestoreSdk.updateDoc(existingSnap.ref, { code: canonicalCode, schemaVersion: 7 }).catch(() => {});
+                    }
+                    if (pointer.code !== canonicalCode) {
+                      await firestoreSdk.setDoc(partnerInviteStateRef(uid), { ...pointer, code: canonicalCode, token: cleanInviteToken(existing.token || pointer.token), updatedAt: new Date().toISOString(), schemaVersion: 7 }, { merge: true }).catch(() => {});
+                    }
+                    return { ...existing, code: canonicalCode, token: cleanInviteToken(existing.token || pointer.token) };
+                  }
                   await firestoreSdk.updateDoc(existingSnap.ref, { status: "cancelled", cancelledAt: new Date().toISOString() }).catch(() => {});
                 }
                 if (existing.status === "accepted" && existing.acceptedUid) {
@@ -363,7 +385,7 @@
         }
         if (!inviteSnap.exists()) throw new Error("That Partner invite was not found. Ask your partner to create a new one.");
         let invite = inviteSnap.data();
-        if (invite.ownerUid !== ownerUid || invite.token !== token || invite.code !== code) throw new Error("That Partner invite does not match its owner.");
+        if (invite.ownerUid !== ownerUid || cleanInviteToken(invite.token) !== token) throw new Error("That Partner invite does not match its owner.");
         if (invite.status === "cancelled") throw new Error("That Partner invite was cancelled.");
         if (invite.status === "disconnected") throw new Error("That Partner Link was disconnected. Ask for a new invite.");
         if (invite.status === "accepted" && invite.acceptedUid !== uid) throw new Error("That Partner invite has already been used.");
@@ -506,7 +528,7 @@
             return;
           }
           if (!profile && validOpenInvite()) {
-            callback({ connected: false, inviteCode: ownInvite.code || ownPointer.code, inviteExpiresAt: ownInvite.expiresAt || "" });
+            callback({ connected: false, inviteCode: makePartnerCode(uid, cleanInviteToken(ownInvite.token || ownPointer.token)), inviteExpiresAt: ownInvite.expiresAt || "" });
             return;
           }
           callback({ connected: false });
@@ -726,6 +748,7 @@
         cancelPartnerInvite,
         disconnectPartner,
         diagnosePartner,
+        validatePartnerCode,
         watchPartner,
         watchSharedItems,
         syncSharedChanges
