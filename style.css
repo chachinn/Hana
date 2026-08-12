@@ -4678,3 +4678,15 @@ body.modal-open{overflow:hidden}
     letter-spacing: .04em;
   }
 }
+
+
+/* HANA SKINCARE ALTERNATE ROUTINES v2.0.19 */
+.skincare-time-pair { display:grid; gap:10px; padding:10px; border:1px solid var(--border); border-radius:22px; background:color-mix(in srgb, var(--surface) 97%, var(--blush)); }
+.skincare-time-pair + .skincare-time-pair { margin-top:2px; }
+.skincare-time-pair-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:1px 3px 0; }
+.skincare-time-pair-head span { font-size:12px; font-weight:850; }
+.skincare-time-pair-head small { color:var(--text-soft); font-size:9px; }
+.skincare-routine-batch-alternate { border-style:dashed; background:color-mix(in srgb, var(--surface) 98%, var(--blush)); }
+.skincare-routine-badge.alternate { border-style:dashed; background:transparent; color:var(--text-soft); }
+.skincare-routine-period-alternate { border-style:dashed; background:color-mix(in srgb, var(--surface) 98%, var(--blush)); }
+@media (max-width:390px) { .skincare-time-pair { padding:8px; border-radius:18px; } .skincare-time-pair-head { align-items:flex-start; flex-direction:column; gap:2px; } }

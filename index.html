@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
-  <meta name="hana-app-version" content="2.0.18" />
+  <meta name="hana-app-version" content="2.0.19" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2.0.19" />
 </head>
 <body>
   <div id="app">
@@ -389,9 +389,9 @@
           <div><small id="skincareEditProgress">Day 1 of 7</small><strong id="skincareEditDayTitle">Monday</strong></div>
           <button type="button" class="secondary-button compact-button" data-skincare-edit-next>Next ›</button>
         </div>
-        <div class="skincare-edit-intro"><div><strong>Edit this day</strong><p>Each day has one AM table and one PM table. Add products directly inside the routine they belong to—no repeated AM/PM tagging.</p></div></div>
+        <div class="skincare-edit-intro"><div><strong>Edit this day</strong><p>Each day has a main AM and PM table, plus an optional Alternate AM and Alternate PM. Add products directly inside the routine you want to use.</p></div></div>
         <div id="skincareStepsEditor" class="skincare-steps-editor"></div>
-        <p class="skincare-batch-help">Use <strong>+ Add product</strong> inside the AM or PM routine.</p>
+        <p class="skincare-batch-help">Use <strong>+ Add product</strong> inside the main or alternate AM/PM routine you want.</p>
         <section class="skincare-sync-card">
           <div><strong id="skincareSyncTitle">Copy Monday to…</strong><p>Copies this page's complete AM + PM routine and replaces the selected days.</p></div>
           <div id="skincareSyncDayChoices" class="skincare-sync-day-choices"></div>
@@ -916,6 +916,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.18"></script>
+  <script src="app.js?v=2.0.19"></script>
 </body>
 </html>
