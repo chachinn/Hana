@@ -4270,3 +4270,9 @@ body.modal-open{overflow:hidden}
   .action-row,.toolbar-row,.filter-row{gap:7px}
   .primary-button,.secondary-button{min-height:38px}
 }
+
+/* v2.0.6 Partner diagnostic — shown only after an actual Partner Link error */
+.partner-diagnostic-card{margin-top:12px;padding:12px 14px;border:1px solid rgba(224,82,135,.2);border-radius:16px;background:rgba(255,247,250,.78);display:grid;gap:6px}
+.partner-diagnostic-card strong{font-size:.9rem}
+.partner-diagnostic-card small{color:var(--muted);line-height:1.35;overflow-wrap:anywhere}
+.partner-diagnostic-card .compact-button{justify-self:start;margin-top:2px}

@@ -1,11 +1,13 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.5 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.6 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
 (() => {
   const SDK_VERSION = "12.16.0";
   const CHUNK_BYTES = 240000;
+  const BRIDGE_VERSION = "2.0.6";
+  const FIREBASE_PROJECT_ID = "hana-e78b1";
 
   const firebaseConfig = {
     apiKey: "AIzaSyClQ3ewSe27g2FuCVb3GNmNe28fZIKGL4A",
@@ -65,6 +67,7 @@
     async acceptPartnerInvite() { throw new Error("Firebase is still loading."); },
     async cancelPartnerInvite() { throw new Error("Firebase is still loading."); },
     async disconnectPartner() { throw new Error("Firebase is still loading."); },
+    async diagnosePartner() { throw new Error("Firebase is still loading."); },
     watchPartner() { return () => {}; },
     watchSharedItems() { return () => {}; },
     async syncSharedChanges() { throw new Error("Firebase is still loading."); }
@@ -101,6 +104,16 @@
         if (!current || current.uid !== uid) throw new Error("Please sign in to this Hana account first.");
         return current;
       };
+
+      async function preparePartnerUser(uid) {
+        if (typeof auth.authStateReady === "function") await auth.authStateReady();
+        const current = assertUser(uid);
+        // Refresh the ID token before Partner Link operations. Cloud Backup can
+        // work from an older session while a newly initialized Firestore request
+        // is still waiting on refreshed credentials, especially after PWA resume.
+        try { await current.getIdToken(true); } catch {}
+        return assertUser(uid);
+      }
 
       const metaRef = uid => firestoreSdk.doc(db, "users", uid, "hanaBackup", "meta");
       const chunkRef = (uid, generation, index) => firestoreSdk.doc(db, "users", uid, "hanaBackupChunks", `${generation}_${String(index).padStart(4, "0")}`);
@@ -200,7 +213,12 @@
       };
       const rethrowPartnerPermission = (error, stage = "Partner Link") => {
         if (isPartnerPermissionError(error)) {
-          throw new Error(`${stage} was blocked by Firestore. The actual Partner Link request was denied by Firestore. Verify the published Partner Link rules in Firebase → Firestore Database → Rules, then try again.`);
+          const code=String(error?.code||"permission-denied");
+          const wrapped=new Error(`${stage} was blocked by Firestore (${code}). Hana build ${BRIDGE_VERSION} is connected to ${FIREBASE_PROJECT_ID}. Publish the matching v2.0.6 Firestore rules, then try again.`);
+          wrapped.code=code;
+          wrapped.stage=stage;
+          wrapped.diagnostic=JSON.stringify({stage,code,build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:auth.currentUser?.uid||""});
+          throw wrapped;
         }
         throw error;
       };
@@ -209,7 +227,7 @@
       // Hana only touches the exact invite document it is creating or a code the user already knows.
 
       async function createPartnerInvite(uid, displayName = "") {
-        const user = assertUser(uid);
+        const user = await preparePartnerUser(uid);
         let profileSnap, pointerSnap;
         try {
           profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
@@ -271,7 +289,7 @@
       }
 
       async function acceptPartnerInvite(uid, rawCode, displayName = "") {
-        const user = assertUser(uid), code = cleanCode(rawCode);
+        const user = await preparePartnerUser(uid), code = cleanCode(rawCode);
         if (!code) throw new Error("Enter a valid Partner Link code.");
         let ownProfile, ownInvitePointer;
         try {
@@ -328,6 +346,7 @@
               linkId,
               members: [invite.ownerUid, uid],
               status: "active",
+              createdByUid: uid,
               createdAt: now,
               memberProfiles: [
                 { uid: invite.ownerUid, name: partnerName },
@@ -377,18 +396,59 @@
       }
 
       async function cancelPartnerInvite(uid, rawCode) {
-        assertUser(uid); const code=cleanCode(rawCode); if(!code)return;
+        await preparePartnerUser(uid); const code=cleanCode(rawCode); if(!code)return;
         const snap=await firestoreSdk.getDoc(partnerInviteRef(code));
         if(snap.exists()&&snap.data().ownerUid===uid&&snap.data().status==="open")await firestoreSdk.updateDoc(partnerInviteRef(code),{status:"cancelled",cancelledAt:new Date().toISOString()});
         await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
       }
 
       async function disconnectPartner(uid, linkId) {
-        assertUser(uid);
+        await preparePartnerUser(uid);
         const snap=await firestoreSdk.getDoc(partnerLinkRef(linkId));
         if(snap.exists()&&Array.isArray(snap.data().members)&&snap.data().members.includes(uid))await firestoreSdk.updateDoc(partnerLinkRef(linkId),{status:"disconnected",disconnectedAt:new Date().toISOString(),disconnectedBy:uid});
         await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(()=>{});
         await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+      }
+
+      async function diagnosePartner(uid) {
+        const tests=[];
+        let user;
+        try {
+          user=await preparePartnerUser(uid);
+          tests.push({stage:"Firebase authentication",ok:true,uid:user.uid});
+        } catch (error) {
+          tests.push({stage:"Firebase authentication",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,tests};
+        }
+        try {
+          await firestoreSdk.getDoc(partnerProfileRef(uid));
+          tests.push({stage:"Private Partner settings read",ok:true});
+        } catch (error) {
+          tests.push({stage:"Private Partner settings read",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
+        }
+        const code=generateInviteCode();
+        const ref=partnerInviteRef(code);
+        try {
+          await firestoreSdk.setDoc(ref,{code,ownerUid:uid,status:"open",createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString(),diagnostic:true});
+          tests.push({stage:"Partner invite create",ok:true,code});
+        } catch (error) {
+          tests.push({stage:"Partner invite create",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
+        }
+        try {
+          const snap=await firestoreSdk.getDoc(ref);
+          tests.push({stage:"Partner invite get",ok:Boolean(snap.exists())});
+        } catch (error) {
+          tests.push({stage:"Partner invite get",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+        }
+        try {
+          await firestoreSdk.deleteDoc(ref);
+          tests.push({stage:"Partner invite cleanup",ok:true});
+        } catch (error) {
+          tests.push({stage:"Partner invite cleanup",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+        }
+        return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
       }
 
       function watchPartner(uid, callback) {
@@ -582,6 +642,7 @@
         acceptPartnerInvite,
         cancelPartnerInvite,
         disconnectPartner,
+        diagnosePartner,
         watchPartner,
         watchSharedItems,
         syncSharedChanges

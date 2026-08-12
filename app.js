@@ -679,18 +679,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.5";
+const HANA_APP_VERSION = "2.0.6";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Partner invite creation fix 💕",
-  intro: "A deeper Partner Link correction that removes an unnecessary Firestore read which could block invite creation before Hana even attempted the real write.",
+  title: "Partner Link deep repair 💕",
+  intro: "Partner Link now uses simpler Firestore permissions, refreshes Firebase authentication before partner operations, and includes stronger update handling for the installed iPhone PWA.",
   items: [
-    { icon: "🧹", title: "Bad permission probe removed", text: "Create invite no longer reads a probe document or queries Partner invites first. Hana now goes straight to the real invite write." },
-    { icon: "🎟️", title: "Direct invite creation", text: "The random 8-character code is created directly; only actual create failures are reported as Firestore rule problems." },
-    { icon: "💕", title: "Recoverable Partner flow retained", text: "Partner acceptance still uses recoverable stages so interrupted connections can safely continue." },
-    { icon: "🔐", title: "Privacy model unchanged", text: "Private Hana data stays private by default and shared top-level items remain owner-controlled." },
-    { icon: "🌸", title: "All stability fixes retained", text: "Realtime retry, reconnect recovery, safer simultaneous edits, compact UI, list gestures and tracker fixes remain unchanged." }
+    { icon: "🔐", title: "Simpler Partner permissions", text: "Invite and connection rules were reduced to the minimum checks needed for Hana instead of fragile cross-document conditions." },
+    { icon: "🪪", title: "Fresh auth before sharing", text: "Hana refreshes the signed-in Firebase token before creating, accepting, cancelling or disconnecting a Partner Link." },
+    { icon: "🔄", title: "PWA updates are harder to miss", text: "Hana now bypasses stale service-worker script caches and reloads once when a new service worker takes control." },
+    { icon: "🧪", title: "Partner diagnostics", text: "If Partner Link is still blocked, Hana can run a safe create/delete test and copy the exact Firebase stage, code, project and app version." },
+    { icon: "🌸", title: "Existing stability fixes retained", text: "Realtime retry, conflict-safe shared edits, private-by-default sharing, list gestures and tracker protections remain unchanged." }
   ]
 };
 let hanaAccountState = {
@@ -711,7 +711,8 @@ let hanaPartnerState = {
   partnerEmail: "",
   inviteCode: "",
   inviteExpiresAt: "",
-  error: ""
+  error: "",
+  errorDetails: ""
 };
 let partnerWatchStop = null;
 let sharedWatchStop = null;
@@ -4080,12 +4081,12 @@ function renderPartnerSettingsCard(){
   if(hanaPartnerState.status==="loading")return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><h3>Checking your Partner Link…</h3><p>Your private Hana data stays local while this loads.</p></div></section>`;
   if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2>${partnerSyncBadgeHTML()}</div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
   if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Send this one-time code. Hana will connect automatically when they accept it.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy invite code"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy</small></button><p class="field-help">Invite codes expire after 7 days. Only one partner can be connected.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
-  return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small></div></section>`;
+  return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small>${hanaPartnerState.error?`<div class="partner-diagnostic-card"><strong>Partner Link needs attention</strong><small>${escapeHTML(hanaPartnerState.error)}</small><button class="secondary-button compact-button" type="button" data-run-partner-diagnostics>Run diagnostics</button></div>`:""}</div></section>`;
 }
 
 async function startPartnerForUser(user){
   try{partnerWatchStop?.();}catch{};partnerWatchStop=null;stopSharedRealtime();
-  if(!user){hanaPartnerState={status:"idle",connected:false,linkId:"",partnerUid:"",partnerName:"",partnerEmail:"",inviteCode:"",inviteExpiresAt:"",error:""};return;}
+  if(!user){hanaPartnerState={status:"idle",connected:false,linkId:"",partnerUid:"",partnerName:"",partnerEmail:"",inviteCode:"",inviteExpiresAt:"",error:"",errorDetails:""};return;}
   hanaPartnerState={...hanaPartnerState,status:"loading",error:""};
   try{
     const fb=await firebaseReady();
@@ -4093,7 +4094,7 @@ async function startPartnerForUser(user){
       const previousLink=hanaPartnerState.linkId;
       const endedLink=next?.disconnected?(next.linkId||previousLink):"";
       if(endedLink)await cleanupLocalAfterPartnerDisconnect(endedLink,user.uid);
-      hanaPartnerState={status:"ready",connected:Boolean(next?.connected),linkId:next?.connected?(next?.linkId||""):"",partnerUid:next?.partnerUid||"",partnerName:next?.partnerName||"",partnerEmail:next?.partnerEmail||"",inviteCode:next?.inviteCode||"",inviteExpiresAt:next?.inviteExpiresAt||"",error:""};
+      hanaPartnerState={status:"ready",connected:Boolean(next?.connected),linkId:next?.connected?(next?.linkId||""):"",partnerUid:next?.partnerUid||"",partnerName:next?.partnerName||"",partnerEmail:next?.partnerEmail||"",inviteCode:next?.inviteCode||"",inviteExpiresAt:next?.inviteExpiresAt||"",error:"",errorDetails:""};
       if(hanaPartnerState.connected&&(!sharedWatchStop||hanaPartnerState.linkId!==previousLink))await startSharedRealtime();
       else if(!hanaPartnerState.connected)stopSharedRealtime();
       if(state.currentMode==="shared"&&!hanaPartnerState.connected)state.currentMode="all";
@@ -4106,8 +4107,39 @@ async function startPartnerForUser(user){
 
 async function createPartnerInvite(){
   if(!hanaAccountState.user)return openEmailAuth("signin");
-  try{const fb=await firebaseReady();const invite=await fb.createPartnerInvite(hanaAccountState.user.uid,accountDisplayName(hanaAccountState.user));hanaPartnerState={...hanaPartnerState,status:"ready",inviteCode:invite.code,inviteExpiresAt:invite.expiresAt};renderSettings();showToast("Partner invite ready 💌");}
-  catch(error){showToast(firebaseFriendlyError(error));}
+  try{
+    const fb=await firebaseReady();
+    const invite=await fb.createPartnerInvite(hanaAccountState.user.uid,accountDisplayName(hanaAccountState.user));
+    hanaPartnerState={...hanaPartnerState,status:"ready",inviteCode:invite.code,inviteExpiresAt:invite.expiresAt,error:"",errorDetails:""};
+    renderSettings();
+    showToast("Partner invite ready 💌");
+  }catch(error){
+    const friendly=firebaseFriendlyError(error);
+    hanaPartnerState={...hanaPartnerState,status:"ready",error:friendly,errorDetails:String(error?.diagnostic||error?.message||error||"")};
+    if(state.currentPage==="settings")renderSettings();
+    showToast(friendly);
+  }
+}
+
+async function runPartnerDiagnostics(){
+  if(!hanaAccountState.user)return openEmailAuth("signin");
+  try{
+    const fb=await firebaseReady();
+    if(typeof fb.diagnosePartner!=="function")throw new Error("This Hana build does not include Partner diagnostics yet.");
+    const report=await fb.diagnosePartner(hanaAccountState.user.uid);
+    const text=JSON.stringify(report,null,2);
+    try{await navigator.clipboard?.writeText(text);}catch{}
+    const failed=(report.tests||[]).find(test=>!test.ok);
+    if(failed){
+      hanaPartnerState={...hanaPartnerState,error:`${failed.stage}: ${failed.code||failed.message||"failed"}`,errorDetails:text};
+      renderSettings();
+      showToast(`Partner diagnostics found the block at: ${failed.stage}. Report copied.`);
+    }else{
+      hanaPartnerState={...hanaPartnerState,error:"",errorDetails:text};
+      renderSettings();
+      showToast("Partner Firebase permissions passed. Diagnostic report copied.");
+    }
+  }catch(error){showToast(firebaseFriendlyError(error));}
 }
 async function acceptPartnerInvite(){
   const code=String(document.getElementById("partnerJoinCode")?.value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
@@ -5028,6 +5060,7 @@ document.addEventListener("click", event => {
 
 document.addEventListener("click",event=>{
   if(event.target.closest("[data-create-partner-invite]")){createPartnerInvite();return;}
+  if(event.target.closest("[data-run-partner-diagnostics]")){runPartnerDiagnostics();return;}
   if(event.target.closest("[data-open-partner-join]")){document.getElementById("partnerJoinCode").value="";openModal("partnerJoinModal");setTimeout(()=>document.getElementById("partnerJoinCode")?.focus(),80);return;}
   if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(code)navigator.clipboard?.writeText(code).then(()=>showToast("Invite code copied 💌")).catch(()=>showToast(`Invite code: ${code}`));return;}
   if(event.target.closest("[data-cancel-partner-invite]")){cancelPartnerInvite();return;}
@@ -5293,7 +5326,24 @@ window.addEventListener("pagehide",()=>{
 });
 
 /* SERVICE WORKER */
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(error=>console.error("Service worker registration failed:",error)));}
+if("serviceWorker" in navigator){
+  let hanaSWReloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(hanaSWReloading)return;
+    hanaSWReloading=true;
+    window.location.reload();
+  });
+  window.addEventListener("load",async()=>{
+    try{
+      const registration=await navigator.serviceWorker.register("./service-worker.js",{updateViaCache:"none"});
+      await registration.update();
+    }catch(error){console.error("Service worker registration failed:",error);}
+  });
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState!=="visible")return;
+    navigator.serviceWorker.getRegistration().then(registration=>registration?.update()).catch(()=>{});
+  });
+}
 
 setInterval(checkReminders,30*1000);checkReminders();
 applyAppearance();
