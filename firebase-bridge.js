@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.1 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.4 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
@@ -62,6 +62,7 @@
     async backupSnapshot() { throw new Error("Firebase is still loading."); },
     async restoreSnapshot() { throw new Error("Firebase is still loading."); },
     async createPartnerInvite() { throw new Error("Firebase is still loading."); },
+    async probePartnerRules() { throw new Error("Firebase is still loading."); },
     async acceptPartnerInvite() { throw new Error("Firebase is still loading."); },
     async cancelPartnerInvite() { throw new Error("Firebase is still loading."); },
     async disconnectPartner() { throw new Error("Firebase is still loading."); },
@@ -200,45 +201,108 @@
       };
       const rethrowPartnerPermission = (error, stage = "Partner Link") => {
         if (isPartnerPermissionError(error)) {
-          throw new Error(`${stage} was blocked by Firestore. Publish the v2.0.3 Partner Link firestore.rules in Firebase → Firestore Database → Rules, wait about a minute, then try again.`);
+          throw new Error(`${stage} was blocked by Firestore. Publish the v2.0.4 Partner Link firestore.rules in Firebase → Firestore Database → Rules, wait about a minute, then try again.`);
         }
         throw error;
       };
 
+      async function probePartnerRules(uid) {
+        assertUser(uid);
+        const probeCode = `HPRB${generateInviteCode().slice(0, 4)}`;
+        const probeRef = partnerInviteRef(probeCode);
+        const now = new Date().toISOString();
+        const probe = {
+          code: probeCode,
+          ownerUid: uid,
+          ownerName: "Hana rules probe",
+          ownerEmail: "",
+          status: "open",
+          createdAt: now,
+          expiresAt: now,
+          probe: true
+        };
+        try {
+          // A single-document GET on a missing code verifies the read rule without
+          // needing any existing Partner Link data.
+          await firestoreSdk.getDoc(partnerInviteRef("HANA_RULES_PROBE"));
+        } catch (error) {
+          rethrowPartnerPermission(error, "Reading the Partner invite collection");
+        }
+        try {
+          await firestoreSdk.setDoc(probeRef, probe);
+        } catch (error) {
+          rethrowPartnerPermission(error, "Writing the Partner invite collection");
+        }
+        try {
+          await firestoreSdk.deleteDoc(probeRef);
+        } catch (error) {
+          // A stranded probe is harmless and expires immediately, but surface the
+          // permission mismatch because owner cleanup should be allowed.
+          rethrowPartnerPermission(error, "Cleaning up the Partner rule test");
+        }
+        return true;
+      }
+
       async function createPartnerInvite(uid, displayName = "") {
         const user = assertUser(uid);
-        const profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
+        let profileSnap, pointerSnap;
+        try {
+          profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
+          pointerSnap = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+        } catch (error) {
+          rethrowPartnerPermission(error, "Reading your private Partner Link settings");
+        }
         if (profileSnap.exists()) throw new Error("This Hana account already has a Partner Link.");
-        const pointerSnap = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
-        if(pointerSnap.exists()&&pointerSnap.data().code){
-          const existingInvite=await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));
-          if(existingInvite.exists()&&existingInvite.data().status==="open"){
-            const expiresAt=existingInvite.data().expiresAt?new Date(existingInvite.data().expiresAt).getTime():0;
-            if(!expiresAt||expiresAt>Date.now())return existingInvite.data();
-            await firestoreSdk.updateDoc(partnerInviteRef(pointerSnap.data().code),{status:"cancelled",cancelledAt:new Date().toISOString()}).catch(()=>{});
+        if (pointerSnap.exists() && pointerSnap.data().code) {
+          try {
+            const existingInvite = await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));
+            if (existingInvite.exists() && existingInvite.data().status === "open") {
+              const expiresAt = existingInvite.data().expiresAt ? new Date(existingInvite.data().expiresAt).getTime() : 0;
+              if (!expiresAt || expiresAt > Date.now()) return existingInvite.data();
+              await firestoreSdk.updateDoc(partnerInviteRef(pointerSnap.data().code), {
+                status: "cancelled",
+                cancelledAt: new Date().toISOString()
+              }).catch(() => {});
+            }
+          } catch (error) {
+            rethrowPartnerPermission(error, "Reading your previous Partner invite");
           }
         }
-        let code = "";
-        for (let tries = 0; tries < 8; tries++) {
-          const candidate = generateInviteCode();
-          const existing = await firestoreSdk.getDoc(partnerInviteRef(candidate));
-          if (!existing.exists()) { code = candidate; break; }
-        }
-        if(!code)throw new Error("Hana couldn't create a unique invite code. Please try again.");
+
+        // Verify both Partner invite read + write rules before creating a real code.
+        // This gives a precise error instead of Firestore's generic permission text.
+        await probePartnerRules(uid);
+
+        // Do NOT pre-read random candidate codes. An 8-character code from this
+        // alphabet has roughly a trillion possible values; a collision is vastly
+        // less likely than a permission/cache failure. More importantly, the old
+        // pre-read was outside the guarded create step and was the source of the
+        // raw "Missing or insufficient permissions" message.
+        const code = generateInviteCode();
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const data = { code, ownerUid:uid, ownerName:displayName || user.displayName || user.email?.split("@")[0] || "Hana user", ownerEmail:user.email || "", status:"open", createdAt:createdAt.toISOString(), expiresAt:expiresAt.toISOString() };
-        // Keep invite creation as two explicit writes instead of one opaque batch.
-        // This makes Firestore failures recoverable and tells us which permission path failed.
+        const data = {
+          code,
+          ownerUid: uid,
+          ownerName: displayName || user.displayName || user.email?.split("@")[0] || "Hana user",
+          ownerEmail: user.email || "",
+          status: "open",
+          createdAt: createdAt.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          schemaVersion: 4
+        };
         try {
           await firestoreSdk.setDoc(partnerInviteRef(code), data);
         } catch (error) {
           rethrowPartnerPermission(error, "Creating the Partner invite");
         }
         try {
-          await firestoreSdk.setDoc(partnerInviteStateRef(uid), { code, updatedAt:createdAt.toISOString() });
+          await firestoreSdk.setDoc(partnerInviteStateRef(uid), {
+            code,
+            updatedAt: createdAt.toISOString(),
+            schemaVersion: 4
+          });
         } catch (error) {
-          // Do not leave an orphaned usable code if the private pointer write fails.
           await firestoreSdk.deleteDoc(partnerInviteRef(code)).catch(() => {});
           rethrowPartnerPermission(error, "Saving the invite to your Hana account");
         }
@@ -248,33 +312,107 @@
       async function acceptPartnerInvite(uid, rawCode, displayName = "") {
         const user = assertUser(uid), code = cleanCode(rawCode);
         if (!code) throw new Error("Enter a valid Partner Link code.");
-        const ownProfile = await firestoreSdk.getDoc(partnerProfileRef(uid));
-        if (ownProfile.exists()) throw new Error("This Hana account is already connected to a partner.");
-        const ownInvitePointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
-        if(ownInvitePointer.exists()&&ownInvitePointer.data().code){
-          const ownInvite=await firestoreSdk.getDoc(partnerInviteRef(ownInvitePointer.data().code));
-          if(ownInvite.exists()&&ownInvite.data().status==="open")throw new Error("Cancel your current Partner Link invite before joining someone else's link.");
+        let ownProfile, ownInvitePointer;
+        try {
+          ownProfile = await firestoreSdk.getDoc(partnerProfileRef(uid));
+          ownInvitePointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+        } catch (error) {
+          rethrowPartnerPermission(error, "Reading your private Partner Link settings");
         }
-        const inviteSnap = await firestoreSdk.getDoc(partnerInviteRef(code));
+        if (ownProfile.exists()) throw new Error("This Hana account is already connected to a partner.");
+        if (ownInvitePointer.exists() && ownInvitePointer.data().code) {
+          const ownInvite = await firestoreSdk.getDoc(partnerInviteRef(ownInvitePointer.data().code));
+          if (ownInvite.exists() && ownInvite.data().status === "open") {
+            throw new Error("Cancel your current Partner Link invite before joining someone else's link.");
+          }
+        }
+
+        let inviteSnap;
+        try {
+          inviteSnap = await firestoreSdk.getDoc(partnerInviteRef(code));
+        } catch (error) {
+          rethrowPartnerPermission(error, "Reading the Partner invite");
+        }
         if (!inviteSnap.exists()) throw new Error("That Partner Link code was not found.");
-        const invite = inviteSnap.data();
+        let invite = inviteSnap.data();
         if (invite.ownerUid === uid) throw new Error("Use this code on your partner's Hana account.");
-        if (invite.status !== "open") throw new Error("That Partner Link code has already been used or cancelled.");
+        if (invite.status === "cancelled") throw new Error("That Partner Link code was cancelled.");
+        if (invite.status === "accepted" && invite.acceptedUid !== uid) throw new Error("That Partner Link code has already been used.");
+        if (!['open','accepted'].includes(invite.status)) throw new Error("That Partner Link code is no longer available.");
         if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) throw new Error("That Partner Link code has expired. Ask for a new one.");
+
         const linkId = code;
         const partnerName = invite.ownerName || invite.ownerEmail?.split("@")[0] || "Partner";
         const myName = displayName || user.displayName || user.email?.split("@")[0] || "Hana user";
         const now = new Date().toISOString();
-        const batch = firestoreSdk.writeBatch(db);
-        batch.set(partnerLinkRef(linkId), { linkId, members:[invite.ownerUid,uid], status:"active", createdAt:now, memberProfiles:[{uid:invite.ownerUid,name:partnerName,email:invite.ownerEmail||""},{uid,name:myName,email:user.email||""}] });
-        batch.update(partnerInviteRef(code), { status:"accepted", acceptedUid:uid, acceptedName:myName, acceptedEmail:user.email||"", acceptedAt:now, linkId });
-        batch.set(partnerProfileRef(uid), { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"", connectedAt:now });
+
+        // Step 1: create (or verify) the shared link while the invite is still open.
+        // This avoids a cross-document atomic batch and makes retries recoverable.
+        let linkSnap = null;
         try {
-          await batch.commit();
+          linkSnap = await firestoreSdk.getDoc(partnerLinkRef(linkId));
         } catch (error) {
-          rethrowPartnerPermission(error, "Connecting the two Hana accounts");
+          // A missing link may be denied by member-only read rules, which is fine
+          // before creation. The create attempt below is authoritative.
+          if (!isPartnerPermissionError(error)) throw error;
         }
-        return { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"" };
+        if (linkSnap?.exists()) {
+          const existing = linkSnap.data();
+          if (!Array.isArray(existing.members) || !existing.members.includes(uid) || !existing.members.includes(invite.ownerUid)) {
+            throw new Error("That Partner Link code is already attached to another connection.");
+          }
+        } else {
+          try {
+            await firestoreSdk.setDoc(partnerLinkRef(linkId), {
+              linkId,
+              members: [invite.ownerUid, uid],
+              status: "active",
+              createdAt: now,
+              memberProfiles: [
+                { uid: invite.ownerUid, name: partnerName },
+                { uid, name: myName }
+              ],
+              schemaVersion: 4
+            });
+          } catch (error) {
+            rethrowPartnerPermission(error, "Creating the shared Partner Link");
+          }
+        }
+
+        // Step 2: mark the invitation accepted. On a retry by the same recipient,
+        // this is already complete and we simply continue.
+        if (invite.status === "open") {
+          try {
+            await firestoreSdk.updateDoc(partnerInviteRef(code), {
+              status: "accepted",
+              acceptedUid: uid,
+              acceptedName: myName,
+              acceptedEmail: user.email || "",
+              acceptedAt: now,
+              linkId
+            });
+          } catch (error) {
+            rethrowPartnerPermission(error, "Accepting the Partner invite");
+          }
+          invite = { ...invite, status: "accepted", acceptedUid: uid, linkId };
+        }
+
+        // Step 3: save the recipient's private pointer. The owner creates their own
+        // private pointer from the accepted-invite listener, so neither user ever
+        // writes inside the other user's /users/{uid} tree.
+        try {
+          await firestoreSdk.setDoc(partnerProfileRef(uid), {
+            linkId,
+            partnerUid: invite.ownerUid,
+            partnerName,
+            partnerEmail: invite.ownerEmail || "",
+            connectedAt: now,
+            schemaVersion: 4
+          });
+        } catch (error) {
+          rethrowPartnerPermission(error, "Saving Partner Link to your Hana account");
+        }
+        return { linkId, partnerUid: invite.ownerUid, partnerName, partnerEmail: invite.ownerEmail || "" };
       }
 
       async function cancelPartnerInvite(uid, rawCode) {
@@ -480,6 +618,7 @@
         backupSnapshot,
         restoreSnapshot,
         createPartnerInvite,
+        probePartnerRules,
         acceptPartnerInvite,
         cancelPartnerInvite,
         disconnectPartner,
