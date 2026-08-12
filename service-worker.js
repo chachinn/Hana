@@ -1,14 +1,14 @@
 /* =====================================================
-   HANA 🌸 Service Worker v45
+   HANA 🌸 Service Worker v49
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v45";
+const CACHE_NAME = "hana-shell-v49";
 const CORE_SHELL = [
   "./",
   "./index.html",
   "./style.css",
-  "./app.js?v=2.0.12",
-  "./firebase-bridge.js?v=2.0.12"
+  "./app.js?v=2.0.16",
+  "./firebase-bridge.js?v=2.0.16"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",
@@ -45,6 +45,13 @@ self.addEventListener("fetch", event => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Version probes must always reach the network and must never accumulate in
+  // Hana's offline shell cache.
+  if (url.searchParams.has("hana_update_check")) {
+    event.respondWith(fetch(request, { cache: "no-store" }).catch(() => Response.error()));
+    return;
+  }
 
   event.respondWith(
     fetch(request)

@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.12
+   HANA 🌸 v2.0.16
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -129,8 +129,8 @@ const STARTER_TEMPLATES = [
   {
     id: "skincare-routine-note",
     icon: "🧴",
-    title: "Skincare Routine",
-    description: "A reusable AM / PM routine with skin goals, products and observations.",
+    title: "Weekly Skincare Planner",
+    description: "Plan one full week of AM/PM skincare, reuse products across multiple days, and open straight to today’s routine.",
     kind: "note"
   },
   {
@@ -368,6 +368,50 @@ function normalizeTask(task = {}) {
   };
 }
 
+const SKINCARE_WEEKDAYS = [
+  { day:1, label:"Monday", short:"Mon" },
+  { day:2, label:"Tuesday", short:"Tue" },
+  { day:3, label:"Wednesday", short:"Wed" },
+  { day:4, label:"Thursday", short:"Thu" },
+  { day:5, label:"Friday", short:"Fri" },
+  { day:6, label:"Saturday", short:"Sat" },
+  { day:0, label:"Sunday", short:"Sun" }
+];
+
+const SKINCARE_PRODUCT_TYPES = [
+  "Cleanser", "Toner / Essence", "Ampoule", "Serum", "Treatment / Active",
+  "Mask", "Exfoliant", "Moisturizer", "Sunscreen", "Lip Care",
+  "Spot Treatment", "Eye Care", "Face Oil", "Mist", "Other"
+];
+
+function normalizeSkincareRoutine(routine = {}) {
+  const validDays = new Set([0,1,2,3,4,5,6]);
+  return {
+    focus: String(routine.focus || ""),
+    steps: Array.isArray(routine.steps) ? routine.steps.map((step,index) => {
+      const rawDays = Array.isArray(step.days) ? [...new Set(step.days.map(Number).filter(day => validDays.has(day)))] : [];
+      const rawTimes = Array.isArray(step.times) ? [...new Set(step.times.map(String).filter(time => ["am","pm"].includes(time)))] : [];
+      const category = SKINCARE_PRODUCT_TYPES.includes(String(step.category || "")) ? String(step.category) : "Other";
+      return {
+        id: step.id || createId(),
+        category,
+        product: String(step.product || ""),
+        days: rawDays.length ? rawDays : [1,2,3,4,5,6,0],
+        times: rawTimes.length ? rawTimes : ["am","pm"],
+        notes: String(step.notes || ""),
+        order: Number.isFinite(Number(step.order)) ? Number(step.order) : index
+      };
+    }).sort((a,b)=>a.order-b.order) : []
+  };
+}
+
+function isSkincarePlanner(note) { return note?.structuredType === "skincare-weekly"; }
+function skincareDayMeta(day) { return SKINCARE_WEEKDAYS.find(item=>item.day===Number(day)) || SKINCARE_WEEKDAYS[0]; }
+function skincareStepsForDay(note, day, time) {
+  const routine = normalizeSkincareRoutine(note?.skincareRoutine || {});
+  return routine.steps.filter(step => step.days.includes(Number(day)) && step.times.includes(time));
+}
+
 function normalizeNote(note = {}) {
   return {
     id: note.id || createId(),
@@ -382,6 +426,8 @@ function normalizeNote(note = {}) {
       : [],
     resettable: Boolean(note.resettable),
     pinned: Boolean(note.pinned),
+    structuredType: note.structuredType === "skincare-weekly" ? "skincare-weekly" : "",
+    skincareRoutine: note.structuredType === "skincare-weekly" ? normalizeSkincareRoutine(note.skincareRoutine || {}) : null,
     createdAt: Number(note.createdAt || Date.now()),
     updatedAt: Number(note.updatedAt || note.createdAt || Date.now()),
     ...normalizeShareMeta(note)
@@ -732,17 +778,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.12";
+const HANA_APP_VERSION = "2.0.16";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Hana menu + Reference Note templates 🌸",
-  intro: "Hana 2.0.12 makes the hamburger a true app directory again and adds reusable structures for the kinds of reference notes you actually keep.",
+  title: "Focus Bouquet + skincare + Partner fixes 🌸",
+  intro: "Hana 2.0.16 bundles the recent unpushed updates into one stable build: a real Top 3 Focus Bouquet, reliable update refresh, the weekly skincare planner, and the full H2 Partner invite paste fix.",
   items: [
-    { icon: "🌸", title: "About Hana moved to the menu", text: "The Hana name meaning and version now live at the top of the hamburger instead of taking space in Settings." },
-    { icon: "✨", title: "Quick Access no longer duplicates the menu", text: "Pinned shortcuts stay in the sparkle button, while every section remains visible in its normal hamburger group." },
-    { icon: "📝", title: "Reference Note templates", text: "Start Skincare Routine, Professional Bionote, Strategy / Meeting Outline, and Measurement Profile notes without rebuilding the structure each time." },
-    { icon: "🛠️", title: "Startup repair retained", text: "The 2.0.11 startup stability fixes, flexible List columns, update prompt, and Partner Link architecture remain intact." }
+    { icon: "💐", title: "Focus Bouquet is now a real Top 3", text: "Choose up to three focus tasks. Each selected task starts as a bud and visibly blooms when completed, with direct choose, quick-add, complete and remove controls." },
+    { icon: "🧴", title: "Weekly skincare planner", text: "Edit the full week in one form, reuse products across multiple days, choose AM/PM/both, and open directly to today's routine." },
+    { icon: "💕", title: "Full Partner keys paste correctly", text: "The join field accepts the complete H2 invite key, preserves case-sensitive data, and gives a clear message if a key was cut off." },
+    { icon: "🔄", title: "Reliable Update → Refresh", text: "Hana checks both the service worker and the deployed app version so future updates are much more likely to surface on iPhone." },
+    { icon: "🛟", title: "Recent stability work retained", text: "Startup recovery, local/cloud backup protections, private List columns, note templates and the repaired Partner architecture all remain included." }
   ]
 };
 let hanaAccountState = {
@@ -966,6 +1013,64 @@ function focusTasksVisible() {
     .filter(task => task && !task.completed && (!firewallIsActive() || task.space !== state.settings.workFirewallSpaceId));
 }
 
+const FOCUS_BOUQUET_LIMIT = 3;
+
+function bouquetCompletedToday() {
+  const today = todayISO();
+  return state.tasks
+    .filter(task => task.completed && task.completedDate === today && Array.isArray(task.focusHistory) && task.focusHistory.includes(today))
+    .sort((a,b) => Number(a.completedAt || 0) - Number(b.completedAt || 0))
+    .slice(0, FOCUS_BOUQUET_LIMIT);
+}
+
+function bouquetActiveAll() {
+  return state.focusTaskIds
+    .map(id => state.tasks.find(task => task.id === id))
+    .filter(task => task && !task.completed);
+}
+
+function bouquetSelectedCountToday() {
+  return Math.min(FOCUS_BOUQUET_LIMIT, bouquetActiveAll().length + bouquetCompletedToday().length);
+}
+
+function bouquetFlowerSlotsHTML(activeTasks, completedTasks) {
+  const entries = [
+    ...completedTasks.map(task => ({ task, done:true })),
+    ...activeTasks.map(task => ({ task, done:false }))
+  ].slice(0, FOCUS_BOUQUET_LIMIT);
+  while (entries.length < FOCUS_BOUQUET_LIMIT) entries.push(null);
+  return entries.map((entry, index) => {
+    if (!entry) return `<button class="bouquet-flower-slot empty" type="button" data-open-bouquet-picker aria-label="Choose focus task for slot ${index + 1}"><span class="bouquet-flower-emoji">＋</span><small>Focus ${index + 1}</small></button>`;
+    const { task, done } = entry;
+    return `<button class="bouquet-flower-slot ${done ? "bloomed" : "bud"}" type="button" data-edit-task="${task.id}" aria-label="${done ? "Completed" : "Focus"}: ${escapeHTML(task.title)}"><span class="bouquet-stem"></span><span class="bouquet-flower-emoji">${done ? "🌸" : "🌷"}</span><small>${escapeHTML(task.title)}</small></button>`;
+  }).join("");
+}
+
+function renderBouquetPicker() {
+  const list = document.getElementById("bouquetPickerList");
+  const meta = document.getElementById("bouquetPickerMeta");
+  if (!list) return;
+  const selected = new Set(state.focusTaskIds);
+  const tasks = filterByMode(state.tasks)
+    .filter(task => !task.completed && !["waiting","blocked"].includes(task.status))
+    .sort((a,b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || taskSort(a,b));
+  const count = bouquetSelectedCountToday();
+  if (meta) meta.textContent = `${count}/${FOCUS_BOUQUET_LIMIT} focus slots used`;
+  const quickAdd = document.querySelector("#bouquetPickerModal [data-bouquet-quick]");
+  if (quickAdd) quickAdd.disabled = count >= FOCUS_BOUQUET_LIMIT;
+  list.innerHTML = tasks.length ? tasks.map(task => {
+    const isSelected = selected.has(task.id);
+    return `<button class="bouquet-picker-row ${isSelected ? "selected" : ""}" type="button" data-bouquet-pick="${task.id}"><span class="bouquet-picker-flower">${isSelected ? "🌷" : "○"}</span><span><strong>${escapeHTML(task.title)}</strong><small>${task.dueDate ? `📅 ${formatDate(task.dueDate)} · ` : ""}${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></span><b>${isSelected ? "Remove" : count >= FOCUS_BOUQUET_LIMIT ? "Full" : "Add"}</b></button>`;
+  }).join("") : `<div class="empty-state compact-empty"><div class="empty-icon">🌿</div><h3>No open tasks yet</h3><p>Quick-add one directly to your bouquet.</p></div>`;
+}
+
+function openBouquetPicker() {
+  renderBouquetPicker();
+  openModal("bouquetPickerModal");
+}
+
+let quickTaskFocusMode = false;
+
 function capacitySnapshot(tasks = focusTasksVisible()) {
   const capacity = Math.max(30, Number(state.settings.dailyCapacityMinutes || 240));
   const minutes = tasks.reduce((sum, task) => sum + taskPlanningMinutes(task), 0);
@@ -1165,6 +1270,9 @@ function resetDailyFocusIfNeeded() {
     state.focusDate = todayISO();
     state.focusTaskIds = [];
   }
+  // v2.0.16 keeps the Focus Bouquet intentionally small. Existing users who
+  // had more than three focus tasks are migrated safely to the first three.
+  if (state.focusTaskIds.length > FOCUS_BOUQUET_LIMIT) state.focusTaskIds = state.focusTaskIds.slice(0, FOCUS_BOUQUET_LIMIT);
 }
 
 function quickAccessItemHTML(key) {
@@ -1283,7 +1391,7 @@ function closeNavDrawer() {
 
 const HANA_TUTORIAL_STEPS = [
   { icon:"🌸", eyebrow:"WELCOME TO HANA", title:"One bloom at a time", text:"Hana is a gentle planner for tasks, notes, lists, calendars, reminders and structured trackers. You do not need to use everything. Start with what helps today.", bullets:["Use Today for what matters now","Use + whenever you need to capture something","Everything else stays organized in the menu"] },
-  { icon:"🌸", eyebrow:"YOUR HOME", title:"Today", text:"Today is your calm starting point. It shows your Focus Bouquet and only the things asking for attention right now.", bullets:["Focus Bouquet = the few tasks that matter today","Plan my day hides capacity and suggestions until you need them","Daily Close helps you wrap up unfinished work"] },
+  { icon:"🌸", eyebrow:"YOUR HOME", title:"Today", text:"Today is your calm starting point. It shows your Focus Bouquet and only the things asking for attention right now.", bullets:["Focus Bouquet = your Top 3 tasks; buds bloom when you finish them","Plan my day hides capacity and suggestions until you need them","Daily Close helps you wrap up unfinished work"] },
   { icon:"✓", eyebrow:"THINGS TO DO", title:"Tasks", text:"Tasks are actions you need to finish. Quick Task is for fast entry; the full task form is there when you need details.", bullets:["Swipe right to reveal Edit","Swipe left to reveal Delete","Use projects, reminders, estimates and recurrence only when useful"] },
   { icon:"☑️", eyebrow:"SIMPLE REPEATABLE THINGS", title:"Lists", text:"Lists are flexible checklists for groceries, packing, shopping, routines, or anything else. Keep them simple or organize items into 1–5 custom columns.", bullets:["Quick add several lines at once","Optional 1–5 custom columns per list","Customize Quantity and Detail labels per list","Each item can still be edited separately"] },
   { icon:"🗓️", eyebrow:"WHEN IT HAPPENS", title:"Calendar", text:"Calendar combines dated tasks and events. Switch between Month, Week and Day views when you need more detail.", bullets:["Events are separate from tasks","Plan tasks into time slots","Auto-plan can place your Focus Bouquet around existing events"] },
@@ -1465,13 +1573,14 @@ function renderToday() {
   const visibleTasks = filterByMode(state.tasks);
   const active = visibleTasks.filter(t => !t.completed);
   const completedToday = visibleTasks.filter(t => t.completedDate === todayISO()).length;
-  const focusTasks = focusTasksVisible();
+  const focusTasks = focusTasksVisible().slice(0, FOCUS_BOUQUET_LIMIT);
+  const completedFocus = bouquetCompletedToday();
   const recommendations = getBouquetRecommendations();
   const attention = attentionItems();
   const futureDue = dueFutureNotes();
   const waitingDue = waitingTasks().filter(t => t.followUpDate && t.followUpDate <= todayISO());
-  const focusTotal = focusTasks.length + completedToday;
-  const progress = focusTotal ? Math.round((completedToday / focusTotal) * 100) : 0;
+  const bouquetSelected = Math.min(FOCUS_BOUQUET_LIMIT, focusTasks.length + completedFocus.length);
+  const progress = bouquetSelected ? Math.round((completedFocus.length / bouquetSelected) * 100) : 0;
   const capacity = capacitySnapshot(focusTasks);
   const capacityWidth = Math.min(100, Math.round(capacity.ratio * 100));
   const intention = intentionForToday();
@@ -1480,7 +1589,7 @@ function renderToday() {
     <section class="morning-card morning-card-simple"><div class="morning-title"><div><p class="eyebrow">${escapeHTML(formatLongToday())}</p><h1>${greeting()} 🌸</h1></div></div><div class="morning-compact-stats"><span><strong>${active.length}</strong> active</span><span><strong>${waitingTasks().length}</strong> waiting</span><span><strong>${completedToday}</strong> done</span></div>${attention.length ? `<div class="attention-list attention-list-simple">${attention.slice(0,2).map(i => `<div class="attention-item"><span>${i.icon}</span><span>${escapeHTML(i.text)}</span></div>`).join("")}${attention.length>2?`<button data-goto="agenda">+ ${attention.length-2} more</button>`:""}</div>` : `<div class="attention-item quiet-attention"><span>🌿</span><span>Nothing urgent is asking for you.</span></div>`}${firewallIsActive() ? `<div class="firewall-banner">🌙 Boundary Firewall is active.</div>` : ""}</section>
     ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip compact-life-flow">${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me</strong></button>` : ""}${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong></button>` : ""}</section>` : ""}
     ${futureDue.length ? `<section class="future-morning-card compact-future-card"><p class="eyebrow">FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Make task</button><button data-archive-future-note="${futureDue[0].id}">Archive</button></div></section>` : ""}
-    <section class="section focus-section-simple"><div class="section-header"><div><p class="eyebrow">TODAY</p><h2>Focus Bouquet</h2></div><button data-goto="bloom">View all</button></div><div class="bloom-count">${focusTasks.length} in focus · ${completedToday} completed</div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div><div class="focus-grid">${focusTasks.length ? focusTasks.map(t => focusTaskRow(t, true)).join("") : `<div class="empty-state compact-empty"><div class="empty-icon">💐</div><h3>Your bouquet is empty</h3><p>Add only what matters today.</p><button class="secondary-button" data-goto="tasks">Choose tasks</button></div>`}</div></section>
+    <details class="section focus-section-simple focus-bouquet-card" open><summary class="focus-bouquet-summary"><div><p class="eyebrow">TODAY · TOP 3</p><h2>Focus Bouquet</h2><small>${bouquetSelected}/3 selected · ${completedFocus.length} bloomed</small></div><span class="focus-bouquet-chevron">⌄</span></summary><div class="focus-bouquet-body"><div class="bouquet-visual" aria-label="Today's focus bouquet">${bouquetFlowerSlotsHTML(focusTasks, completedFocus)}</div><div class="progress-track bouquet-progress"><div class="progress-fill" style="width:${progress}%"></div></div>${focusTasks.length ? `<div class="focus-grid">${focusTasks.map(t => focusTaskRow(t, true)).join("")}</div>` : completedFocus.length ? `<div class="bouquet-complete-message"><strong>Beautiful — today's focus has bloomed 🌸</strong><span>${bouquetSelected < FOCUS_BOUQUET_LIMIT ? "You still have an open focus slot if something else truly matters." : "Your Top 3 is complete. You can let the bouquet rest."}</span></div>` : `<div class="bouquet-empty-copy"><strong>No focus flowers yet</strong><span>Choose up to three tasks that matter most today.</span></div>`}<div class="bouquet-actions"><button class="primary-button" type="button" data-open-bouquet-picker>${bouquetSelected ? "Manage focus" : "Choose tasks"}</button>${bouquetSelected < FOCUS_BOUQUET_LIMIT ? `<button class="secondary-button" type="button" data-bouquet-quick>+ Quick add</button>` : ""}<button class="text-button" type="button" data-goto="bloom">Bloom view</button></div></div></details>
     <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong>${sharedBadgeHTML(task,true)}<small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
     <section class="section compact-more-section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong></button></div></section>
   `;
@@ -1531,6 +1640,11 @@ function toggleFocusTask(id) {
     state.focusTaskIds = state.focusTaskIds.filter(taskId => taskId !== id);
     showToast("Removed from today's bouquet");
     return render();
+  }
+
+  if (bouquetSelectedCountToday() >= FOCUS_BOUQUET_LIMIT) {
+    showToast("Your Focus Bouquet is full — keep today to your Top 3 🌸");
+    return;
   }
 
   const current = capacitySnapshot();
@@ -1630,8 +1744,8 @@ function renderTasks() {
   `;
 }
 
-function openQuickTaskModal(){refreshSpaceSelects();document.getElementById("quickTaskTitle").value="";document.getElementById("quickTaskSpace").value=preferredSpace();document.getElementById("quickTaskDue").value="";openModal("quickTaskModal");setTimeout(()=>document.getElementById("quickTaskTitle")?.focus(),80);}
-function saveQuickTask(){const title=document.getElementById("quickTaskTitle").value.trim();if(!title)return showToast("Add a task title first 🌸");state.tasks.push(normalizeTask({title,space:document.getElementById("quickTaskSpace").value,dueDate:document.getElementById("quickTaskDue").value,priority:"medium",status:"todo",durationMinutes:0,energy:"medium",deadlineType:"soft",createdAt:Date.now()}));closeModal("quickTaskModal");showToast("Quick task added ⚡");changePage("tasks");}
+function openQuickTaskModal(options={}){quickTaskFocusMode=Boolean(options?.focus);refreshSpaceSelects();document.getElementById("quickTaskTitle").value="";document.getElementById("quickTaskSpace").value=preferredSpace();document.getElementById("quickTaskDue").value="";openModal("quickTaskModal");setTimeout(()=>document.getElementById("quickTaskTitle")?.focus(),80);}
+function saveQuickTask(){const title=document.getElementById("quickTaskTitle").value.trim();if(!title)return showToast("Add a task title first 🌸");const task=normalizeTask({title,space:document.getElementById("quickTaskSpace").value,dueDate:document.getElementById("quickTaskDue").value,priority:"medium",status:"todo",durationMinutes:0,energy:"medium",deadlineType:"soft",createdAt:Date.now()});state.tasks.push(task);const addToFocus=quickTaskFocusMode;quickTaskFocusMode=false;if(addToFocus&&bouquetSelectedCountToday()<FOCUS_BOUQUET_LIMIT){state.focusTaskIds.push(task.id);markFocusHistory(task);}closeModal("quickTaskModal");showToast(addToFocus&&state.focusTaskIds.includes(task.id)?"Added to today's bouquet 🌷":addToFocus?"Task added — your Top 3 bouquet is already full 🌸":"Quick task added ⚡");state.currentPage=addToFocus?"today":"tasks";render();}
 
 function clearTaskForm() {
   ["taskEditId","taskTitle","taskProject","taskTags","taskDate","taskTime","taskSubtasks","taskNotes","taskLink","taskWaitingOn","taskFollowUpDate"].forEach(id => document.getElementById(id).value = "");
@@ -1910,7 +2024,27 @@ function deleteTask(id, options = {}) {
 
 function noteTypeIcon(type) { return type === "meeting" ? "👥" : type === "checklist" ? "✅" : "📝"; }
 
+function skincareRoutineCard(note) {
+  const today = new Date().getDay();
+  const day = skincareDayMeta(today);
+  const am = skincareStepsForDay(note,today,"am");
+  const pm = skincareStepsForDay(note,today,"pm");
+  const focus = String(note.skincareRoutine?.focus || "").trim();
+  return `<article class="note-card skincare-note-card ${note.pinned ? "pinned" : ""}">
+    <div class="skincare-note-card-top"><h3>${note.pinned ? "📌 " : ""}🧴 ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3><span class="skincare-today-pill">Today · ${day.short}</span></div>
+    ${focus ? `<div class="note-preview">${escapeHTML(focus).slice(0,220)}</div>` : `<div class="note-preview">Weekly AM / PM routine · products can repeat across multiple days.</div>`}
+    <div class="skincare-card-counts"><span>☀️ ${am.length} AM</span><span>🌙 ${pm.length} PM</span><span>🗓️ 7-day planner</span></div>
+    <div class="note-footer"><span>${modeLabel(note.space)}</span><span>${note.tags.map(t=>`#${escapeHTML(t)}`).join(" ")}</span></div>
+    <div class="note-actions">
+      <button class="primary-mini" data-open-skincare="${note.id}">Today’s routine</button>
+      <button data-edit-skincare="${note.id}">Edit whole week</button>
+      <button data-edit-note="${note.id}">Note settings</button>
+    </div>
+  </article>`;
+}
+
 function noteCard(note) {
+  if (isSkincarePlanner(note)) return skincareRoutineCard(note);
   const done = note.checklist.filter(i=>i.completed).length;
   return `<article class="note-card ${note.pinned ? "pinned" : ""}">
     <h3>${note.pinned ? "📌 " : ""}${noteTypeIcon(note.type)} ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3>
@@ -1932,9 +2066,9 @@ function renderNotes() {
   container.innerHTML = `
     <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Keep free-form thoughts, structured references, meeting actions and resettable checklists.</p></div>
     <details class="note-template-launcher">
-      <summary><span>🧩 Start from a note template</span><small>Skincare · Bionote · Strategy · Measurements</small></summary>
+      <summary><span>🧩 Start from a note template</span><small>Weekly skincare · Bionote · Strategy · Measurements</small></summary>
       <div class="note-template-chip-grid">
-        <button type="button" data-use-template="skincare-routine-note">🧴 Skincare Routine</button>
+        <button type="button" data-use-template="skincare-routine-note">🧴 Weekly Skincare</button>
         <button type="button" data-use-template="professional-bionote">👤 Professional Bionote</button>
         <button type="button" data-use-template="strategy-outline-note">🧭 Strategy / Meeting Outline</button>
         <button type="button" data-use-template="measurement-profile-note">📏 Measurement Profile</button>
@@ -2005,8 +2139,163 @@ function noteActionsToTasks(noteId) {
 
 function searchNotes(query) {
   const q=query.trim().toLowerCase(); let notes=filterByMode(state.notes);
-  if(q)notes=notes.filter(n=>[n.title,n.content,...n.tags,...n.checklist.map(i=>i.title)].join(" ").toLowerCase().includes(q));
+  if(q)notes=notes.filter(n=>{
+    const skincare=isSkincarePlanner(n)?(n.skincareRoutine?.steps||[]).flatMap(step=>[step.category,step.product,step.notes]):[];
+    return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare].join(" ").toLowerCase().includes(q);
+  });
   const el=document.getElementById("notesResults"); if(el)el.innerHTML=notes.length?`<div class="note-grid">${notes.map(noteCard).join("")}</div>`:emptyState("🔎","No matching notes","Try another search.","","");
+}
+
+/* ================= WEEKLY SKINCARE PLANNER ================= */
+
+let activeSkincareViewDay = new Date().getDay();
+
+function skincareCategoryOptions(selected="Cleanser") {
+  return SKINCARE_PRODUCT_TYPES.map(type=>`<option value="${escapeHTML(type)}" ${type===selected?"selected":""}>${escapeHTML(type)}</option>`).join("");
+}
+
+function skincareEditorRow(step = {}) {
+  const normalized = normalizeSkincareRoutine({steps:[step]}).steps[0];
+  return `<div class="skincare-step-editor" data-skincare-step-row data-step-id="${normalized.id}">
+    <div class="skincare-step-head">
+      <strong>Skincare step</strong>
+      <button type="button" class="icon-text-button danger-soft" data-skincare-remove-step>Remove</button>
+    </div>
+    <div class="skincare-step-fields">
+      <label><span>Type</span><select data-skincare-category>${skincareCategoryOptions(normalized.category)}</select></label>
+      <label><span>Product</span><input data-skincare-product type="text" value="${escapeHTML(normalized.product)}" placeholder="e.g. Azelaic Acid 10%" /></label>
+    </div>
+    <div class="skincare-editor-section">
+      <div class="skincare-editor-label"><span>Days</span><div class="skincare-preset-buttons"><button type="button" data-skincare-day-preset="all">Every day</button><button type="button" data-skincare-day-preset="weekdays">Weekdays</button><button type="button" data-skincare-day-preset="weekends">Weekend</button></div></div>
+      <div class="skincare-day-pickers">${SKINCARE_WEEKDAYS.map(meta=>`<button type="button" class="skincare-toggle-chip ${normalized.days.includes(meta.day)?"selected":""}" aria-pressed="${normalized.days.includes(meta.day)}" data-skincare-toggle-day="${meta.day}">${meta.short}</button>`).join("")}</div>
+    </div>
+    <div class="skincare-editor-section">
+      <span class="skincare-editor-label">Routine</span>
+      <div class="skincare-time-pickers">
+        <button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("am")?"selected":""}" aria-pressed="${normalized.times.includes("am")}" data-skincare-toggle-time="am">☀️ AM</button>
+        <button type="button" class="skincare-toggle-chip skincare-time-chip ${normalized.times.includes("pm")?"selected":""}" aria-pressed="${normalized.times.includes("pm")}" data-skincare-toggle-time="pm">🌙 PM</button>
+      </div>
+    </div>
+    <label class="skincare-notes-field"><span>Notes <small>optional</small></span><input data-skincare-notes type="text" value="${escapeHTML(normalized.notes)}" placeholder="e.g. after toner · avoid if irritated" /></label>
+  </div>`;
+}
+
+function populateSkincareEditor(note = null) {
+  const title=document.getElementById("skincareTitle");
+  const focus=document.getElementById("skincareFocus");
+  const space=document.getElementById("skincareSpace");
+  const steps=document.getElementById("skincareStepsEditor");
+  document.getElementById("skincareEditId").value=note?.id||"";
+  title.value=note?.title||"Skincare Routine";
+  focus.value=note?.skincareRoutine?.focus||"";
+  refreshSpaceSelects();
+  space.value=note?.space||preferredSpace();
+  const rows=note?.skincareRoutine?.steps||[];
+  steps.innerHTML=rows.length?rows.map(skincareEditorRow).join(""):skincareEditorRow({category:"Cleanser",days:[1,2,3,4,5,6,0],times:["am","pm"]});
+}
+
+function skincareViewStepHTML(step) {
+  const name=step.product.trim()||step.category;
+  return `<div class="skincare-view-step"><div><span class="skincare-category-pill">${escapeHTML(step.category)}</span><strong>${escapeHTML(name)}</strong></div>${step.notes?`<small>${escapeHTML(step.notes)}</small>`:""}</div>`;
+}
+
+function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
+  const body=document.getElementById("skincareViewBody"); if(!body||!note)return;
+  const meta=skincareDayMeta(day);
+  const am=skincareStepsForDay(note,day,"am"), pm=skincareStepsForDay(note,day,"pm");
+  const today=new Date().getDay();
+  const routineSection=(icon,label,steps)=>`<section class="skincare-routine-period"><div class="skincare-period-title"><span>${icon}</span><div><strong>${label}</strong><small>${steps.length} step${steps.length===1?"":"s"}</small></div></div>${steps.length?`<div class="skincare-view-step-list">${steps.map(skincareViewStepHTML).join("")}</div>`:`<div class="skincare-empty-period">Nothing planned for ${label.toLowerCase()}.</div>`}</section>`;
+  body.innerHTML=`
+    ${note.skincareRoutine?.focus?`<div class="skincare-focus-card"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:""}
+    <div class="skincare-day-tabs" role="tablist" aria-label="Skincare day">${SKINCARE_WEEKDAYS.map(item=>`<button type="button" role="tab" data-skincare-view-day="${item.day}" class="${Number(day)===item.day?"active":""} ${today===item.day?"today":""}" aria-selected="${Number(day)===item.day}"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:""}</button>`).join("")}</div>
+    <div class="skincare-selected-day"><span>${meta.label}</span>${today===Number(day)?`<strong>Today</strong>`:""}</div>
+    <div class="skincare-period-grid">${routineSection("☀️","AM",am)}${routineSection("🌙","PM",pm)}</div>
+  `;
+}
+
+function openSkincareRoutineModal(noteId="", options={}) {
+  const note=noteId?state.notes.find(item=>item.id===noteId):null;
+  const edit=Boolean(options.edit || !note);
+  activeSkincareViewDay=new Date().getDay();
+  const modal=document.getElementById("skincareRoutineModal"); if(modal)modal.dataset.noteId=note?.id||"";
+  document.getElementById("skincarePlannerTitle").textContent=note?.title||"Weekly skincare planner";
+  document.getElementById("skincareViewMode").classList.toggle("hidden",edit);
+  document.getElementById("skincareEditMode").classList.toggle("hidden",!edit);
+  document.getElementById("skincarePlannerEditButton").classList.toggle("hidden",edit||!note);
+  document.getElementById("skincarePlannerSettingsButton").classList.toggle("hidden",edit||!note);
+  document.getElementById("skincarePlannerBackToView").classList.toggle("hidden",!edit||!note);
+  if(edit) populateSkincareEditor(note); else renderSkincareRoutineView(note,activeSkincareViewDay);
+  openModal("skincareRoutineModal");
+}
+
+function collectSkincareEditorSteps() {
+  const rows=[...document.querySelectorAll("#skincareStepsEditor [data-skincare-step-row]")];
+  const steps=[];
+  for(let index=0;index<rows.length;index++){
+    const row=rows[index];
+    const days=[...row.querySelectorAll("[data-skincare-toggle-day].selected")].map(button=>Number(button.dataset.skincareToggleDay));
+    const times=[...row.querySelectorAll("[data-skincare-toggle-time].selected")].map(button=>button.dataset.skincareToggleTime);
+    if(!days.length){showToast(`Choose at least one day for skincare step ${index+1}.`);row.scrollIntoView({behavior:"smooth",block:"center"});return null;}
+    if(!times.length){showToast(`Choose AM, PM, or both for skincare step ${index+1}.`);row.scrollIntoView({behavior:"smooth",block:"center"});return null;}
+    steps.push({
+      id:row.dataset.stepId||createId(),
+      category:row.querySelector("[data-skincare-category]")?.value||"Other",
+      product:row.querySelector("[data-skincare-product]")?.value.trim()||"",
+      days,times,
+      notes:row.querySelector("[data-skincare-notes]")?.value.trim()||"",
+      order:index
+    });
+  }
+  return steps;
+}
+
+function saveSkincareRoutine() {
+  const id=document.getElementById("skincareEditId").value;
+  const old=id?state.notes.find(note=>note.id===id):null;
+  const steps=collectSkincareEditorSteps(); if(!steps)return;
+  const title=document.getElementById("skincareTitle").value.trim()||"Skincare Routine";
+  const note=normalizeNote({
+    ...(old||{}), id:id||createId(), title, type:"note",
+    space:document.getElementById("skincareSpace").value||preferredSpace(),
+    tags:old?.tags?.length?old.tags:["reference","skincare","routine"],
+    content:"", checklist:[], resettable:false,
+    structuredType:"skincare-weekly",
+    skincareRoutine:{focus:document.getElementById("skincareFocus").value.trim(),steps},
+    createdAt:old?.createdAt||Date.now(), updatedAt:Date.now()
+  });
+  if(old)state.notes[state.notes.findIndex(item=>item.id===id)]=note; else state.notes.push(note);
+  saveState(); showToast(old?"Weekly skincare updated 🧴":"Weekly skincare planner created 🧴");
+  document.getElementById("skincareRoutineModal").dataset.noteId=note.id;
+  document.getElementById("skincarePlannerTitle").textContent=note.title;
+  document.getElementById("skincareViewMode").classList.remove("hidden");
+  document.getElementById("skincareEditMode").classList.add("hidden");
+  document.getElementById("skincarePlannerEditButton").classList.remove("hidden");
+  document.getElementById("skincarePlannerSettingsButton").classList.remove("hidden");
+  document.getElementById("skincarePlannerBackToView").classList.add("hidden");
+  activeSkincareViewDay=new Date().getDay();
+  renderSkincareRoutineView(note,activeSkincareViewDay);
+  render();
+}
+
+function addSkincareEditorStep() {
+  const container=document.getElementById("skincareStepsEditor"); if(!container)return;
+  container.insertAdjacentHTML("beforeend",skincareEditorRow({category:"Serum",days:[1,2,3,4,5,6,0],times:["pm"]}));
+  container.lastElementChild?.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+function toggleSkincareChip(button, selector) {
+  const row=button.closest("[data-skincare-step-row]"); if(!row)return;
+  const selected=button.classList.toggle("selected");
+  button.setAttribute("aria-pressed",String(selected));
+  if(selector==="time"&&!row.querySelector("[data-skincare-toggle-time].selected")){
+    button.classList.add("selected");button.setAttribute("aria-pressed","true");showToast("Keep at least AM or PM selected.");
+  }
+}
+
+function applySkincareDayPreset(button,preset) {
+  const row=button.closest("[data-skincare-step-row]"); if(!row)return;
+  const days=preset==="weekdays"?new Set([1,2,3,4,5]):preset==="weekends"?new Set([6,0]):new Set([0,1,2,3,4,5,6]);
+  row.querySelectorAll("[data-skincare-toggle-day]").forEach(dayButton=>{const active=days.has(Number(dayButton.dataset.skincareToggleDay));dayButton.classList.toggle("selected",active);dayButton.setAttribute("aria-pressed",String(active));});
 }
 
 /* ================= REMINDERS ================= */
@@ -3294,8 +3583,8 @@ function finishReturnRitual(){state.returnRitualPending=false;state.lastReturnRi
 function intentionWords(){return intentionForToday().toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>=3);}
 function recommendationScore(task){let score=priorityWeight(task.priority)*12;const today=todayISO();if(task.deadlineType==="hard")score+=25;if(task.dueDate&&task.dueDate<today)score+=40;if(task.dueDate===today)score+=30;if(task.dueDate===addDaysISO(today,1))score+=12;if(task.status==="doing")score+=16;if(task.rescheduleCount>=2)score-=4;const words=intentionWords();if(words.length){const blob=[task.title,task.project,...task.tags,task.notes].join(" ").toLowerCase();if(words.some(w=>blob.includes(w)))score+=18;}return score;}
 function recommendationReason(task){if(task.deadlineType==="hard"&&task.dueDate&&task.dueDate<=todayISO())return"Protected deadline";if(task.dueDate&&task.dueDate<todayISO())return"Overdue";if(task.dueDate===todayISO())return"Due today";if(intentionWords().some(w=>[task.title,task.project,...task.tags].join(" ").toLowerCase().includes(w)))return"Matches your intention";if(task.priority==="high")return"High priority";return`${formatDuration(taskPlanningMinutes(task))} fits your day`;}
-function getBouquetRecommendations(){const current=focusTasksVisible(),capacity=capacitySnapshot(current),remaining=Math.max(0,capacity.remaining);let used=0;const candidates=filterByMode(state.tasks).filter(t=>!t.completed&&!state.focusTaskIds.includes(t.id)&&!["waiting","blocked"].includes(t.status)).sort((a,b)=>recommendationScore(b)-recommendationScore(a));const picks=[];for(const task of candidates){const mins=taskPlanningMinutes(task);if(picks.length>=4)break;if(mins<=Math.max(remaining-used,15)||task.deadlineType==="hard"&&task.dueDate&&task.dueDate<=todayISO()){picks.push(task);used+=mins;}}return picks;}
-function applyBouquetRecommendations(){const picks=getBouquetRecommendations();picks.forEach(task=>{if(!state.focusTaskIds.includes(task.id)){state.focusTaskIds.push(task.id);markFocusHistory(task);}});showToast(picks.length?`Hana added ${picks.length} suggested bloom${picks.length===1?"":"s"} 💐`:"Your bouquet already looks good 🌸");render();}
+function getBouquetRecommendations(){const current=focusTasksVisible(),capacity=capacitySnapshot(current),remaining=Math.max(0,capacity.remaining),slots=Math.max(0,FOCUS_BOUQUET_LIMIT-bouquetSelectedCountToday());let used=0;const candidates=filterByMode(state.tasks).filter(t=>!t.completed&&!state.focusTaskIds.includes(t.id)&&!["waiting","blocked"].includes(t.status)).sort((a,b)=>recommendationScore(b)-recommendationScore(a));const picks=[];for(const task of candidates){const mins=taskPlanningMinutes(task);if(picks.length>=slots)break;if(mins<=Math.max(remaining-used,15)||task.deadlineType==="hard"&&task.dueDate&&task.dueDate<=todayISO()){picks.push(task);used+=mins;}}return picks;}
+function applyBouquetRecommendations(){const picks=getBouquetRecommendations();picks.forEach(task=>{if(!state.focusTaskIds.includes(task.id)&&bouquetSelectedCountToday()<FOCUS_BOUQUET_LIMIT){state.focusTaskIds.push(task.id);markFocusHistory(task);}});showToast(picks.length?`Hana added ${picks.length} suggested bloom${picks.length===1?"":"s"} 💐`:"Your Top 3 is already full or nothing else fits 🌸");render();}
 
 /* ================= UNIVERSAL SEARCH ================= */
 
@@ -3744,40 +4033,13 @@ function useTemplate(templateId) {
     return openNoteModal(note.id);
   }
 
-  if (["skincare-routine-note","professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)) {
+  if (templateId === "skincare-routine-note") {
+    closeNavDrawer();
+    return openSkincareRoutineModal("", { edit:true });
+  }
+
+  if (["professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)) {
     const definitions = {
-      "skincare-routine-note": {
-        title: "Skincare Routine",
-        tags: ["reference","skincare"],
-        content: `## Focus / skin goals
-- Skin type / concerns:
-- Main goals:
-- Current focus:
-
-## Day / routine theme
-Date or day:
-Theme / active:
-
-## AM
-- Cleanser:
-- Toner / essence:
-- Serum / treatment:
-- Moisturizer:
-- Sunscreen:
-
-## PM
-- Cleanser:
-- Mask / exfoliant:
-- Toner / essence:
-- Serum / treatment:
-- Moisturizer:
-- Spot treatment:
-
-## Notes / reactions
-- Irritation or sensitivity:
-- Breakouts / texture:
-- Changes to try next:`
-      },
       "professional-bionote": {
         title: "Professional Bionote",
         tags: ["reference","bio","professional"],
@@ -5264,6 +5526,9 @@ document.addEventListener("click", event => {
   const toggleTaskBtn=event.target.closest("[data-toggle-task]");if(toggleTaskBtn){toggleTask(toggleTaskBtn.dataset.toggleTask);return;}
   const cycle=event.target.closest("[data-cycle-task]");if(cycle){cycleTaskStatus(cycle.dataset.cycleTask);return;}
   const sub=event.target.closest("[data-toggle-subtask]");if(sub){toggleSubtask(sub.dataset.toggleSubtask,sub.dataset.subtaskId);return;}
+  if(event.target.closest("[data-open-bouquet-picker]")){openBouquetPicker();return;}
+  if(event.target.closest("[data-bouquet-quick]")){closeModal("bouquetPickerModal");openQuickTaskModal({focus:true});return;}
+  const bouquetPick=event.target.closest("[data-bouquet-pick]");if(bouquetPick){toggleFocusTask(bouquetPick.dataset.bouquetPick);renderBouquetPicker();return;}
   const focus=event.target.closest("[data-focus-task]");if(focus){toggleFocusTask(focus.dataset.focusTask);return;}
   const todayView=event.target.closest("[data-today-view]");if(todayView){state.todayViewMode=todayView.dataset.todayView==="do"?"do":"plan";state.currentPage="today";render();return;}
   if(event.target.closest("[data-do-next]")){const focusTasks=focusTasksVisible();if(focusTasks.length){state.doTaskIndex=(state.doTaskIndex+1)%focusTasks.length;render();}return;}
@@ -5296,6 +5561,19 @@ document.addEventListener("click", event => {
 
   const returnAction=event.target.closest("[data-return-action]");if(returnAction){returnRitualAction(returnAction.dataset.taskId,returnAction.dataset.returnAction);return;}
   if(event.target.closest("[data-finish-return]")){finishReturnRitual();return;}
+
+  const openSkincare=event.target.closest("[data-open-skincare]");if(openSkincare){openSkincareRoutineModal(openSkincare.dataset.openSkincare,{edit:false});return;}
+  const editSkincare=event.target.closest("[data-edit-skincare]");if(editSkincare){openSkincareRoutineModal(editSkincare.dataset.editSkincare,{edit:true});return;}
+  const skincareDay=event.target.closest("[data-skincare-view-day]");if(skincareDay){activeSkincareViewDay=Number(skincareDay.dataset.skincareViewDay);const id=document.getElementById("skincareEditId")?.value||document.getElementById("skincareRoutineModal")?.dataset.noteId||"";const note=state.notes.find(item=>item.id===id);if(note)renderSkincareRoutineView(note,activeSkincareViewDay);return;}
+  if(event.target.closest("[data-skincare-edit-week]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";const note=state.notes.find(item=>item.id===id);if(note)openSkincareRoutineModal(note.id,{edit:true});return;}
+  if(event.target.closest("[data-skincare-back-view]")){const id=document.getElementById("skincareEditId")?.value||"";const note=state.notes.find(item=>item.id===id);if(note)openSkincareRoutineModal(note.id,{edit:false});return;}
+  if(event.target.closest("[data-skincare-add-step]")){addSkincareEditorStep();return;}
+  const removeSkincare=event.target.closest("[data-skincare-remove-step]");if(removeSkincare){const row=removeSkincare.closest("[data-skincare-step-row]");const container=document.getElementById("skincareStepsEditor");if(container?.children.length<=1){showToast("Keep at least one skincare row in the planner.");return;}row?.remove();return;}
+  const skincareDayToggle=event.target.closest("[data-skincare-toggle-day]");if(skincareDayToggle){toggleSkincareChip(skincareDayToggle,"day");return;}
+  const skincareTimeToggle=event.target.closest("[data-skincare-toggle-time]");if(skincareTimeToggle){toggleSkincareChip(skincareTimeToggle,"time");return;}
+  const skincarePreset=event.target.closest("[data-skincare-day-preset]");if(skincarePreset){applySkincareDayPreset(skincarePreset,skincarePreset.dataset.skincareDayPreset);return;}
+  if(event.target.closest("[data-save-skincare]")){saveSkincareRoutine();return;}
+  if(event.target.closest("[data-skincare-note-settings]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";closeModal("skincareRoutineModal");if(id)openNoteModal(id);return;}
 
   const editNote=event.target.closest("[data-edit-note]");if(editNote){openNoteModal(editNote.dataset.editNote);return;}
   const noteCheck=event.target.closest("[data-toggle-note-check]");if(noteCheck){toggleNoteCheck(noteCheck.dataset.toggleNoteCheck,noteCheck.dataset.noteCheckId);return;}
@@ -5652,26 +5930,140 @@ window.addEventListener("pagehide",()=>{
   if(hanaPartnerState.connected&&partnerSharedInitialized)syncPartnerEntitiesNow();
 });
 
-/* SERVICE WORKER */
+/* SERVICE WORKER + APP UPDATE CHECKS */
 let hanaUpdateRegistration = null;
-function showHanaUpdateAvailable(registration) {
+let hanaRemoteVersion = "";
+let hanaUpdateCheckInFlight = false;
+let hanaLastVersionCheckAt = 0;
+const HANA_UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
+
+function versionParts(value) {
+  return String(value || "").trim().replace(/^v/i, "").split(".").map(part => Number.parseInt(part, 10) || 0);
+}
+function isNewerHanaVersion(candidate, current = HANA_APP_VERSION) {
+  const a = versionParts(candidate), b = versionParts(current);
+  const length = Math.max(a.length, b.length);
+  for (let i = 0; i < length; i++) {
+    const left = a[i] || 0, right = b[i] || 0;
+    if (left !== right) return left > right;
+  }
+  return false;
+}
+function showHanaUpdateAvailable(registration, remoteVersion = "") {
   hanaUpdateRegistration = registration || hanaUpdateRegistration;
+  if (remoteVersion) hanaRemoteVersion = remoteVersion;
   const banner = document.getElementById("updateAvailableBanner");
-  if (banner) banner.classList.remove("hidden");
+  if (!banner) return;
+  const copy = banner.querySelector(".update-available-copy small");
+  if (copy) copy.textContent = hanaRemoteVersion && isNewerHanaVersion(hanaRemoteVersion)
+    ? `Hana ${hanaRemoteVersion} is ready. Refresh to update.`
+    : "Refresh to get the newest Hana.";
+  banner.classList.remove("hidden");
 }
 function hideHanaUpdateAvailable() {
   document.getElementById("updateAvailableBanner")?.classList.add("hidden");
 }
-function applyHanaUpdate() {
-  const waiting = hanaUpdateRegistration?.waiting;
-  if (waiting) {
-    const button = document.getElementById("applyUpdateButton");
-    if (button) { button.disabled = true; button.textContent = "Refreshing…"; }
-    waiting.postMessage({ type: "SKIP_WAITING" });
-  } else {
+function workerWhenInstalled(worker, timeoutMs = 7000) {
+  if (!worker) return Promise.resolve(null);
+  if (worker.state === "installed") return Promise.resolve(worker);
+  return new Promise(resolve => {
+    let done = false;
+    const finish = value => {
+      if (done) return;
+      done = true;
+      worker.removeEventListener("statechange", onState);
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const onState = () => {
+      if (worker.state === "installed") finish(worker);
+      else if (["redundant", "activated"].includes(worker.state)) finish(null);
+    };
+    worker.addEventListener("statechange", onState);
+    const timer = setTimeout(() => finish(worker.state === "installed" ? worker : null), timeoutMs);
+  });
+}
+async function applyHanaUpdate() {
+  const button = document.getElementById("applyUpdateButton");
+  if (button) { button.disabled = true; button.textContent = "Refreshing…"; }
+  try {
+    const registration = hanaUpdateRegistration || await navigator.serviceWorker?.getRegistration?.();
+    if (registration) {
+      hanaUpdateRegistration = registration;
+      try { await registration.update(); } catch {}
+      let waiting = registration.waiting;
+      if (!waiting && registration.installing) waiting = await workerWhenInstalled(registration.installing);
+      waiting = registration.waiting || waiting;
+      if (waiting) {
+        waiting.postMessage({ type: "SKIP_WAITING" });
+        // controllerchange normally reloads. This fallback protects iOS cases
+        // where that event is delayed or not surfaced to the standalone PWA.
+        setTimeout(() => window.location.reload(), 5000);
+        return;
+      }
+    }
     window.location.reload();
+  } catch (error) {
+    console.warn("Hana update refresh fallback:", error);
+    window.location.reload();
+  } finally {
+    setTimeout(() => {
+      const currentButton = document.getElementById("applyUpdateButton");
+      if (currentButton) { currentButton.disabled = false; currentButton.textContent = "Refresh"; }
+    }, 6000);
   }
 }
+async function fetchLatestHanaVersion() {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  try {
+    const response = await fetch("./index.html?hana_update_check=1", {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+      signal: controller?.signal
+    });
+    if (!response.ok) return "";
+    const html = await response.text();
+    const match = html.match(/<meta\s+name=["']hana-app-version["']\s+content=["']([^"']+)["']/i)
+      || html.match(/<meta\s+content=["']([^"']+)["']\s+name=["']hana-app-version["']/i);
+    return match ? String(match[1] || "").trim() : "";
+  } catch (error) {
+    if (error?.name !== "AbortError") console.debug("Hana version check skipped:", error);
+    return "";
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+async function checkHanaUpdateAvailability({ force = false } = {}) {
+  if (!navigator.onLine || hanaUpdateCheckInFlight) return;
+  const now = Date.now();
+  if (!force && now - hanaLastVersionCheckAt < 60 * 1000) return;
+  hanaLastVersionCheckAt = now;
+  hanaUpdateCheckInFlight = true;
+  try {
+    let registration = null;
+    if ("serviceWorker" in navigator) {
+      registration = hanaUpdateRegistration || await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        hanaUpdateRegistration = registration;
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          showHanaUpdateAvailable(registration);
+          return;
+        }
+        try { await registration.update(); } catch {}
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          showHanaUpdateAvailable(registration);
+          return;
+        }
+      }
+    }
+    const latest = await fetchLatestHanaVersion();
+    if (latest && isNewerHanaVersion(latest)) showHanaUpdateAvailable(registration, latest);
+  } finally {
+    hanaUpdateCheckInFlight = false;
+  }
+}
+
 if("serviceWorker" in navigator){
   let hanaSWReloading=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{
@@ -5691,14 +6083,23 @@ if("serviceWorker" in navigator){
           if(worker.state==="installed"&&navigator.serviceWorker.controller)showHanaUpdateAvailable(registration);
         });
       });
-      await registration.update();
+      try{await registration.update();}catch{}
+      // Keep startup fast: do the network version check shortly after first paint.
+      setTimeout(()=>checkHanaUpdateAvailability({force:true}),1800);
     }catch(error){console.error("Service worker registration failed:",error);}
   });
-  document.addEventListener("visibilitychange",()=>{
-    if(document.visibilityState!=="visible")return;
-    navigator.serviceWorker.getRegistration().then(registration=>{if(registration){hanaUpdateRegistration=registration;if(registration.waiting&&navigator.serviceWorker.controller)showHanaUpdateAvailable(registration);return registration.update();}}).catch(()=>{});
-  });
+}else{
+  window.addEventListener("load",()=>setTimeout(()=>checkHanaUpdateAvailability({force:true}),1800));
 }
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState!=="visible")return;
+  checkHanaUpdateAvailability({force:true}).catch(()=>{});
+});
+window.addEventListener("online",()=>checkHanaUpdateAvailability({force:true}).catch(()=>{}));
+setInterval(()=>{
+  if(document.visibilityState==="visible")checkHanaUpdateAvailability().catch(()=>{});
+},HANA_UPDATE_CHECK_INTERVAL);
 
 setInterval(checkReminders,30*1000);checkReminders();
 let hanaStartupReady = true;

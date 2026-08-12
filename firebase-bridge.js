@@ -1,12 +1,12 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.11 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.16 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
 (() => {
   const SDK_VERSION = "12.16.0";
   const CHUNK_BYTES = 240000;
-  const BRIDGE_VERSION = "2.0.11";
+  const BRIDGE_VERSION = "2.0.16";
   const FIREBASE_PROJECT_ID = "hana-e78b1";
 
   const firebaseConfig = {
@@ -211,25 +211,32 @@
       };
       const makePartnerCode = (ownerUid, token) => `H2.${encodeUidForInvite(ownerUid)}.${cleanInviteToken(token)}`;
       const normalizePartnerCodeInput = raw => {
-        let value = String(raw || "").trim();
+        // Partner keys are safe ASCII. Messaging apps can add line breaks, spaces
+        // or zero-width characters while copying/wrapping a long key, so strip
+        // only those transport artifacts while preserving case-sensitive UID data.
+        let value = String(raw || "").trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
         if (/^https?:\/\//i.test(value)) {
           try {
             const parsed = new URL(value);
             value = parsed.searchParams.get("hanaPartner") || parsed.searchParams.get("partner") || value;
           } catch {}
         }
-        return value.trim();
+        return value.trim().replace(/\s+/g, "");
       };
       const parsePartnerCode = raw => {
         const value = normalizePartnerCodeInput(raw);
         const parts = value.split(".");
-        if (parts.length !== 3 || parts[0].toUpperCase() !== "H2") {
-          throw new Error("That Partner invite is from an older Hana build. Create a new invite in Hana v2.0.7 or later.");
+        const hasH2Prefix = parts[0]?.toUpperCase() === "H2";
+        if (hasH2Prefix && parts.length !== 3) {
+          throw new Error("That Partner invite key was cut off. Copy the complete H2 invite key from your partner's Hana, then paste the whole key here.");
+        }
+        if (parts.length !== 3 || !hasH2Prefix) {
+          throw new Error("That Partner invite uses the old code format. Ask your partner to create a new H2 invite key in the latest Hana.");
         }
         let ownerUid = "";
         try { ownerUid = decodeUidFromInvite(parts[1]); } catch {}
         const token = cleanInviteToken(parts[2]);
-        if (!ownerUid || token.length < 8) throw new Error("That Partner invite is not valid.");
+        if (!ownerUid || token.length < 8) throw new Error("That Partner invite key is not valid. Copy it again directly from Hana without editing it.");
         return { code: `H2.${parts[1]}.${token}`, ownerUid, token };
       };
       const sharedItemsRef = linkId => {

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
+  <meta name="hana-app-version" content="2.0.16" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -83,7 +84,7 @@
           <div class="nav-drawer-about-copy">
             <div class="nav-drawer-group-title">Hana (花) 🌸</div>
             <p>Hana (花) means “flower.” Like a flower blooming one petal at a time, Hana helps you take care of your ideas, notes, and tasks one bloom at a time.</p>
-            <div class="nav-drawer-about-actions"><span>Version <span data-hana-version>2.0.12</span></span><button type="button" data-open-whats-new>What’s new</button></div>
+            <div class="nav-drawer-about-actions"><span>Version <span data-hana-version>2.0.16</span></span><button type="button" data-open-whats-new>What’s new</button></div>
           </div>
         </div>
       </section>
@@ -341,6 +342,45 @@
         <div class="modal-action-spacer"></div>
         <button class="secondary-button" data-close-modal="noteModal">Cancel</button>
         <button id="saveNoteButton" class="primary-button">Save note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEEKLY SKINCARE ROUTINE MODAL -->
+  <div id="skincareRoutineModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large skincare-planner-modal">
+      <div class="modal-header skincare-planner-header">
+        <div><p class="eyebrow">🧴 WEEKLY ROUTINE</p><h2 id="skincarePlannerTitle">Weekly skincare planner</h2></div>
+        <button class="modal-close" data-close-modal="skincareRoutineModal">×</button>
+      </div>
+
+      <div id="skincareViewMode">
+        <div id="skincareViewBody"></div>
+        <div class="modal-actions skincare-view-actions">
+          <button id="skincarePlannerSettingsButton" type="button" class="secondary-button" data-skincare-note-settings>Note settings</button>
+          <div class="modal-action-spacer"></div>
+          <button id="skincarePlannerEditButton" type="button" class="primary-button" data-skincare-edit-week>Edit whole week</button>
+        </div>
+      </div>
+
+      <div id="skincareEditMode" class="hidden">
+        <input id="skincareEditId" type="hidden" />
+        <div class="form-row">
+          <div class="form-group"><label for="skincareTitle">Routine name</label><input id="skincareTitle" type="text" placeholder="My skincare routine" /></div>
+          <div class="form-group"><label for="skincareSpace">Space</label><select id="skincareSpace" data-space-select><option value="personal">🎀 Personal</option></select></div>
+        </div>
+        <div class="form-group"><label for="skincareFocus">Focus / skin goals <span class="optional-label">optional</span></label><textarea id="skincareFocus" placeholder="Acne control, barrier care, brightening, sensitivity notes..."></textarea></div>
+
+        <div class="skincare-edit-intro"><div><strong>Edit your entire week here</strong><p>Add a product once, then tap every day it applies to and choose AM, PM, or both.</p></div><button type="button" class="secondary-button compact-button" data-skincare-add-step>+ Add step</button></div>
+        <div id="skincareStepsEditor" class="skincare-steps-editor"></div>
+        <button type="button" class="secondary-button skincare-add-bottom" data-skincare-add-step>+ Add another skincare step</button>
+
+        <div class="modal-actions task-modal-actions">
+          <button id="skincarePlannerBackToView" type="button" class="secondary-button" data-skincare-back-view>Back to today</button>
+          <div class="modal-action-spacer"></div>
+          <button type="button" class="secondary-button" data-close-modal="skincareRoutineModal">Cancel</button>
+          <button type="button" class="primary-button" data-save-skincare>Save whole week</button>
+        </div>
       </div>
     </div>
   </div>
@@ -639,7 +679,7 @@
     <div class="modal-card partner-join-modal">
       <div class="modal-header"><div><p class="eyebrow">PARTNER LINK 💕</p><h2>Enter invite code</h2></div><button class="modal-close" data-close-modal="partnerJoinModal">×</button></div>
       <p class="partner-join-copy">Enter the code from the one person you want to connect with. Nothing in either Hana account is shared automatically.</p>
-      <div class="form-group"><label for="partnerJoinCode">Invite code</label><input id="partnerJoinCode" class="partner-code-input" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="HANA8LOVE" /></div>
+      <div class="form-group"><label for="partnerJoinCode">Invite key</label><input id="partnerJoinCode" class="partner-code-input" type="text" maxlength="256" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="H2.…" /><small class="field-help">Paste the complete H2 invite key. Hana preserves uppercase and lowercase exactly.</small></div>
       <div class="privacy-note"><span>🔒</span><div><strong>Private by default</strong><small>After connecting, each entry still needs to be marked 💕 Shared before your partner can see it.</small></div></div>
       <div class="modal-actions"><button class="secondary-button" data-close-modal="partnerJoinModal">Cancel</button><button id="acceptPartnerInviteButton" class="primary-button">Connect Partner Link</button></div>
     </div>
@@ -809,6 +849,17 @@
     </div>
   </div>
 
+
+  <!-- FOCUS BOUQUET PICKER -->
+  <div id="bouquetPickerModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large bouquet-picker-modal">
+      <div class="modal-header"><div><p class="eyebrow">TODAY · TOP 3</p><h2>Choose your Focus Bouquet</h2><p id="bouquetPickerMeta" class="bouquet-picker-meta">0/3 focus slots used</p></div><button class="modal-close" type="button" data-close-modal="bouquetPickerModal" aria-label="Close focus picker">×</button></div>
+      <p class="bouquet-picker-help">Keep this intentionally small. Pick up to three tasks that deserve your attention today.</p>
+      <div id="bouquetPickerList" class="bouquet-picker-list"></div>
+      <div class="modal-actions"><button class="secondary-button" type="button" data-bouquet-quick>+ Quick add task</button><button class="primary-button" type="button" data-close-modal="bouquetPickerModal">Done</button></div>
+    </div>
+  </div>
+
   <!-- ADD MENU -->
   <div id="addMenu" class="modal-overlay hidden">
     <div class="action-sheet simplified-add-sheet">
@@ -841,7 +892,7 @@
   <div id="toast" class="toast hidden"></div>
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
-  <script src="firebase-bridge.js?v=2.0.12"></script>
-  <script src="app.js?v=2.0.12"></script>
+  <script src="firebase-bridge.js?v=2.0.16"></script>
+  <script src="app.js?v=2.0.16"></script>
 </body>
 </html>
