@@ -1,0 +1,419 @@
+name: Hana skincare table editor upgrade
+
+on:
+  push:
+    branches:
+      - agent/hana-stability-bugfix-2.0.18
+
+permissions:
+  contents: write
+
+jobs:
+  update-skincare-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out QA branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/hana-stability-bugfix-2.0.18
+
+      - name: Upgrade skincare editor
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path = Path('app.js')
+          index_path = Path('index.html')
+          style_path = Path('style.css')
+
+          app = app_path.read_text(encoding='utf-8')
+          index = index_path.read_text(encoding='utf-8')
+          style = style_path.read_text(encoding='utf-8')
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              return text.replace(old, new, 1)
+
+          def replace_block(text, start_marker, end_marker, replacement, label):
+              start = text.find(start_marker)
+              if start < 0:
+                  raise SystemExit(f'{label}: start marker not found')
+              end = text.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit(f'{label}: end marker not found')
+              return text[:start] + replacement.rstrip() + '\n' + text[end:]
+
+          # Make the template description match the new grouped editor.
+          app = replace_once(
+              app,
+              'description: "Plan one full week of AM/PM skincare, reuse products across multiple days, and open straight to today’s routine.",',
+              'description: "Plan one full week with separate AM and PM product tables, reuse routines across days, and open straight to today’s routine.",',
+              'starter template description'
+          )
+
+          # Replace the old card editor + per-row AM/PM toggles with grouped tables.
+          editor_block = r'''function skincareCategoryOptions(selected="") {
+            const value=String(selected||"");
+            const types=value&&!SKINCARE_PRODUCT_TYPES.includes(value)?[value,...SKINCARE_PRODUCT_TYPES]:SKINCARE_PRODUCT_TYPES;
+            return `<option value="" ${value?"":"selected"}>Choose type</option>${[...new Set(types)].map(type=>`<option value="${escapeHTML(type)}" ${type===value?"selected":""}>${escapeHTML(type)}</option>`).join("")}`;
+          }
+          function skincareRoutineBatchMeta(routine="am") {
+            return routine==="pm"
+              ? {routine:"pm",icon:"🌙",label:"PM Routine",short:"PM",empty:"No PM products yet."}
+              : {routine:"am",icon:"☀️",label:"AM Routine",short:"AM",empty:"No AM products yet."};
+          }
+          function skincareEditorRow(step = {}, routine = "am") {
+            const meta=skincareRoutineBatchMeta(routine),category=String(step.category||""),product=String(step.product||""),notes=String(step.notes||"");
+            return `<div class="skincare-table-row" data-skincare-step-row data-step-id="${escapeHTML(String(step.id||createId()))}" data-skincare-routine="${meta.routine}">
+              <label class="skincare-table-cell skincare-type-cell"><span class="skincare-table-cell-label">Product type</span><select data-skincare-category aria-label="${meta.short} product type">${skincareCategoryOptions(category)}</select></label>
+              <label class="skincare-table-cell skincare-product-cell"><span class="skincare-table-cell-label">Product</span><input data-skincare-product type="text" value="${escapeHTML(product)}" placeholder="Product name" aria-label="${meta.short} product" /></label>
+              <label class="skincare-table-cell skincare-notes-cell"><span class="skincare-table-cell-label">Notes</span><input data-skincare-notes type="text" value="${escapeHTML(notes)}" placeholder="Optional notes" aria-label="${meta.short} notes" /></label>
+              <button type="button" class="skincare-table-remove" data-skincare-remove-step aria-label="Remove this ${meta.short} product" title="Remove">×</button>
+            </div>`;
+          }
+          function skincareRoutineBatchEditor(routine="am", rows=[]) {
+            const meta=skincareRoutineBatchMeta(routine),items=rows.filter(step=>(step.times||[]).includes(meta.routine));
+            return `<section class="skincare-routine-batch skincare-routine-batch-${meta.routine}" data-skincare-batch="${meta.routine}">
+              <div class="skincare-routine-batch-head"><div class="skincare-routine-batch-title"><span>${meta.icon}</span><div><strong>${meta.label}</strong><small>${items.length} product${items.length===1?"":"s"}</small></div></div><span class="skincare-routine-badge">${meta.short}</span></div>
+              <div class="skincare-routine-table">
+                <div class="skincare-routine-table-head" aria-hidden="true"><span>Product type</span><span>Product</span><span>Notes</span><span></span></div>
+                <div class="skincare-routine-table-body">${items.length?items.map(step=>skincareEditorRow(step,meta.routine)).join(""):`<div class="skincare-routine-empty"><span>${meta.icon}</span><p>${meta.empty}</p></div>`}</div>
+              </div>
+              <button type="button" class="secondary-button skincare-batch-add" data-skincare-add-batch-step="${meta.routine}">+ Add product to ${meta.short}</button>
+            </section>`;
+          }
+          '''
+          app = replace_block(
+              app,
+              'function skincareCategoryOptions(selected="Cleanser") {',
+              'function skincareDraftFromNote(note = null) {',
+              editor_block,
+              'skincare row editor block'
+          )
+
+          read_block = r'''function readSkincareEditorPage() {
+            const rows=[...document.querySelectorAll("#skincareStepsEditor [data-skincare-step-row]")],steps=[];
+            rows.forEach((row,index)=>{
+              const routine=row.dataset.skincareRoutine==="pm"?"pm":"am";
+              steps.push({
+                id:row.dataset.stepId||createId(),
+                category:row.querySelector("[data-skincare-category]")?.value||"Other",
+                product:row.querySelector("[data-skincare-product]")?.value.trim()||"",
+                times:[routine],
+                notes:row.querySelector("[data-skincare-notes]")?.value.trim()||"",
+                order:index
+              });
+            });
+            return steps;
+          }
+          '''
+          app = replace_block(
+              app,
+              'function readSkincareEditorPage() {',
+              'function commitSkincareEditorPage() {',
+              read_block,
+              'skincare editor reader'
+          )
+
+          render_block = r'''function renderSkincareEditorDay() {
+            if(!skincareEditorDraft)return;
+            const meta=skincareDayMeta(activeSkincareEditDay),index=skincareEditDayIndex(activeSkincareEditDay),rows=skincareEditorDraft.days[activeSkincareEditDay]||[];
+            const title=document.getElementById("skincareEditDayTitle");if(title)title.textContent=meta.label;
+            const progress=document.getElementById("skincareEditProgress");if(progress)progress.textContent=`Day ${index+1} of 7`;
+            const prev=document.querySelector("[data-skincare-edit-prev]");if(prev)prev.disabled=index===0;
+            const next=document.querySelector("[data-skincare-edit-next]");if(next){next.disabled=index===6;next.textContent=index===6?"Sunday ✓":"Next ›";}
+            const container=document.getElementById("skincareStepsEditor");
+            if(container)container.innerHTML=`<div class="skincare-batch-stack">${skincareRoutineBatchEditor("am",rows)}${skincareRoutineBatchEditor("pm",rows)}</div>`;
+            renderSkincareSyncChoices();
+          }
+          '''
+          app = replace_block(
+              app,
+              'function renderSkincareEditorDay() {',
+              'function populateSkincareEditor(note = null, day = new Date().getDay()) {',
+              render_block,
+              'skincare day renderer'
+          )
+
+          add_block = r'''function addSkincareEditorStep(routine="pm") {
+            if(!skincareEditorDraft)return;
+            const normalizedRoutine=routine==="am"?"am":"pm",current=readSkincareEditorPage();
+            skincareEditorDraft.days[activeSkincareEditDay]=current;
+            skincareEditorDraft.days[activeSkincareEditDay].push({id:createId(),category:"",product:"",times:[normalizedRoutine],notes:"",order:current.length});
+            renderSkincareEditorDay();
+            requestAnimationFrame(()=>{
+              const rows=[...document.querySelectorAll(`#skincareStepsEditor [data-skincare-routine="${normalizedRoutine}"]`)],row=rows[rows.length-1];
+              row?.querySelector("[data-skincare-category]")?.focus();
+              row?.scrollIntoView({behavior:"smooth",block:"nearest"});
+            });
+          }
+          function removeSkincareEditorStep(button) {
+            const row=button?.closest?.("[data-skincare-step-row]");if(!row||!skincareEditorDraft)return;
+            row.remove();
+            skincareEditorDraft.days[activeSkincareEditDay]=readSkincareEditorPage();
+            renderSkincareEditorDay();
+          }
+          '''
+          app = replace_block(
+              app,
+              'function addSkincareEditorStep() {',
+              'function toggleSkincareChip(button) {',
+              add_block,
+              'skincare add/remove helpers'
+          )
+
+          old_events = '''  if(event.target.closest("[data-skincare-add-step]")){addSkincareEditorStep();return;}\n  const removeSkincare=event.target.closest("[data-skincare-remove-step]");if(removeSkincare){const row=removeSkincare.closest("[data-skincare-step-row]");const container=document.getElementById("skincareStepsEditor");row?.remove();if(container&&!container.querySelector("[data-skincare-step-row]"))container.innerHTML=`<div class="skincare-day-empty-editor"><span>🌱</span><strong>Rest day</strong><p>No skincare steps are planned for this day yet.</p></div>`;return;}\n  const skincareTimeToggle=event.target.closest("[data-skincare-toggle-time]");if(skincareTimeToggle){toggleSkincareChip(skincareTimeToggle);return;}'''
+          new_events = '''  const skincareBatchAdd=event.target.closest("[data-skincare-add-batch-step]");if(skincareBatchAdd){addSkincareEditorStep(skincareBatchAdd.dataset.skincareAddBatchStep);return;}\n  if(event.target.closest("[data-skincare-add-step]")){addSkincareEditorStep("pm");return;}\n  const removeSkincare=event.target.closest("[data-skincare-remove-step]");if(removeSkincare){removeSkincareEditorStep(removeSkincare);return;}\n  const skincareTimeToggle=event.target.closest("[data-skincare-toggle-time]");if(skincareTimeToggle){toggleSkincareChip(skincareTimeToggle);return;}'''
+          app = replace_once(app, old_events, new_events, 'skincare click handlers')
+
+          # Update modal copy and remove the old generic add buttons. Each routine now owns its add button.
+          old_intro = '<div class="skincare-edit-intro"><div><strong>Edit this day</strong><p>Build the AM and PM routine for this page, then move through the week with Previous / Next.</p></div><button type="button" class="secondary-button compact-button" data-skincare-add-step>+ Add step</button></div>\n        <div id="skincareStepsEditor" class="skincare-steps-editor"></div>\n        <button type="button" class="secondary-button skincare-add-bottom" data-skincare-add-step>+ Add another skincare step</button>'
+          new_intro = '<div class="skincare-edit-intro"><div><strong>Edit this day</strong><p>Each day has one AM table and one PM table. Add products directly inside the routine they belong to—no repeated AM/PM tagging.</p></div></div>\n        <div id="skincareStepsEditor" class="skincare-steps-editor"></div>\n        <p class="skincare-batch-help">Use <strong>+ Add product</strong> inside the AM or PM routine.</p>'
+          index = replace_once(index, old_intro, new_intro, 'skincare modal copy')
+
+          css_marker = '/* HANA SKINCARE GROUPED TABLE EDITOR */'
+          if css_marker in style:
+              raise SystemExit('skincare grouped table CSS already exists')
+          style += r'''
+
+          /* HANA SKINCARE GROUPED TABLE EDITOR */
+          .skincare-batch-stack {
+            display: grid;
+            gap: 14px;
+          }
+
+          .skincare-routine-batch {
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 13px;
+            background: color-mix(in srgb, var(--surface) 94%, var(--blush));
+          }
+
+          .skincare-routine-batch-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+
+          .skincare-routine-batch-title {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+          }
+
+          .skincare-routine-batch-title > span {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 12px;
+            background: var(--blush);
+            font-size: 17px;
+          }
+
+          .skincare-routine-batch-title strong,
+          .skincare-routine-batch-title small {
+            display: block;
+          }
+
+          .skincare-routine-batch-title strong {
+            font-size: 13px;
+          }
+
+          .skincare-routine-batch-title small {
+            margin-top: 2px;
+            color: var(--text-soft);
+            font-size: 10px;
+          }
+
+          .skincare-routine-badge {
+            min-width: 39px;
+            padding: 6px 9px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--rose);
+            font-size: 10px;
+            font-weight: 800;
+            text-align: center;
+          }
+
+          .skincare-routine-table {
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            background: var(--surface);
+          }
+
+          .skincare-routine-table-head,
+          .skincare-table-row {
+            display: grid;
+            grid-template-columns: minmax(92px, .85fr) minmax(118px, 1.2fr) minmax(118px, 1.25fr) 34px;
+            gap: 7px;
+            align-items: center;
+          }
+
+          .skincare-routine-table-head {
+            padding: 8px 9px;
+            border-bottom: 1px solid var(--border);
+            background: var(--blush);
+            color: var(--text-soft);
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .02em;
+          }
+
+          .skincare-table-row {
+            padding: 8px 9px;
+            border-bottom: 1px solid var(--border);
+          }
+
+          .skincare-table-row:last-child {
+            border-bottom: 0;
+          }
+
+          .skincare-table-cell {
+            min-width: 0;
+            margin: 0;
+          }
+
+          .skincare-table-cell input,
+          .skincare-table-cell select {
+            width: 100%;
+            min-width: 0;
+            height: 39px;
+            margin: 0;
+            padding: 8px 9px;
+            border-radius: 10px;
+            font-size: 11px;
+          }
+
+          .skincare-table-cell-label {
+            display: none;
+          }
+
+          .skincare-table-remove {
+            width: 32px;
+            height: 32px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--danger);
+            font-size: 20px;
+            line-height: 1;
+          }
+
+          .skincare-table-remove:active {
+            background: color-mix(in srgb, var(--danger) 10%, transparent);
+          }
+
+          .skincare-routine-empty {
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px;
+            color: var(--text-soft);
+            text-align: center;
+          }
+
+          .skincare-routine-empty p {
+            margin: 0;
+            font-size: 11px;
+          }
+
+          .skincare-batch-add {
+            width: 100%;
+            margin-top: 9px;
+          }
+
+          .skincare-batch-help {
+            margin: 9px 3px 2px;
+            color: var(--text-soft);
+            font-size: 10px;
+            line-height: 1.45;
+            text-align: center;
+          }
+
+          @media (max-width: 390px) {
+            .skincare-routine-table-head {
+              display: none;
+            }
+
+            .skincare-table-row {
+              grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+              align-items: start;
+              padding: 10px;
+            }
+
+            .skincare-type-cell {
+              grid-column: 1;
+            }
+
+            .skincare-product-cell {
+              grid-column: 2;
+            }
+
+            .skincare-notes-cell {
+              grid-column: 1 / 3;
+              grid-row: 2;
+            }
+
+            .skincare-table-remove {
+              grid-column: 3;
+              grid-row: 1;
+              margin-top: 17px;
+            }
+
+            .skincare-table-cell-label {
+              display: block;
+              margin: 0 0 4px 2px;
+              color: var(--text-soft);
+              font-size: 8px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: .04em;
+            }
+          }
+          '''
+
+          app_path.write_text(app, encoding='utf-8')
+          index_path.write_text(index, encoding='utf-8')
+          style_path.write_text(style, encoding='utf-8')
+
+          # Static QA checks for the new architecture.
+          checks = {
+              'AM batch': 'skincareRoutineBatchEditor("am",rows)' in app,
+              'PM batch': 'skincareRoutineBatchEditor("pm",rows)' in app,
+              'single routine per row': 'times:[routine]' in app,
+              'batch add handler': 'data-skincare-add-batch-step' in app,
+              'no old modal add buttons': 'data-skincare-add-step' not in index,
+              'new table CSS': css_marker in style,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit('Static QA failed: ' + ', '.join(failed))
+          print('Skincare grouped table upgrade checks passed:', ', '.join(checks))
+          PY
+
+      - name: JavaScript syntax check
+        run: node --check app.js
+
+      - name: Commit upgrade and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "hana-qa-bot@users.noreply.github.com"
+          git rm .github/workflows/hana-skincare-table-update.yml
+          git add app.js index.html style.css
+          git diff --cached --check
+          git commit -m "Upgrade skincare planner to grouped AM and PM tables"
+          git push origin HEAD:agent/hana-stability-bugfix-2.0.18
