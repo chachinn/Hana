@@ -269,7 +269,7 @@
       const rethrowPartnerPermission = (error, stage = "Partner Link") => {
         if (isPartnerPermissionError(error)) {
           const code = String(error?.code || "permission-denied");
-          const wrapped = new Error(`${stage} was blocked by Firestore (${code}). Hana v2.0.7 now uses your authenticated user tree instead of the old top-level invite collection. Publish the matching v2.0.7 Firestore rules, then try again.`);
+          const wrapped = new Error(`${stage} was blocked by Firestore (${code}). Hana ${BRIDGE_VERSION} uses your authenticated user tree instead of the old top-level invite collection. Publish the matching Firestore rules for this build, then try again.`);
           wrapped.code = code;
           wrapped.stage = stage;
           wrapped.diagnostic = JSON.stringify({ stage, code, build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, uid: auth.currentUser?.uid || "", architecture: "user-tree-v7" });
@@ -514,6 +514,8 @@
       function watchPartner(uid, callback) {
         assertUser(uid);
         let profile = null, ownPointer = null, ownInvite = null, linkInvite = null;
+        let profileLoaded = false, pointerLoaded = false;
+        let ownInviteLoading = false, linkInviteLoading = false;
         let stopOwnInvite = () => {}, stopLinkInvite = () => {};
 
         const validOpenInvite = () => {
@@ -522,7 +524,16 @@
           return !expiresAt || expiresAt > Date.now();
         };
         const memberOf = invite => Boolean(invite && invite.status === "accepted" && (invite.ownerUid === uid || invite.acceptedUid === uid));
+        const promotingAcceptedInvite = () => Boolean(!profile && ownInvite?.status === "accepted" && ownInvite.ownerUid === uid && ownInvite.acceptedUid);
         const publish = () => {
+          // Do not emit a false "disconnected" state while Firestore is still
+          // hydrating the documents that determine Partner Link membership.
+          // The app treats connected:false as authoritative and would otherwise
+          // stop Shared realtime and kick the user out of Shared mode on startup.
+          if (!profileLoaded || !pointerLoaded) return;
+          if (profile && linkInviteLoading) return;
+          if (!profile && ownPointer?.token && ownInviteLoading) return;
+          if (promotingAcceptedInvite()) return;
           if (profile && memberOf(linkInvite)) {
             callback({ connected: true, linkId: profile.linkId, partnerUid: profile.partnerUid, partnerName: profile.partnerName, partnerEmail: profile.partnerEmail });
             return;
@@ -535,10 +546,12 @@
         };
 
         const attachOwnInvite = pointer => {
-          stopOwnInvite(); stopOwnInvite = () => {}; ownInvite = null;
+          stopOwnInvite(); stopOwnInvite = () => {}; ownInvite = null; ownInviteLoading = false;
           const token = cleanInviteToken(pointer?.token || "");
           if (!token) return publish();
+          ownInviteLoading = true;
           stopOwnInvite = firestoreSdk.onSnapshot(partnerInviteDocRef(uid, token), async snap => {
+            ownInviteLoading = false;
             ownInvite = snap.exists() ? snap.data() : null;
             if (ownInvite?.status === "accepted" && ownInvite.ownerUid === uid && ownInvite.acceptedUid && !profile) {
               const now = new Date().toISOString();
@@ -561,11 +574,15 @@
               ownInvite = null;
             }
             publish();
-          }, () => publish());
+          }, error => {
+            ownInviteLoading = false;
+            console.warn("Hana Partner invite listener:", error);
+            publish();
+          });
         };
 
         const attachLinkInvite = linkId => {
-          stopLinkInvite(); stopLinkInvite = () => {}; linkInvite = null;
+          stopLinkInvite(); stopLinkInvite = () => {}; linkInvite = null; linkInviteLoading = false;
           if (!linkId) return publish();
           let parsed;
           try { parsed = parsePartnerCode(linkId); }
@@ -576,7 +593,9 @@
             callback({ connected: false, disconnected: true, linkId: ended });
             return;
           }
+          linkInviteLoading = true;
           stopLinkInvite = firestoreSdk.onSnapshot(partnerInviteDocRef(parsed.ownerUid, parsed.token), async snap => {
+            linkInviteLoading = false;
             linkInvite = snap.exists() ? snap.data() : null;
             if (profile && !memberOf(linkInvite)) {
               const ended = profile.linkId || linkId;
@@ -586,19 +605,36 @@
               return;
             }
             publish();
-          }, () => publish());
+          }, error => {
+            linkInviteLoading = false;
+            console.warn("Hana Partner membership listener:", error);
+            // A listener error is not proof that the relationship ended. Keep a
+            // known profile intact and let Firestore retry instead of tearing down
+            // Shared mode because of a transient network/permission read failure.
+            if (!profile) publish();
+          });
         };
 
         const stopProfile = firestoreSdk.onSnapshot(partnerProfileRef(uid), snap => {
+          profileLoaded = true;
           profile = snap.exists() ? snap.data() : null;
           attachLinkInvite(profile?.linkId || "");
           publish();
-        }, () => publish());
+        }, error => {
+          profileLoaded = true;
+          console.warn("Hana Partner profile listener:", error);
+          publish();
+        });
         const stopPointer = firestoreSdk.onSnapshot(partnerInviteStateRef(uid), snap => {
+          pointerLoaded = true;
           ownPointer = snap.exists() ? snap.data() : null;
           attachOwnInvite(ownPointer);
           publish();
-        }, () => publish());
+        }, error => {
+          pointerLoaded = true;
+          console.warn("Hana Partner invite-state listener:", error);
+          publish();
+        });
         return () => { stopProfile(); stopPointer(); stopOwnInvite(); stopLinkInvite(); };
       }
 
