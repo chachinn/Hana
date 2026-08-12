@@ -216,10 +216,16 @@
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
         const data = { code, ownerUid:uid, ownerName:displayName || user.displayName || user.email?.split("@")[0] || "Hana user", ownerEmail:user.email || "", status:"open", createdAt:createdAt.toISOString(), expiresAt:expiresAt.toISOString() };
-        const batch = firestoreSdk.writeBatch(db);
-        batch.set(partnerInviteRef(code), data);
-        batch.set(partnerInviteStateRef(uid), { code, updatedAt:createdAt.toISOString() });
-        await batch.commit();
+        // Create the public invite first, then save the private pointer separately.
+        // Keeping these as individual writes makes Firestore rule failures easier to
+        // diagnose and avoids an unrelated pointer write rejecting the invite itself.
+        await firestoreSdk.setDoc(partnerInviteRef(code), data);
+        try {
+          await firestoreSdk.setDoc(partnerInviteStateRef(uid), { code, updatedAt:createdAt.toISOString() });
+        } catch (error) {
+          await firestoreSdk.deleteDoc(partnerInviteRef(code)).catch(()=>{});
+          throw error;
+        }
         return data;
       }
 

@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.1
+   HANA 🌸 v2.0.2
    Partner Link stability + UI polish
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -218,7 +218,7 @@ const defaultState = {
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false,
     accountPromptSeen: false,
-    lastSeenUpdateVersion: "2.0.1"
+    lastSeenUpdateVersion: "2.0.2"
   },
 
   tasks: [],
@@ -679,7 +679,7 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.1";
+const HANA_APP_VERSION = "2.0.2";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
@@ -4148,6 +4148,7 @@ function firebaseFriendlyError(error){
   if(code.includes("invalid-email"))return "Enter a valid email address.";
   if(code.includes("too-many-requests"))return "Too many attempts. Try again a little later.";
   if(code.includes("network-request-failed"))return "Hana couldn't reach Firebase. Check your internet connection.";
+  if(code.includes("permission-denied")||String(error?.message||"").toLowerCase().includes("insufficient permissions"))return "Partner Link is blocked by the current Firestore rules. Publish the v2.0.2 Partner Link rules in Firebase, then try again.";
   if(code.includes("popup-closed-by-user"))return "Google sign-in was closed before it finished.";
   return error?.message ? String(error.message).replace(/^Firebase:\s*/i,"") : "Something went wrong with your Hana account.";
 }
