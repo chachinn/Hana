@@ -1,0 +1,55 @@
+name: Hana Version 2 structured meeting templates
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-hana:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply meeting templates update
+        run: python scripts/hana-meeting-templates-v2-patch.py
+
+      - name: Add tappable note cards
+        run: python scripts/hana-note-card-tap-patch.py
+
+      - name: JavaScript syntax check
+        run: node --check app.js
+
+      - name: Structured meeting QA
+        run: python scripts/hana-meeting-templates-v2-qa.py
+
+      - name: Tappable note card QA
+        run: python scripts/hana-note-card-tap-qa.py
+
+      - name: Repository consistency checks
+        shell: bash
+        run: |
+          grep -q 'hana-app-version" content="2.0.21"' index.html
+          grep -q 'data-hana-version>2</span>' index.html
+          grep -q 'data-use-template="meeting-agenda"' app.js
+          grep -q 'data-use-template="meeting-minutes"' app.js
+          grep -q 'data-open-note-card' app.js
+          grep -q 'hana-shell-v54' service-worker.js
+          git diff --check
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "hana-release-bot@users.noreply.github.com"
+          git rm .github/workflows/hana-meeting-templates-v2.yml scripts/hana-meeting-templates-v2-patch.py scripts/hana-meeting-templates-v2-qa.py scripts/hana-note-card-tap-patch.py scripts/hana-note-card-tap-qa.py
+          git add app.js index.html style.css service-worker.js
+          git diff --cached --check
+          git commit -m "Add structured meeting templates and tappable notes"
+          git push origin HEAD:main
