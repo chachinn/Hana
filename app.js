@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.19
+   HANA 🌸 Version 2 · internal build 2.0.20
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -786,17 +786,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.19";
+const HANA_APP_VERSION = "2.0.20";
+const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
-  version: HANA_APP_VERSION,
+  version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Alternate skincare routines 🌸",
-  intro: "Hana 2.0.19 adds optional alternate morning and evening skincare routines without changing your existing plan.",
+  title: "Optional alternate skincare routines 🌸",
+  intro: "Hana Version 2 now keeps alternate morning and evening routines out of the way until you choose to add them.",
   items: [
-    { icon: "☀️", title: "Alternate AM", text: "Every day can now keep a separate optional Alternate AM routine beside the main morning routine." },
-    { icon: "🌙", title: "Alternate PM", text: "Every day can also keep a separate optional Alternate PM routine beside the main evening routine." },
-    { icon: "🧴", title: "Old routines stay intact", text: "Existing skincare products automatically remain in the main routine, while alternates are stored separately and copied correctly when you sync days." },
-    { icon: "🌸", title: "Compatibility cleanup", text: "Saving, reopening, search, day copying, local backup, cloud backup and shared-note data remain compatible with the expanded skincare format." }
+    { icon: "☀️", title: "Alternates stay hidden", text: "AM and PM show only the main routine unless you tap Add alternate routine." },
+    { icon: "🌙", title: "Add one only when needed", text: "Alternate AM and Alternate PM are independent for every day and disappear again when they have no products." },
+    { icon: "🧴", title: "Blank alternates are ignored", text: "Opening an alternate and leaving it empty will not create or save an empty routine." },
+    { icon: "🌸", title: "Officially Version 2", text: "Hana now shows Version 2 as the product version. Small maintenance releases use an internal build number only for updates and caching." }
   ]
 };
 let hanaAccountState = {
@@ -2209,6 +2210,12 @@ function skincareRoutineBatchEditor(routine="am", variant="primary", rows=[]) {
     <button type="button" class="secondary-button skincare-batch-add" data-skincare-add-batch-step="${meta.routine}" data-skincare-add-variant="${meta.variant}">+ Add product to ${meta.label}</button>
   </section>`;
 }
+function skincareOptionalAlternateEditor(routine="am", rows=[]) {
+  const meta=skincareRoutineBatchMeta(routine,"alternate");
+  const hasAlternate=rows.some(step=>(step.times||[]).includes(meta.routine)&&(step.variant==="alternate"));
+  if(hasAlternate)return skincareRoutineBatchEditor(meta.routine,"alternate",rows);
+  return `<button type="button" class="secondary-button skincare-add-alternate-routine" data-skincare-add-batch-step="${meta.routine}" data-skincare-add-variant="alternate">+ Add alternate ${meta.routine==="am"?"AM":"PM"} routine</button>`;
+}
 function skincareDraftFromNote(note = null) {
   const routine=normalizeSkincareRoutine(note?.skincareRoutine||{}),days={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
   SKINCARE_WEEKDAYS.forEach(meta=>{days[meta.day]=routine.steps.filter(step=>step.days.includes(meta.day)).map((step,index)=>({id:createId(),category:step.category,product:step.product,times:[...step.times],variant:step.variant==="alternate"?"alternate":"primary",notes:step.notes,order:index}));});
@@ -2220,13 +2227,17 @@ function readSkincareEditorPage() {
   rows.forEach((row,index)=>{
     const routine=row.dataset.skincareRoutine==="pm"?"pm":"am";
     const variant=row.dataset.skincareVariant==="alternate"?"alternate":"primary";
+    const category=row.querySelector("[data-skincare-category]")?.value||"";
+    const product=row.querySelector("[data-skincare-product]")?.value.trim()||"";
+    const notes=row.querySelector("[data-skincare-notes]")?.value.trim()||"";
+    if(!category&&!product&&!notes)return;
     steps.push({
       id:row.dataset.stepId||createId(),
-      category:row.querySelector("[data-skincare-category]")?.value||"Other",
-      product:row.querySelector("[data-skincare-product]")?.value.trim()||"",
+      category:category||"Other",
+      product,
       times:[routine],
       variant,
-      notes:row.querySelector("[data-skincare-notes]")?.value.trim()||"",
+      notes,
       order:index
     });
   });
@@ -2247,7 +2258,7 @@ function renderSkincareEditorDay() {
   const prev=document.querySelector("[data-skincare-edit-prev]");if(prev)prev.disabled=index===0;
   const next=document.querySelector("[data-skincare-edit-next]");if(next){next.disabled=index===6;next.textContent=index===6?"Sunday ✓":"Next ›";}
   const container=document.getElementById("skincareStepsEditor");
-  if(container)container.innerHTML=`<div class="skincare-batch-stack"><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>☀️ Morning</span><small>Main + optional alternate</small></div>${skincareRoutineBatchEditor("am","primary",rows)}${skincareRoutineBatchEditor("am","alternate",rows)}</div><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>🌙 Evening</span><small>Main + optional alternate</small></div>${skincareRoutineBatchEditor("pm","primary",rows)}${skincareRoutineBatchEditor("pm","alternate",rows)}</div></div>`;
+  if(container)container.innerHTML=`<div class="skincare-batch-stack"><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>☀️ Morning</span><small>AM routine</small></div>${skincareRoutineBatchEditor("am","primary",rows)}${skincareOptionalAlternateEditor("am",rows)}</div><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>🌙 Evening</span><small>PM routine</small></div>${skincareRoutineBatchEditor("pm","primary",rows)}${skincareOptionalAlternateEditor("pm",rows)}</div></div>`;
   renderSkincareSyncChoices();
 }
 function populateSkincareEditor(note = null, day = new Date().getDay()) {skincareEditorDraft=skincareDraftFromNote(note);activeSkincareEditDay=SKINCARE_WEEKDAYS.some(meta=>meta.day===Number(day))?Number(day):1;document.getElementById("skincareEditId").value=note?.id||"";document.getElementById("skincareTitle").value=skincareEditorDraft.title;document.getElementById("skincareFocus").value=skincareEditorDraft.focus;refreshSpaceSelects();document.getElementById("skincareSpace").value=skincareEditorDraft.space;renderSkincareEditorDay();}

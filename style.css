@@ -4690,3 +4690,17 @@ body.modal-open{overflow:hidden}
 .skincare-routine-badge.alternate { border-style:dashed; background:transparent; color:var(--text-soft); }
 .skincare-routine-period-alternate { border-style:dashed; background:color-mix(in srgb, var(--surface) 98%, var(--blush)); }
 @media (max-width:390px) { .skincare-time-pair { padding:8px; border-radius:18px; } .skincare-time-pair-head { align-items:flex-start; flex-direction:column; gap:2px; } }
+
+
+/* HANA VERSION 2 OPTIONAL SKINCARE ALTERNATE */
+.skincare-add-alternate-routine {
+  width: 100%;
+  margin-top: 10px;
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.skincare-add-alternate-routine:active {
+  transform: scale(.99);
+}
