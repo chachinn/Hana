@@ -1,8 +1,8 @@
 /* =====================================================
-   HANA 🌸 Service Worker v27
+   HANA 🌸 Service Worker v31
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v27";
+const CACHE_NAME = "hana-shell-v31";
 const APP_SHELL = [
   "./",
   "./index.html",

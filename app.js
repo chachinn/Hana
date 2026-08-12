@@ -217,7 +217,8 @@ const defaultState = {
     bottomNav: DEFAULT_BOTTOM_NAV.slice(),
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false,
-    accountPromptSeen: false
+    accountPromptSeen: false,
+    lastSeenUpdateVersion: "1.9.4"
   },
 
   tasks: [
@@ -685,7 +686,20 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "1.9";
+const HANA_APP_VERSION = "1.9.7";
+const HANA_RELEASE_NOTES = {
+  version: HANA_APP_VERSION,
+  date: "August 12, 2026",
+  title: "Cleaner tracker entries + faster access ✨",
+  intro: "This combined update keeps all pending Hana changes and fixes the stale Add Row form that could accidentally repeat your previous tracker entry.",
+  items: [
+    { icon: "📒", title: "Fresh Add Row form", text: "Opening Add Row now always starts with a clean form. Saving or cancelling also clears the temporary row fields so old values cannot carry into the next entry." },
+    { icon: "🛡️", title: "Duplicate-save protection", text: "The Save Row button locks during a save so an accidental double tap cannot create the same new row twice." },
+    { icon: "✨", title: "Quick Access in the header", text: "Your saved Quick Access shortcuts open from the sparkle button between Search and the hamburger menu." },
+    { icon: "↔️", title: "Swipe actions for Lists", text: "Swipe a checklist item right to reveal Edit, or left to reveal Delete. The action only happens after you tap the revealed button." },
+    { icon: "🌸", title: "About Hana + What's New", text: "Hana's name story now lives in Settings, and update notes can be reopened anytime." }
+  ]
+};
 let hanaAccountState = {
   status: "loading",
   user: null,
@@ -1043,7 +1057,7 @@ function emptyTrash() {
 }
 
 function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); }
-function closeModal(id) { document.getElementById(id)?.classList.add("hidden"); }
+function closeModal(id) { document.getElementById(id)?.classList.add("hidden"); if(id==="tableRowModal")resetTableRowModal(); }
 
 function resetDailyFocusIfNeeded() {
   if (state.focusDate !== todayISO()) {
@@ -1058,13 +1072,54 @@ function quickAccessItemHTML(key) {
   return `<button class="nav-drawer-item nav-drawer-item-priority" data-goto="${key}"><span class="nav-drawer-icon">${item.icon}</span><span><strong>${escapeHTML(item.label)}</strong><small>${escapeHTML(item.description)}</small></span><b>›</b></button>`;
 }
 
-function renderQuickAccess() {
-  const container = document.getElementById("quickAccessItems");
+function headerQuickAccessItemHTML(key) {
+  const item = QUICK_ACCESS_MENU[key];
+  if (!item) return "";
+  return `<button class="header-quick-access-item" type="button" data-goto="${key}"><span>${item.icon}</span><strong>${escapeHTML(item.label)}</strong><b>›</b></button>`;
+}
+
+function renderHeaderQuickAccess() {
+  const container = document.getElementById("headerQuickAccessItems");
   if (!container) return;
   const selected = Array.isArray(state.settings.quickAccess) ? state.settings.quickAccess.slice(0, 3) : ["reminders"];
   container.innerHTML = selected.length
-    ? selected.map(quickAccessItemHTML).join("")
-    : `<button class="quick-access-empty" type="button" data-edit-quick-access><span>＋</span><strong>Add a shortcut</strong><small>Choose up to three frequently used sections.</small></button>`;
+    ? selected.map(headerQuickAccessItemHTML).join("")
+    : `<button class="header-quick-access-empty" type="button" data-edit-quick-access><span>✨</span><strong>Add shortcuts</strong></button>`;
+}
+
+function openHeaderQuickAccess() {
+  renderHeaderQuickAccess();
+  closeNavDrawer();
+  const popover = document.getElementById("headerQuickAccessPopover");
+  const button = document.getElementById("headerQuickAccessButton");
+  popover?.classList.remove("hidden");
+  popover?.setAttribute("aria-hidden", "false");
+  button?.setAttribute("aria-expanded", "true");
+}
+
+function closeHeaderQuickAccess() {
+  const popover = document.getElementById("headerQuickAccessPopover");
+  const button = document.getElementById("headerQuickAccessButton");
+  popover?.classList.add("hidden");
+  popover?.setAttribute("aria-hidden", "true");
+  button?.setAttribute("aria-expanded", "false");
+}
+
+function toggleHeaderQuickAccess() {
+  const popover = document.getElementById("headerQuickAccessPopover");
+  if (!popover) return;
+  popover.classList.contains("hidden") ? openHeaderQuickAccess() : closeHeaderQuickAccess();
+}
+
+function renderQuickAccess() {
+  const container = document.getElementById("quickAccessItems");
+  const selected = Array.isArray(state.settings.quickAccess) ? state.settings.quickAccess.slice(0, 3) : ["reminders"];
+  if (container) {
+    container.innerHTML = selected.length
+      ? selected.map(quickAccessItemHTML).join("")
+      : `<button class="quick-access-empty" type="button" data-edit-quick-access><span>＋</span><strong>Add a shortcut</strong><small>Choose up to three frequently used sections.</small></button>`;
+  }
+  renderHeaderQuickAccess();
 
   document.querySelectorAll('.nav-drawer-group:not(.nav-drawer-quick-access) .nav-drawer-item[data-goto]').forEach(button => {
     button.classList.toggle("quick-access-duplicate", selected.includes(button.dataset.goto));
@@ -1081,6 +1136,7 @@ function quickAccessOptionsHTML(selectedValue = "") {
 
 function openQuickAccessEditor() {
   closeNavDrawer();
+  closeHeaderQuickAccess();
   const selected = Array.isArray(state.settings.quickAccess) ? state.settings.quickAccess.slice(0, 3) : ["reminders"];
   ["quickAccessSlot1", "quickAccessSlot2", "quickAccessSlot3"].forEach((id, index) => {
     const select = document.getElementById(id);
@@ -1103,6 +1159,7 @@ function saveQuickAccess() {
 }
 
 function openNavDrawer() {
+  closeHeaderQuickAccess();
   renderQuickAccess();
   const drawer = document.getElementById("navDrawer");
   const backdrop = document.getElementById("navDrawerBackdrop");
@@ -1135,7 +1192,7 @@ const HANA_TUTORIAL_STEPS = [
   { icon:"📒", eyebrow:"STRUCTURED PROGRESS", title:"Trackers", text:"Trackers are customizable tables for progress, projects, bills, applications, collections or anything that needs rows and columns.", bullets:["Choose your own columns and types","Quick Add Row keeps entry fast","Pin Trackers to Quick Access or your bottom navigation if you use them often"] },
   { icon:"🔔", eyebrow:"DON’T FORGET", title:"Reminders", text:"Reminders are for things Hana should bring back to your attention. They can repeat, snooze and link to tasks or tracker rows.", bullets:["Reminders are the default Quick Access shortcut","Reminder chains can nudge you more than once","Enable browser notifications when you want alerts outside Hana"] },
   { icon:"🌷", eyebrow:"CONNECTED WORK", title:"Projects & Notes", text:"Projects collect related tasks, milestones, notes and trackers. Notes hold context that does not need to become a task.", bullets:["Projects show progress and waiting items together","Notes can be pinned or linked into Memory Threads","Meeting notes can turn lines into tasks"] },
-  { icon:"☰", eyebrow:"THE REST, WITHOUT THE CLUTTER", title:"Menu & Quick Access", text:"The hamburger keeps advanced tools out of your everyday screens. Quick Access lets you pin up to three things you use most.", bullets:["Plan & Focus contains planning tools","Organize contains Reminders, Trackers and supporting tools","Review & Settings contains history, customization and backups"] },
+  { icon:"✨", eyebrow:"THE REST, WITHOUT THE CLUTTER", title:"Menu & Quick Access", text:"The hamburger keeps advanced tools out of your everyday screens. The sparkle button in the header opens up to three shortcuts you use most.", bullets:["Search → Quick Access → Menu stays compact in the header","Plan & Focus and Organize keep deeper tools out of the way","Edit your three Quick Access slots anytime"] },
   { icon:"✨", eyebrow:"MAKE IT YOURS", title:"Your bottom navigation", text:"Today, Tasks and + stay fixed. The two right-side tabs are yours to choose. Hana starts with Lists and Calendar.", bullets:["Change them anytime in Settings & Spaces","Choose Trackers, Notes, Reminders, Projects and more","Restore the default whenever you want"] },
   { icon:"☁️", eyebrow:"OPTIONAL ACCOUNT", title:"Cloud backup when you want it", text:"Hana works without an account. If you sign in with Google or email, you can also keep a Firebase cloud backup that can be restored on another device.", bullets:["Local autosave and safety copies still stay active","Cloud backup and restore are deliberate — Hana never silently replaces your local data","Full JSON export remains your independent backup, including your wallpaper"] },
   { icon:"🌺", eyebrow:"YOU’RE READY", title:"Use only what helps", text:"Hana has many tools, but it is designed so you can ignore most of them until you need them. Start with Today, add a few tasks, and let your system grow naturally.", bullets:["Reopen this tour anytime from Settings","Customize your bottom tabs around your real habits","Use local-only mode or sign in later whenever you want cloud backup"] }
@@ -1165,8 +1222,41 @@ function tutorialNext(){
   tutorialStepIndex+=1;renderTutorialStep();
 }
 function tutorialBack(){if(tutorialStepIndex>0){tutorialStepIndex-=1;renderTutorialStep();}}
-function finishTutorial(){state.settings.tutorialCompleted=true;saveState();closeModal("tutorialModal");}
-function maybeOpenFirstRunTutorial(){if(state.settings.tutorialCompleted===false)setTimeout(()=>openTutorial(),180);}
+function finishTutorial(){
+  state.settings.tutorialCompleted=true;
+  state.settings.lastSeenUpdateVersion=HANA_APP_VERSION;
+  saveState();
+  closeModal("tutorialModal");
+}
+
+function renderWhatsNew(){
+  const title=document.getElementById("whatsNewTitle");
+  const meta=document.getElementById("whatsNewMeta");
+  const intro=document.getElementById("whatsNewIntro");
+  const items=document.getElementById("whatsNewItems");
+  if(title)title.textContent=`What's new in Hana v${HANA_RELEASE_NOTES.version}`;
+  if(meta)meta.textContent=HANA_RELEASE_NOTES.date;
+  if(intro)intro.textContent=HANA_RELEASE_NOTES.intro;
+  if(items)items.innerHTML=HANA_RELEASE_NOTES.items.map(item=>`<article class="whats-new-item"><span>${item.icon}</span><div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.text)}</p></div></article>`).join("");
+}
+function openWhatsNew({markSeen=true}={}){
+  closeNavDrawer();
+  closeHeaderQuickAccess();
+  renderWhatsNew();
+  if(markSeen&&state.settings.lastSeenUpdateVersion!==HANA_APP_VERSION){
+    state.settings.lastSeenUpdateVersion=HANA_APP_VERSION;
+    saveState({snapshot:false});
+  }
+  openModal("whatsNewModal");
+}
+function maybeOpenUpdateNote(){
+  if(state.settings.tutorialCompleted!==true)return;
+  if(state.settings.lastSeenUpdateVersion!==HANA_APP_VERSION)setTimeout(()=>openWhatsNew(),240);
+}
+function maybeOpenFirstRunTutorial(){
+  if(state.settings.tutorialCompleted===false)setTimeout(()=>openTutorial(),180);
+  else maybeOpenUpdateNote();
+}
 
 function render() {
   resetDailyFocusIfNeeded();
@@ -1929,13 +2019,17 @@ Shampoo | 2 | refill pouches"></textarea>
           const itemHTML = item => {
             const meta = [item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "", item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""].filter(Boolean).join(" · ");
             return `
-            <div class="standalone-check-item ${item.completed?"done":""}">
-              <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
-              <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
-                <strong>${escapeHTML(item.title)}</strong>
-                ${meta ? `<small>${meta}</small>` : ""}
-              </button>
-              <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
+            <div class="list-swipe-shell" data-list-swipe-shell="${item.id}" data-list-id="${list.id}">
+              <button class="list-swipe-action list-swipe-edit" data-swipe-list-edit="${item.id}" data-list-id="${list.id}" aria-label="Edit ${escapeHTML(item.title)}">✎ Edit</button>
+              <button class="list-swipe-action list-swipe-delete" data-swipe-list-delete="${item.id}" data-list-id="${list.id}" aria-label="Delete ${escapeHTML(item.title)}">Delete</button>
+              <div class="standalone-check-item list-gesture-item ${item.completed?"done":""}" data-gesture-list-item="${item.id}" data-list-id="${list.id}">
+                <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
+                <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
+                  <strong>${escapeHTML(item.title)}</strong>
+                  ${meta ? `<small>${meta}</small>` : ""}
+                </button>
+                <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
+              </div>
             </div>`;
           };
           return `${pendingItems.map(itemHTML).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div>${completedItems.map(itemHTML).join("")}` : ""}`;
@@ -2052,12 +2146,14 @@ function saveListItem() {
   render();
 }
 
-function deleteListItem(listId, itemId) {
+function deleteListItem(listId, itemId, { confirmDelete = true } = {}) {
   const list = state.lists.find(item => item.id === listId);
-  if (!list || !confirm("Delete this checklist item?")) return;
+  if (!list) return;
+  if (confirmDelete && !confirm("Delete this checklist item?")) return;
   list.items = list.items.filter(item => item.id !== itemId);
   list.updatedAt = Date.now();
   closeModal("listItemModal");
+  showToast("Checklist item deleted");
   render();
 }
 
@@ -2321,7 +2417,50 @@ function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.i
 function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
 function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
-function openTableRowModal(tableId,rowId=""){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const row=table.rows.find(r=>r.id===rowId);document.getElementById("tableRowTableId").value=tableId;document.getElementById("tableRowEditId").value=rowId;document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);document.getElementById("tableRowReminder").checked=false;document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id],table)).join("");openModal("tableRowModal");}
+let tableRowSaveLocked=false;
+function resetTableRowModal(){
+  const tableId=document.getElementById("tableRowTableId");
+  const editId=document.getElementById("tableRowEditId");
+  const fields=document.getElementById("tableRowFields");
+  const reminder=document.getElementById("tableRowReminder");
+  const deleteButton=document.getElementById("deleteTableRowFromModal");
+  const saveButton=document.getElementById("saveTableRowButton");
+  if(tableId)tableId.value="";
+  if(editId)editId.value="";
+  if(fields)fields.replaceChildren();
+  if(reminder)reminder.checked=false;
+  if(deleteButton)deleteButton.classList.add("hidden");
+  if(saveButton){saveButton.disabled=false;saveButton.textContent="Save row";}
+  tableRowSaveLocked=false;
+}
+function clearNewTableRowInputs(table){
+  if(!table)return;
+  table.columns.forEach(col=>{
+    const el=document.getElementById(`rowField_${col.id}`);
+    if(!el)return;
+    if(col.type==="checkbox")el.checked=false;
+    else if(col.type==="status")el.value=(table.statusOptions||DEFAULT_TABLE_STATUSES)[0]||"upcoming";
+    else if(col.type==="progress")el.value="0";
+    else el.value="";
+  });
+  const reminder=document.getElementById("tableRowReminder");
+  if(reminder)reminder.checked=false;
+}
+function openTableRowModal(tableId,rowId=""){
+  const table=state.tables.find(t=>t.id===tableId);if(!table)return;
+  resetTableRowModal();
+  const row=rowId?table.rows.find(r=>r.id===rowId):null;
+  document.getElementById("tableRowTableId").value=tableId;
+  document.getElementById("tableRowEditId").value=row?.id||"";
+  document.getElementById("tableRowModalTitle").textContent=row?`Edit ${table.name} row`:`Add to ${table.name}`;
+  document.getElementById("deleteTableRowFromModal").classList.toggle("hidden",!row);
+  document.getElementById("tableRowFields").innerHTML=table.columns.map(c=>tableFieldHTML(c,row?.values[c.id],table)).join("");
+  if(!row){
+    clearNewTableRowInputs(table);
+    requestAnimationFrame(()=>clearNewTableRowInputs(table));
+  }
+  openModal("tableRowModal");
+}
 function progressOptions(value){const current=Math.max(0,Math.min(100,Number(value||0)));return Array.from({length:21},(_,i)=>i*5).map(n=>`<option value="${n}" ${n===current?"selected":""}>${n}%</option>`).join("");}
 function tableFieldHTML(col,value,table){
   const id=`rowField_${col.id}`;
@@ -2332,7 +2471,31 @@ function tableFieldHTML(col,value,table){
   return `<div class="form-group"><label>${escapeHTML(col.name)}</label><input id="${id}" data-row-field="${col.id}" data-col-type="${col.type}" type="${inputType}" ${col.type==="money"?'step="0.01"':""} value="${escapeHTML(value??"")}" /></div>`;
 }
 
-function saveTableRow(){const table=state.tables.find(t=>t.id===document.getElementById("tableRowTableId").value);if(!table)return;const rowId=document.getElementById("tableRowEditId").value;const old=table.rows.find(r=>r.id===rowId);const values={};document.querySelectorAll("[data-row-field]").forEach(el=>{const type=el.dataset.colType;values[el.dataset.rowField]=type==="checkbox"?el.checked:( ["number","money","progress"].includes(type)?Number(el.value||0):el.value);});const row={id:rowId||createId(),values,createdAt:old?.createdAt||Date.now()};if(old)table.rows[table.rows.findIndex(r=>r.id===rowId)]=row;else table.rows.push(row);if(document.getElementById("tableRowReminder").checked)createReminderFromTableRow(table,row);closeModal("tableRowModal");showToast("Row saved 📋");render();}
+function saveTableRow(){
+  if(tableRowSaveLocked)return;
+  const table=state.tables.find(t=>t.id===document.getElementById("tableRowTableId").value);if(!table)return;
+  tableRowSaveLocked=true;
+  const saveButton=document.getElementById("saveTableRowButton");
+  if(saveButton){saveButton.disabled=true;saveButton.textContent="Saving…";}
+  try{
+    const rowId=document.getElementById("tableRowEditId").value;
+    const old=table.rows.find(r=>r.id===rowId);
+    const values={};
+    document.querySelectorAll("#tableRowFields [data-row-field]").forEach(el=>{const type=el.dataset.colType;values[el.dataset.rowField]=type==="checkbox"?el.checked:(["number","money","progress"].includes(type)?Number(el.value||0):el.value);});
+    const row={id:rowId||createId(),values,createdAt:old?.createdAt||Date.now()};
+    if(old)table.rows[table.rows.findIndex(r=>r.id===rowId)]=row;else table.rows.push(row);
+    if(document.getElementById("tableRowReminder").checked)createReminderFromTableRow(table,row);
+    closeModal("tableRowModal");
+    resetTableRowModal();
+    showToast("Row saved 📋");
+    render();
+  }catch(error){
+    console.error("Unable to save tracker row:",error);
+    if(saveButton){saveButton.disabled=false;saveButton.textContent="Save row";}
+    tableRowSaveLocked=false;
+    showToast("Couldn’t save that row. Please try again.");
+  }
+}
 function saveInlineTableRow(tableId){const table=state.tables.find(t=>t.id===tableId);if(!table)return;const values={};table.columns.forEach(col=>{const el=document.getElementById(`inline_${tableId}_${col.id}`);if(!el) return; if(col.type==="checkbox") values[col.id]=el.checked; else if(["number","money","progress"].includes(col.type)) values[col.id]=Number(el.value||0); else values[col.id]=el.value;});if(!Object.values(values).some(value=>String(value||"").trim()||value===true||Number(value)>0)) return showToast("Add something to the row first 🌸");table.rows.push({id:createId(),values,createdAt:Date.now()});showToast("Row added 📋");render();}
 function moveTableRow(tableId,rowId,direction){const t=state.tables.find(t=>t.id===tableId);if(!t||t.sortMode==="auto")return showToast("Switch this tracker to Manual order first 🌸");const i=t.rows.findIndex(r=>r.id===rowId);if(i<0)return;const target=direction==="up"?i-1:i+1;if(target<0||target>=t.rows.length)return;[t.rows[i],t.rows[target]]=[t.rows[target],t.rows[i]];render();}
 function deleteTableRow(tableId,rowId){const t=state.tables.find(t=>t.id===tableId);const row=t?.rows.find(r=>r.id===rowId);if(!t||!row||!confirm("Move this row to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===tableId&&r.linkedRowId===rowId);moveToTrash("tableRow",row,{tableId,tableName:t.name,linkedReminders});t.rows=t.rows.filter(r=>r.id!==rowId);state.reminders=state.reminders.filter(r=>!(r.linkedTableId===tableId&&r.linkedRowId===rowId));closeModal("tableRowModal");render();}
@@ -3678,6 +3841,8 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
   ${renderAccountSettingsCard()}
 
+  <section class="section settings-section"><div class="section-header"><h2>About Hana</h2></div><div class="settings-card about-hana-card"><div class="about-hana-mark"><img src="icons/hana-peony.png" alt="" aria-hidden="true" /></div><div class="about-hana-copy"><h3>Hana (花) 🌸</h3><p class="about-hana-description">Hana (花) means “flower.” Like a flower blooming one petal at a time, Hana helps you take care of your ideas, notes, and tasks one bloom at a time.</p><div class="about-hana-actions"><span>Version ${HANA_APP_VERSION}</span><button class="secondary-button compact-button" type="button" data-open-whats-new>What’s new</button></div></div></div></section>
+
   <section class="section settings-section"><div class="section-header"><h2>Bottom navigation</h2></div><div class="settings-card"><h3>Your everyday tabs ✨</h3><p>Today, Tasks and + stay fixed. Choose the two shortcuts that appear on the right side of the bottom bar.</p><div class="settings-inline bottom-nav-settings"><div class="form-group"><label for="bottomNavSlot1Setting">Slot 1</label><select id="bottomNavSlot1Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[0]||"lists")}</select></div><div class="form-group"><label for="bottomNavSlot2Setting">Slot 2</label><select id="bottomNavSlot2Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[1]||"calendar")}</select></div></div><div class="settings-button-row"><button class="primary-button" data-save-bottom-nav>Save navigation</button><button class="secondary-button" data-restore-bottom-nav>Restore default</button></div><small class="field-help">Default: Today · Tasks · + · Lists · Calendar</small></div></section>
 
   <section class="section settings-section"><div class="section-header"><h2>Help & tutorial</h2></div><div class="settings-card tutorial-settings-card"><div><h3>New to Hana? 🌸</h3><p>Take the guided tour of the main sections and learn what each part is for.</p></div><button class="secondary-button" data-open-tutorial>Open app tutorial</button></div></section>
@@ -4132,6 +4297,7 @@ installNoZoomGuards();
 /* ================= EVENTS ================= */
 
 document.addEventListener("click", event => {
+  if(event.target.closest("[data-open-whats-new]")){openWhatsNew({markSeen:true});return;}
   if(event.target.closest("[data-tutorial-next]")){tutorialNext();return;}
   if(event.target.closest("[data-tutorial-back]")){tutorialBack();return;}
   if(event.target.closest("[data-tutorial-skip]")){finishTutorial();return;}
@@ -4154,7 +4320,7 @@ document.addEventListener("click", event => {
   const enableNotifications=event.target.closest("[data-enable-notifications]");if(enableNotifications){closeNavDrawer();requestNotificationPermission();return;}
   const nav=event.target.closest("[data-page]");if(nav&&!nav.classList.contains("nav-center-placeholder")){changePage(nav.dataset.page);return;}
   if(event.target.closest("[data-undo-toast]")){if(lastUndoAction){const action=lastUndoAction;lastUndoAction=null;action();}return;}
-  const goto=event.target.closest("[data-goto]");if(goto){closeModal("addMenu");closeNavDrawer();changePage(goto.dataset.goto);return;}
+  const goto=event.target.closest("[data-goto]");if(goto){closeModal("addMenu");closeNavDrawer();closeHeaderQuickAccess();changePage(goto.dataset.goto);return;}
   const mode=event.target.closest("[data-mode]");if(mode){state.currentMode=mode.dataset.mode;render();return;}
   const open=event.target.closest("[data-open]");if(open){const id=open.dataset.open;if(id==="taskModal")openTaskModal();else if(id==="noteModal")openNoteModal();else if(id==="reminderModal")openReminderModal();else if(id==="tableModal")openTableModal();else openModal(id);return;}
   const close=event.target.closest("[data-close-modal]");if(close){closeModal(close.dataset.closeModal);return;}
@@ -4340,6 +4506,63 @@ document.addEventListener("touchend",event=>{
   if(!moved){const now=Date.now();if(lastTableTap.tableId===tableId&&lastTableTap.rowId===rowId&&now-lastTableTap.time<=340){lastTableTap={tableId:"",rowId:"",time:0};openTableRowModal(tableId,rowId);}else lastTableTap={tableId,rowId,time:now};}
 },{passive:true});
 
+let listGesture={card:null,listId:"",itemId:"",startX:0,startY:0,lastX:0,lastY:0};
+let listGestureSuppressUntil=0;
+let openListSwipeShell=null;
+function closeListSwipeActions(exceptShell=null){
+  document.querySelectorAll(".list-swipe-shell.swipe-edit-open,.list-swipe-shell.swipe-delete-open").forEach(shell=>{
+    if(shell!==exceptShell) shell.classList.remove("swipe-edit-open","swipe-delete-open");
+  });
+  if(openListSwipeShell&&openListSwipeShell!==exceptShell)openListSwipeShell=null;
+}
+function revealListSwipeAction(listId,itemId,action){
+  const shell=document.querySelector(`[data-list-swipe-shell="${itemId}"][data-list-id="${listId}"]`);if(!shell)return;
+  closeListSwipeActions(shell);
+  shell.classList.remove("swipe-edit-open","swipe-delete-open");
+  shell.classList.add(action==="edit"?"swipe-edit-open":"swipe-delete-open");
+  openListSwipeShell=shell;
+}
+document.addEventListener("click",event=>{
+  const edit=event.target.closest("[data-swipe-list-edit]");if(edit){listGestureSuppressUntil=Date.now()+500;closeListSwipeActions();openListItemModal(edit.dataset.listId,edit.dataset.swipeListEdit);return;}
+  const del=event.target.closest("[data-swipe-list-delete]");if(del){listGestureSuppressUntil=Date.now()+500;closeListSwipeActions();deleteListItem(del.dataset.listId,del.dataset.swipeListDelete,{confirmDelete:false});return;}
+  if(!openListSwipeShell)return;
+  if(event.target.closest("[data-swipe-list-edit],[data-swipe-list-delete]"))return;
+  const tappedShell=event.target.closest(".list-swipe-shell");
+  if(tappedShell===openListSwipeShell){closeListSwipeActions();event.preventDefault();event.stopPropagation();return;}
+  if(!tappedShell)closeListSwipeActions();
+},true);
+document.addEventListener("touchstart",event=>{
+  const card=event.target.closest("[data-gesture-list-item]");if(!card)return;
+  if(event.target.closest("[data-toggle-list-item],.mini-icon-button"))return;
+  if(openListSwipeShell)closeListSwipeActions();
+  const touch=event.touches[0];
+  listGesture={card,listId:card.dataset.listId,itemId:card.dataset.gestureListItem,startX:touch.clientX,startY:touch.clientY,lastX:touch.clientX,lastY:touch.clientY};
+},{passive:true});
+document.addEventListener("touchmove",event=>{
+  if(!listGesture.card)return;
+  const touch=event.touches[0],dx=touch.clientX-listGesture.startX,dy=touch.clientY-listGesture.startY;
+  listGesture.lastX=touch.clientX;listGesture.lastY=touch.clientY;
+  if(Math.abs(dx)>Math.abs(dy)*1.25&&Math.abs(dx)>12){
+    const limited=Math.max(-92,Math.min(92,dx));
+    listGesture.card.style.transform=`translateX(${limited}px)`;
+    listGesture.card.style.transition="none";
+  }
+},{passive:true});
+document.addEventListener("touchend",event=>{
+  if(!listGesture.card)return;
+  const touch=event.changedTouches[0],dx=touch.clientX-listGesture.startX,dy=touch.clientY-listGesture.startY;
+  const {card,listId,itemId}=listGesture;
+  card.style.transform="";card.style.transition="";
+  listGesture={card:null,listId:"",itemId:"",startX:0,startY:0,lastX:0,lastY:0};
+  if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.35)return;
+  listGestureSuppressUntil=Date.now()+550;event.preventDefault();
+  revealListSwipeAction(listId,itemId,dx>0?"edit":"delete");
+},{passive:false});
+document.addEventListener("click",event=>{
+  if(Date.now()>listGestureSuppressUntil)return;
+  if(event.target.closest("[data-edit-list-item]")&&!event.target.closest("[data-swipe-list-edit]")){event.preventDefault();event.stopPropagation();}
+},true);
+
 let taskGestureSuppressUntil=0;
 let openTaskSwipeShell=null;
 function closeTaskSwipeActions(exceptShell=null){
@@ -4438,8 +4661,10 @@ document.addEventListener("pointermove",event=>{
 document.addEventListener("pointerup",event=>{if(!tableColumnDrag||event.pointerId!==tableColumnDrag.pointerId)return;document.querySelector(`[data-table-builder-row="${tableColumnDrag.colId}"]`)?.classList.remove("dragging-column");tableColumnDrag=null;});
 document.getElementById("applyTrackerImportButton")?.addEventListener("click",applyTrackerImport);
 document.getElementById("tableTemplate")?.addEventListener("change",event=>applyTableTemplate(event.target.value, true));
-document.getElementById("globalSearchButton").addEventListener("click",()=>{document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
+document.getElementById("globalSearchButton").addEventListener("click",()=>{closeHeaderQuickAccess();document.getElementById("globalSearchInput").value="";renderGlobalSearchResults("");openModal("searchModal");setTimeout(()=>document.getElementById("globalSearchInput").focus(),80);});
+document.getElementById("headerQuickAccessButton")?.addEventListener("click",event=>{event.stopPropagation();toggleHeaderQuickAccess();});
 document.getElementById("menuButton").addEventListener("click",openNavDrawer);
+document.addEventListener("click",event=>{const popover=document.getElementById("headerQuickAccessPopover");if(!popover||popover.classList.contains("hidden"))return;if(event.target.closest("#headerQuickAccessPopover")||event.target.closest("#headerQuickAccessButton"))return;closeHeaderQuickAccess();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeNavDrawer();if(event.key==="Enter"&&event.target.id==="quickTaskTitle"){event.preventDefault();saveQuickTask();}if(event.key==="Enter"&&event.target.id==="dayIntentionInput"){event.preventDefault();saveDayIntention();}if(event.key==="Enter"&&event.target.id==="tinyWinInput"){event.preventDefault();addTinyWin();}if(event.key==="Enter" && ["listItemTitle","listItemQuantity","listItemDetail"].includes(event.target.id)){event.preventDefault();saveListItem();}});
 document.getElementById("birthdayHelperToggle")?.addEventListener("click",()=>toggleBirthdayHelper());
 document.getElementById("applyBirthdayPreset")?.addEventListener("click",()=>applyBirthdayPreset(true));

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
-  <meta name="description" content="Hana - Organize your life, one bloom at a time." />
+  <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -29,9 +29,18 @@
 
       <div class="header-actions">
         <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>
+        <button id="headerQuickAccessButton" class="icon-button quick-access-header-button" aria-label="Open Quick Access" title="Quick Access" aria-controls="headerQuickAccessPopover" aria-expanded="false">✨</button>
         <button id="menuButton" class="icon-button hamburger-button" aria-label="Open Hana menu" title="Menu" aria-controls="navDrawer" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
+
+        <div id="headerQuickAccessPopover" class="header-quick-access-popover hidden" role="dialog" aria-label="Quick Access" aria-hidden="true">
+          <div class="header-quick-access-head">
+            <div><small>SHORTCUTS</small><strong>Quick Access</strong></div>
+            <button type="button" data-edit-quick-access aria-label="Edit Quick Access">Edit</button>
+          </div>
+          <div id="headerQuickAccessItems" class="header-quick-access-items"></div>
+        </div>
       </div>
     </header>
 
@@ -100,6 +109,7 @@
       <section class="nav-drawer-group">
         <div class="nav-drawer-group-title">Review &amp; Settings</div>
         <button class="nav-drawer-item" data-goto="garden"><span class="nav-drawer-icon">🌺</span><span><strong>Hana Garden</strong><small>See what you have been nurturing</small></span><b>›</b></button>
+        <button class="nav-drawer-item" type="button" data-open-whats-new><span class="nav-drawer-icon">✨</span><span><strong>What’s New</strong><small>See the latest Hana update</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="insights"><span class="nav-drawer-icon">🌿</span><span><strong>Hana Notices</strong><small>Local planning patterns and suggestions</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="return-ritual"><span class="nav-drawer-icon">🌱</span><span><strong>Return Ritual</strong><small>Reset overdue things without panic</small></span><b>›</b></button>
         <button class="nav-drawer-item" data-goto="history"><span class="nav-drawer-icon">🕰️</span><span><strong>History</strong><small>See what you already finished</small></span><b>›</b></button>
@@ -712,6 +722,20 @@
         <button class="text-button full-width" type="button" data-cloud-choice="later">Not now</button>
       </div>
       <small class="account-safety-note">Cloud restore always makes a local safety copy first. Wallpaper photos are not uploaded to Firestore.</small>
+    </div>
+  </div>
+
+  <!-- WHAT'S NEW / UPDATE NOTE -->
+  <div id="whatsNewModal" class="modal-overlay hidden whats-new-overlay">
+    <div class="modal-card whats-new-card">
+      <div class="modal-header whats-new-header">
+        <div><p class="eyebrow">HANA UPDATE</p><h2 id="whatsNewTitle">What’s new in Hana</h2><p id="whatsNewMeta" class="whats-new-meta"></p></div>
+        <button class="modal-close" type="button" data-close-modal="whatsNewModal" aria-label="Close update note">×</button>
+      </div>
+      <div class="whats-new-hero">🌸</div>
+      <p id="whatsNewIntro" class="whats-new-intro"></p>
+      <div id="whatsNewItems" class="whats-new-items"></div>
+      <button class="primary-button full-width" type="button" data-close-modal="whatsNewModal">Got it 🌷</button>
     </div>
   </div>
 

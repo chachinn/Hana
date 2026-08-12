@@ -3998,3 +3998,120 @@ body.wallpaper-active .nav-drawer {
   .quick-list-add-body{padding:0 11px 11px}
   .checklist-shell{padding:11px}
 }
+
+
+/* =====================================================
+   HANA v1.9.4 — HEADER QUICK ACCESS
+   Search → Quick Access → Menu. The middle shortcut button
+   opens the user's three configured Quick Access links.
+   ===================================================== */
+.header-actions{
+  position:relative;
+  align-items:center;
+}
+.quick-access-header-button{
+  font-size:17px!important;
+  line-height:1;
+  color:var(--rose);
+  background:linear-gradient(145deg,#fff,var(--pink-50));
+}
+.quick-access-header-button[aria-expanded="true"]{
+  background:var(--pink-100);
+  border-color:var(--pink-200);
+  box-shadow:0 5px 16px rgba(217,87,133,.14);
+}
+.header-quick-access-popover{
+  position:absolute;
+  top:48px;
+  right:47px;
+  z-index:90;
+  width:min(230px,calc(100vw - 28px));
+  padding:10px;
+  border:1px solid var(--border-soft);
+  border-radius:18px;
+  background:rgba(255,252,254,.97);
+  box-shadow:0 16px 38px rgba(94,62,76,.18);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  transform-origin:top right;
+}
+.header-quick-access-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:2px 3px 8px;
+}
+.header-quick-access-head small,
+.header-quick-access-head strong{display:block}
+.header-quick-access-head small{
+  margin-bottom:1px;
+  color:var(--text-muted);
+  font-size:7px;
+  font-weight:800;
+  letter-spacing:1px;
+}
+.header-quick-access-head strong{font-size:12px;color:var(--text)}
+.header-quick-access-head button{
+  padding:5px 8px;
+  border-radius:9px;
+  background:var(--pink-50);
+  color:var(--rose);
+  font-size:9px;
+  font-weight:800;
+}
+.header-quick-access-items{display:flex;flex-direction:column;gap:5px}
+.header-quick-access-item,
+.header-quick-access-empty{
+  width:100%;
+  min-height:42px;
+  display:grid;
+  grid-template-columns:28px 1fr auto;
+  align-items:center;
+  gap:8px;
+  padding:7px 9px;
+  border:1px solid var(--border-soft);
+  border-radius:12px;
+  background:#fff;
+  color:var(--text);
+  text-align:left;
+}
+.header-quick-access-item>span,
+.header-quick-access-empty>span{font-size:17px;text-align:center}
+.header-quick-access-item strong,
+.header-quick-access-empty strong{font-size:11px;line-height:1.2}
+.header-quick-access-item b{color:var(--pink-400);font-size:15px}
+.header-quick-access-item:active,
+.header-quick-access-empty:active{background:var(--pink-50);transform:scale(.99)}
+
+@media(max-width:430px){
+  .header-actions{gap:5px!important}
+  .header-actions .icon-button{width:38px;height:38px}
+  .header-quick-access-popover{top:45px;right:43px;width:min(222px,calc(100vw - 24px))}
+  .quick-access-header-button{font-size:16px!important}
+}
+
+
+/* ===== v1.9.5 · About Hana + update notes ===== */
+.about-hana-card{display:grid;grid-template-columns:54px 1fr;gap:13px;align-items:start}
+.about-hana-mark{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(145deg,var(--pink-25),var(--pink-50));border:1px solid var(--border-soft);overflow:hidden}
+.about-hana-mark img{width:46px;height:46px;object-fit:contain}
+.about-hana-copy h3{font-size:16px;margin:2px 0 5px}
+.settings-card .about-hana-description{font-size:12px;line-height:1.55;color:var(--text);margin:0}
+.about-hana-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft)}
+.about-hana-actions>span{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+.compact-button{padding:8px 11px;min-height:34px;font-size:11px}
+.whats-new-overlay{z-index:125000;background:rgba(52,39,45,.34);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.whats-new-card{width:min(520px,calc(100% - 24px));padding:18px;max-height:min(720px,calc(100dvh - 30px));border-radius:28px}
+.whats-new-header{margin-bottom:4px}
+.whats-new-header h2{font-size:23px;margin-top:2px}
+.whats-new-meta{margin:4px 0 0;color:var(--text-muted);font-size:10px;font-weight:700}
+.whats-new-hero{font-size:44px;line-height:1;text-align:center;margin:8px 0 10px;filter:drop-shadow(0 5px 12px rgba(212,82,130,.15))}
+.whats-new-intro{text-align:center;max-width:420px;margin:0 auto 14px;color:var(--text-soft);font-size:12px;line-height:1.5}
+.whats-new-items{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.whats-new-item{display:grid;grid-template-columns:36px 1fr;gap:10px;align-items:start;padding:10px 11px;border:1px solid var(--border-soft);border-radius:15px;background:rgba(255,255,255,.72)}
+.whats-new-item>span{font-size:22px;line-height:1.1;text-align:center}
+.whats-new-item h3{margin:0 0 3px;font-size:12px}
+.whats-new-item p{margin:0;color:var(--text-soft);font-size:10.5px;line-height:1.4}
+@media(max-width:640px){.about-hana-card{grid-template-columns:46px 1fr}.about-hana-mark{width:46px;height:46px;border-radius:15px}.about-hana-mark img{width:40px;height:40px}.settings-card .about-hana-description{font-size:11px}.whats-new-card{padding:15px;border-radius:25px}.whats-new-header h2{font-size:20px}.whats-new-hero{font-size:38px}.whats-new-intro{font-size:11px}.whats-new-item{grid-template-columns:31px 1fr;padding:9px 10px}.whats-new-item>span{font-size:20px}.whats-new-item h3{font-size:11.5px}.whats-new-item p{font-size:10px}}
+\n\n/* ===== v1.9.6 · Lists swipe action reveal ===== */\n.list-swipe-shell{\n  position:relative;\n  overflow:hidden;\n  border-radius:15px;\n  background:#f6edf1;\n}\n.list-swipe-shell .standalone-check-item{\n  position:relative;\n  z-index:2;\n  transition:transform .2s ease;\n  will-change:transform;\n  margin:0;\n}\n.list-swipe-action{\n  position:absolute;\n  top:0;\n  bottom:0;\n  width:82px;\n  border:0;\n  color:#fff;\n  font-size:12px;\n  font-weight:850;\n  z-index:1;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n}\n.list-swipe-edit{left:0;background:#d98aa7}\n.list-swipe-delete{right:0;background:#c8556f}\n.list-swipe-shell.swipe-edit-open .standalone-check-item{transform:translateX(82px)}\n.list-swipe-shell.swipe-delete-open .standalone-check-item{transform:translateX(-82px)}\n.list-swipe-shell.swipe-edit-open .list-swipe-delete,\n.list-swipe-shell.swipe-delete-open .list-swipe-edit{pointer-events:none}\n.list-gesture-item{touch-action:pan-y}\n
