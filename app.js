@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.21
+   HANA 🌸 Version 2 · internal build 2.0.22
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -831,18 +831,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.21";
+const HANA_APP_VERSION = "2.0.22";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Real meeting templates 👥",
-  intro: "Hana Version 2 now gives meeting agendas and minutes their own structured fields instead of putting headings inside one note box.",
+  title: "Templates are previews first 🌸",
+  intro: "Hana Version 2 no longer adds a template to your real data just because you opened it to look around.",
   items: [
-    { icon: "📋", title: "Meeting Agenda", text: "Plan meeting details, objective, attendees, agenda topics with owners and time boxes, decisions needed, prep materials, and action items." },
-    { icon: "📝", title: "Minutes of the Meeting", text: "Record attendance, agenda topics, discussion summary, decisions made, action items, next meeting details, and who prepared the minutes." },
-    { icon: "✅", title: "Action items still become tasks", text: "Meeting action items remain structured checklist items so Hana can turn them into tasks after the meeting." },
-    { icon: "🌸", title: "Old meeting notes stay safe", text: "Existing meeting-note text is preserved as Additional notes while new templates use the structured meeting form." }
+    { icon: "👀", title: "Preview without creating", text: "Opening a task, note, list or tracker template now fills an unsaved draft instead of adding it immediately." },
+    { icon: "✅", title: "Save when you actually want it", text: "A template becomes a real Hana item only after you tap its normal Create or Save button." },
+    { icon: "☑️", title: "List starter items stay intact", text: "Groceries and Packing can still start with their suggested items, but those items are held only in the draft until you create the list." },
+    { icon: "🛡️", title: "Cancel means cancel", text: "Closing or cancelling a template preview leaves Notes, Lists, Tasks and Trackers completely unchanged." }
   ]
 };
 
@@ -1802,6 +1802,7 @@ function openQuickTaskModal(options={}){quickTaskFocusMode=Boolean(options?.focu
 function saveQuickTask(){const title=document.getElementById("quickTaskTitle").value.trim();if(!title)return showToast("Add a task title first 🌸");const task=normalizeTask({title,space:document.getElementById("quickTaskSpace").value,dueDate:document.getElementById("quickTaskDue").value,priority:"medium",status:"todo",durationMinutes:0,energy:"medium",deadlineType:"soft",createdAt:Date.now()});state.tasks.push(task);const addToFocus=quickTaskFocusMode;quickTaskFocusMode=false;if(addToFocus&&bouquetSelectedCountToday()<FOCUS_BOUQUET_LIMIT){state.focusTaskIds.push(task.id);markFocusHistory(task);}closeModal("quickTaskModal");showToast(addToFocus&&state.focusTaskIds.includes(task.id)?"Added to today's bouquet 🌷":addToFocus?"Task added — your Top 3 bouquet is already full 🌸":"Quick task added ⚡");state.currentPage=addToFocus?"today":"tasks";render();}
 
 function clearTaskForm() {
+  clearTemplateDraftBanner("taskModal");
   ["taskEditId","taskTitle","taskProject","taskTags","taskDate","taskTime","taskSubtasks","taskNotes","taskLink","taskWaitingOn","taskFollowUpDate"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("taskSpace").value = preferredSpace();
   document.getElementById("taskPriority").value = "medium";
@@ -2225,6 +2226,7 @@ function populateMeetingData(note = null) {
 }
 
 function clearNoteForm() {
+  clearTemplateDraftBanner("noteModal");
   ["noteEditId","noteStructuredType","noteTitle","noteTags","noteContent","noteChecklist","noteProject","meetingDate","meetingStartTime","meetingEndTime","meetingLocation","meetingFacilitator","meetingAttendees","meetingAbsent","meetingObjective","meetingPrepMaterials","meetingDecisionsNeeded","meetingDiscussion","meetingDecisions","meetingNextDate","meetingNextTime","meetingPreparedBy"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   refreshProjectDatalist();
   document.getElementById("noteType").value="note";
@@ -2427,7 +2429,7 @@ function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
   };
   body.innerHTML=`${note.skincareRoutine?.focus?`<div class="skincare-focus-card"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:""}<div class="skincare-day-tabs" role="tablist" aria-label="Skincare day">${SKINCARE_WEEKDAYS.map(item=>`<button type="button" role="tab" data-skincare-view-day="${item.day}" class="${Number(day)===item.day?"active":""} ${today===item.day?"today":""}" aria-selected="${Number(day)===item.day}"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:""}</button>`).join("")}</div><div class="skincare-selected-day"><span>${meta.label}</span>${today===Number(day)?`<strong>Today</strong>`:""}</div><div class="skincare-period-grid">${routineSection("☀️","AM Routine",am)}${routineSection("☀️","Alternate AM",amAlt,{alternate:true,hideIfEmpty:true})}${routineSection("🌙","PM Routine",pm)}${routineSection("🌙","Alternate PM",pmAlt,{alternate:true,hideIfEmpty:true})}</div>`;
 }
-function openSkincareRoutineModal(noteId="", options={}) {const note=noteId?state.notes.find(item=>item.id===noteId):null,edit=Boolean(options.edit||!note);activeSkincareViewDay=Number.isInteger(options.day)?options.day:new Date().getDay();const modal=document.getElementById("skincareRoutineModal");if(modal)modal.dataset.noteId=note?.id||"";document.getElementById("skincarePlannerTitle").textContent=note?.title||"Weekly skincare planner";document.getElementById("skincareViewMode").classList.toggle("hidden",edit);document.getElementById("skincareEditMode").classList.toggle("hidden",!edit);document.getElementById("skincarePlannerEditButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerSettingsButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerBackToView").classList.toggle("hidden",!edit||!note);if(edit)populateSkincareEditor(note,activeSkincareViewDay);else renderSkincareRoutineView(note,activeSkincareViewDay);openModal("skincareRoutineModal");}
+function openSkincareRoutineModal(noteId="", options={}) {clearTemplateDraftBanner("skincareRoutineModal");const note=noteId?state.notes.find(item=>item.id===noteId):null,edit=Boolean(options.edit||!note);activeSkincareViewDay=Number.isInteger(options.day)?options.day:new Date().getDay();const modal=document.getElementById("skincareRoutineModal");if(modal)modal.dataset.noteId=note?.id||"";document.getElementById("skincarePlannerTitle").textContent=note?.title||"Weekly skincare planner";document.getElementById("skincareViewMode").classList.toggle("hidden",edit);document.getElementById("skincareEditMode").classList.toggle("hidden",!edit);document.getElementById("skincarePlannerEditButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerSettingsButton").classList.toggle("hidden",edit||!note);document.getElementById("skincarePlannerBackToView").classList.toggle("hidden",!edit||!note);if(edit)populateSkincareEditor(note,activeSkincareViewDay);else renderSkincareRoutineView(note,activeSkincareViewDay);openModal("skincareRoutineModal");}
 function navigateSkincareEditor(direction){if(!commitSkincareEditorPage())return;const index=skincareEditDayIndex(activeSkincareEditDay),next=Math.max(0,Math.min(6,index+direction));activeSkincareEditDay=SKINCARE_WEEKDAYS[next].day;renderSkincareEditorDay();document.querySelector(".skincare-planner-modal")?.scrollTo({top:0,behavior:"smooth"});}
 function syncSkincareEditorDay(){if(!commitSkincareEditorPage())return;const selected=[...document.querySelectorAll("[data-skincare-sync-day].selected")].map(button=>Number(button.dataset.skincareSyncDay));if(!selected.length)return showToast("Choose at least one day to sync to.");const source=(skincareEditorDraft.days[activeSkincareEditDay]||[]).map(step=>({...step,times:[...step.times]}));selected.forEach(day=>{skincareEditorDraft.days[day]=source.map((step,index)=>({...step,id:createId(),order:index,times:[...step.times]}));});renderSkincareSyncChoices();showToast(`${skincareDayMeta(activeSkincareEditDay).label} copied to ${selected.map(day=>skincareDayMeta(day).short).join(", ")} 🧴`);}
 function saveSkincareRoutine() {if(!commitSkincareEditorPage())return;const id=document.getElementById("skincareEditId").value,old=id?state.notes.find(note=>note.id===id):null,steps=[];SKINCARE_WEEKDAYS.forEach(meta=>(skincareEditorDraft?.days?.[meta.day]||[]).forEach(step=>steps.push({id:createId(),category:step.category||"Other",product:step.product||"",days:[meta.day],times:[...(step.times||[])],variant:step.variant==="alternate"?"alternate":"primary",notes:step.notes||"",order:steps.length})));const note=normalizeNote({...(old||{}),id:id||createId(),title:skincareEditorDraft?.title||"Skincare Routine",type:"note",space:skincareEditorDraft?.space||preferredSpace(),tags:old?.tags?.length?old.tags:["reference","skincare","routine"],content:"",checklist:[],resettable:false,structuredType:"skincare-weekly",skincareRoutine:{focus:skincareEditorDraft?.focus||"",steps},createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.notes[state.notes.findIndex(item=>item.id===id)]=note;else state.notes.push(note);saveState();showToast(old?"Weekly skincare updated 🧴":"Weekly skincare planner created 🧴");document.getElementById("skincareRoutineModal").dataset.noteId=note.id;document.getElementById("skincarePlannerTitle").textContent=note.title;document.getElementById("skincareViewMode").classList.remove("hidden");document.getElementById("skincareEditMode").classList.add("hidden");document.getElementById("skincarePlannerEditButton").classList.remove("hidden");document.getElementById("skincarePlannerSettingsButton").classList.remove("hidden");document.getElementById("skincarePlannerBackToView").classList.add("hidden");activeSkincareViewDay=new Date().getDay();skincareEditorDraft=null;renderSkincareRoutineView(note,activeSkincareViewDay);render();}
@@ -2659,7 +2661,11 @@ function updateListColumnSettingsVisibility() {
   });
 }
 
+let pendingListTemplateItems=[];
+
 function clearListForm() {
+  pendingListTemplateItems=[];
+  clearTemplateDraftBanner("listModal");
   refreshSpaceSelects();
   document.getElementById("listEditId").value = "";
   document.getElementById("listIcon").value = "☑️";
@@ -2730,7 +2736,7 @@ function saveList() {
       column4: document.getElementById("listColumnFourLabel").value.trim() || "Column 4",
       column5: document.getElementById("listColumnFiveLabel").value.trim() || "Column 5"
     },
-    items: old?.items || [],
+    items: old?.items || pendingListTemplateItems.map(item=>({...item})),
     ...shareMetaFromControl("list", old),
     createdAt: old?.createdAt || Date.now(),
     updatedAt: Date.now()
@@ -2744,6 +2750,7 @@ function saveList() {
   }
   if (old) state.lists[state.lists.findIndex(item => item.id === id)] = list;
   else state.lists.push(list);
+  pendingListTemplateItems=[];
   state.activeListId = list.id;
   closeModal("listModal");
   showToast(old ? "Checklist updated ☑️" : "Checklist created ☑️");
@@ -3100,7 +3107,7 @@ const TABLE_TEMPLATES={
   blank:{name:"",columns:[{name:"Item",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()}
 };
 function applyTableTemplate(templateId,force=false){const template=getTemplateDefinition(templateId);const name=document.getElementById("tableName");if(force||!name.value.trim())name.value=template.name;setTableBuilderColumns(template.columns);document.getElementById("tableStatusOptions").value=(template.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");}
-function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";document.getElementById("tableRowView").value="compact";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
+function clearTableForm(){clearTemplateDraftBanner("tableModal");refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";document.getElementById("tableRowView").value="compact";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
 function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";document.getElementById("tableRowView").value=t.rowView||"compact";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
 function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],...shareMetaFromControl("table",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
@@ -4118,7 +4125,7 @@ function renderTemplates() {
     <div class="page-heading">
       <p class="eyebrow">DON'T REBUILD THE SAME THING TWICE</p>
       <h1>Templates</h1>
-      <p>Reusable structures for recurring tasks, lists, trackers and reference notes.</p>
+      <p>Preview reusable structures safely. Nothing is added until you choose to save it.</p>
     </div>
 
     <div class="template-grid">
@@ -4130,7 +4137,7 @@ function renderTemplates() {
             <p>${escapeHTML(template.description)}</p>
             <span class="badge badge-personal">${escapeHTML(template.kind)}</span>
           </div>
-          <button class="secondary-button" data-use-template="${template.id}">Use</button>
+          <button class="secondary-button" data-use-template="${template.id}">Preview</button>
         </article>
       `).join("")}
     </div>
@@ -4144,77 +4151,126 @@ function renderTemplates() {
   `;
 }
 
+function clearTemplateDraftBanner(modalId) {
+  document.querySelector(`#${modalId} [data-template-draft-banner]`)?.remove();
+}
+
+function showTemplateDraftBanner(modalId, detail="", previewItems=[]) {
+  clearTemplateDraftBanner(modalId);
+  const modal=document.getElementById(modalId),header=modal?.querySelector(".modal-header");
+  if(!modal||!header)return;
+  const banner=document.createElement("div");
+  banner.className="template-draft-banner";
+  banner.dataset.templateDraftBanner="true";
+  banner.innerHTML=`<div class="template-draft-banner-icon">👀</div><div><strong>Template preview · not saved yet</strong><p>${escapeHTML(detail||"Look around or edit anything you want. This will not appear in Hana until you tap Create or Save.")}</p>${previewItems.length?`<div class="template-draft-preview-items">${previewItems.slice(0,8).map(item=>`<span>${escapeHTML(String(item))}</span>`).join("")}</div>`:""}</div>`;
+  header.insertAdjacentElement("afterend",banner);
+}
+
+function openTaskTemplateDraft(definition={}) {
+  openTaskModal();
+  refreshSpaceSelects();
+  document.getElementById("taskTitle").value=definition.title||"";
+  document.getElementById("taskSpace").value=definition.space||preferredSpace();
+  document.getElementById("taskPriority").value=definition.priority||"medium";
+  document.getElementById("taskStatus").value=definition.status||"todo";
+  document.getElementById("taskSubtasks").value=(definition.subtasks||[]).join("\n");
+  document.getElementById("taskRecurrenceType").value=definition.recurrenceType||"none";
+  document.getElementById("taskRecurrenceInterval").value=String(definition.recurrenceInterval||1);
+  updateTaskConditionalFields();
+  const advanced=document.getElementById("taskAdvancedDetails");if(advanced)advanced.open=true;
+  document.getElementById("taskModalEyebrow").textContent="TEMPLATE PREVIEW";
+  document.getElementById("taskModalTitle").textContent=definition.title||"Task template";
+  document.getElementById("saveTaskButton").textContent="Create task";
+  showTemplateDraftBanner("taskModal","Review or customize this task. Closing it creates nothing.",definition.subtasks||[]);
+}
+
+function openNoteTemplateDraft(definition={}) {
+  openNoteModal();
+  refreshSpaceSelects();
+  const type=definition.type||"note";
+  document.getElementById("noteTitle").value=definition.title||"";
+  document.getElementById("noteType").value=type;
+  document.getElementById("noteSpace").value=definition.space||preferredSpace();
+  document.getElementById("noteTags").value=(definition.tags||[]).join(", ");
+  document.getElementById("noteContent").value=definition.content||"";
+  document.getElementById("noteChecklist").value=(definition.checklist||[]).join("\n");
+  document.getElementById("noteResettable").checked=Boolean(definition.resettable);
+  document.getElementById("noteStructuredType").value=definition.structuredType||"";
+  updateNoteConditionalFields();
+  if(type==="meeting")populateMeetingData({structuredType:definition.structuredType||"meeting-agenda",meetingData:definition.meetingData||{kind:"agenda"}});
+  document.getElementById("noteModalEyebrow").textContent="TEMPLATE PREVIEW";
+  document.getElementById("noteModalTitle").textContent=definition.title||"Note template";
+  document.getElementById("saveNoteButton").textContent="Save to Notes";
+  showTemplateDraftBanner("noteModal","This is only a working preview. Close it if you do not want to keep it.");
+}
+
+function openListTemplateDraft(templateId) {
+  const template=LIST_TEMPLATES[templateId];if(!template)return showToast("Template not found.");
+  openListModal();
+  pendingListTemplateItems=(template.items||[]).map(title=>({id:createId(),title,detail:"",quantity:"",lane:"both",completed:false,createdAt:Date.now(),updatedAt:Date.now()}));
+  document.getElementById("listName").value=template.name||"";
+  document.getElementById("listIcon").value=template.icon||"☑️";
+  document.getElementById("listColumnMode").checked=templateId==="grocery";
+  document.getElementById("listColumnCount").value="3";
+  updateListColumnSettingsVisibility();
+  document.getElementById("listModalEyebrow").textContent="TEMPLATE PREVIEW";
+  document.getElementById("listModalTitle").textContent=template.name||"List template";
+  document.getElementById("saveListButton").textContent="Create list";
+  showTemplateDraftBanner("listModal","Starter items are being previewed only. They are added to the list only after you tap Create list.",template.items||[]);
+}
+
+function openTableTemplateDraft(definition={}) {
+  openTableModal();
+  document.getElementById("tableTemplate").value="blank";
+  document.getElementById("tableName").value=definition.name||"";
+  document.getElementById("tableSpace").value=definition.space||preferredSpace();
+  setTableBuilderColumns(definition.columns||[{name:"Item",type:"text"}]);
+  document.getElementById("tableStatusOptions").value=(definition.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");
+  refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");
+  updateTableSortFields();
+  document.getElementById("tableModalEyebrow").textContent="TEMPLATE PREVIEW";
+  document.getElementById("tableModalTitle").textContent=definition.name||"Tracker template";
+  document.getElementById("saveTableButton").textContent="Create tracker";
+  showTemplateDraftBanner("tableModal","These columns are only a preview until you tap Create tracker.",(definition.columns||[]).map(column=>column.name));
+}
+
+
 function useTemplate(templateId) {
-  const space = preferredSpace();
+  const space=preferredSpace();
 
-  if (templateId === "weekly-review") {
-    const task = normalizeTask({
-      title: "Weekly Review",
-      space,
-      priority: "medium",
-      status: "todo",
-      subtasks: [
-        { id:createId(), title:"Review open tasks", completed:false },
-        { id:createId(), title:"Check Waiting On / follow-ups", completed:false },
-        { id:createId(), title:"Choose next week's priorities", completed:false }
-      ],
-      recurrence: { type:"weekly", interval:1 },
-      createdAt: Date.now()
-    });
-    state.tasks.push(task);
-    showToast("Weekly Review template planted 🌱");
-    return openTaskModal(task.id);
-  }
+  if(templateId==="weekly-review")return openTaskTemplateDraft({
+    title:"Weekly Review",space,priority:"medium",status:"todo",recurrenceType:"weekly",
+    subtasks:["Review open tasks","Check Waiting On / follow-ups","Choose next week's priorities"]
+  });
 
-  if (templateId === "monthly-life-admin") {
-    const task = normalizeTask({
-      title: "Monthly Life Admin",
-      space,
-      priority: "medium",
-      status: "todo",
-      subtasks: [
-        { id:createId(), title:"Review bills and subscriptions", completed:false },
-        { id:createId(), title:"Check documents / renewals", completed:false },
-        { id:createId(), title:"Clear personal loose ends", completed:false }
-      ],
-      recurrence: { type:"monthly", interval:1 },
-      createdAt: Date.now()
-    });
-    state.tasks.push(task);
-    showToast("Monthly Life Admin planted 🌱");
-    return openTaskModal(task.id);
-  }
+  if(templateId==="monthly-life-admin")return openTaskTemplateDraft({
+    title:"Monthly Life Admin",space,priority:"medium",status:"todo",recurrenceType:"monthly",
+    subtasks:["Review bills and subscriptions","Check documents / renewals","Clear personal loose ends"]
+  });
 
-  if (["meeting-agenda","meeting-minutes"].includes(templateId)) {
+  if(["meeting-agenda","meeting-minutes"].includes(templateId)){
     const isMinutes=templateId==="meeting-minutes";
-    const note=normalizeNote({
+    return openNoteTemplateDraft({
       title:isMinutes?"Minutes of the Meeting":"Meeting Agenda",
       type:"meeting",
       structuredType:isMinutes?"meeting-minutes":"meeting-agenda",
       space,
       tags:isMinutes?["meeting","minutes"]:["meeting","agenda"],
-      content:"",
-      checklist:[],
-      meetingData:{kind:isMinutes?"minutes":"agenda",date:todayISO(),agendaItems:[]},
-      createdAt:Date.now(),
-      updatedAt:Date.now()
+      meetingData:{kind:isMinutes?"minutes":"agenda",date:todayISO(),agendaItems:[]}
     });
-    state.notes.push(note);
-    showToast(isMinutes?"Meeting minutes created 📝":"Meeting agenda created 📋");
-    return openNoteModal(note.id);
   }
 
-  if (templateId === "skincare-routine-note") {
+  if(templateId==="skincare-routine-note"){
     closeNavDrawer();
-    return openSkincareRoutineModal("", { edit:true });
+    openSkincareRoutineModal("",{edit:true});
+    showTemplateDraftBanner("skincareRoutineModal","Build or inspect the routine first. Nothing is added to Notes until you tap Save whole week.");
+    return;
   }
 
-  if (["professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)) {
-    const definitions = {
-      "professional-bionote": {
-        title: "Professional Bionote",
-        tags: ["reference","bio","professional"],
-        content: `## Name & current role
+  if(["professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)){
+    const definitions={
+      "professional-bionote":{
+        title:"Professional Bionote",tags:["reference","bio","professional"],content:`## Name & current role
 Full name:
 Current title / position:
 Organization:
@@ -4240,10 +4296,8 @@ Honors / distinctions:
 ## Short version
 Write a 2–4 sentence version here for programs, introductions or speaker profiles.`
       },
-      "strategy-outline-note": {
-        title: "Strategy / Meeting Outline",
-        tags: ["work","strategy","meeting"],
-        content: `## Objective
+      "strategy-outline-note":{
+        title:"Strategy / Meeting Outline",tags:["work","strategy","meeting"],content:`## Objective
 
 ## Additional strategies / ideas
 -
@@ -4268,10 +4322,8 @@ Write a 2–4 sentence version here for programs, introductions or speaker profi
 ## Ways forward
 -`
       },
-      "measurement-profile-note": {
-        title: "Measurement Profile",
-        tags: ["reference","measurements"],
-        content: `## Profile
+      "measurement-profile-note":{
+        title:"Measurement Profile",tags:["reference","measurements"],content:`## Profile
 Person:
 Date measured:
 Units: inches / cm
@@ -4311,72 +4363,29 @@ Weight —
 - Updated measurements:`
       }
     };
-    const definition = definitions[templateId];
-    const note = normalizeNote({
-      title: definition.title,
-      type: "note",
-      space,
-      tags: definition.tags,
-      content: definition.content,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    });
-    state.notes.push(note);
-    showToast(`${definition.title} created 📝`);
-    return openNoteModal(note.id);
+    const definition=definitions[templateId];
+    return openNoteTemplateDraft({...definition,type:"note",space});
   }
 
-  if (templateId === "grocery-list" || templateId === "packing-list") {
-    const templateKey = templateId === "grocery-list" ? "grocery" : "packing";
-    createListFromTemplate(templateKey);
-    return changePage("lists");
-  }
+  if(templateId==="grocery-list"||templateId==="packing-list")return openListTemplateDraft(templateId==="grocery-list"?"grocery":"packing");
 
-  if (templateId === "weekly-reset") {
-    const note = normalizeNote({
-      title: "Weekly Reset",
-      type: "checklist",
-      space,
-      tags: ["weekly","home"],
-      checklist: ["Review calendar", "Reset important spaces", "Plan meals / errands", "Choose personal priorities"].map(title => ({ id:createId(), title, completed:false })),
-      resettable: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    });
-    state.notes.push(note);
-    showToast("Weekly Reset created 🌷");
-    return openNoteModal(note.id);
-  }
+  if(templateId==="weekly-reset")return openNoteTemplateDraft({
+    title:"Weekly Reset",type:"checklist",space,tags:["weekly","home"],resettable:true,
+    checklist:["Review calendar","Reset important spaces","Plan meals / errands","Choose personal priorities"]
+  });
 
-  if (templateId === "work-deliverables" || templateId === "bills-tracker") {
-    const isWork = templateId === "work-deliverables";
-    const table = normalizeTable({
-      id: createId(),
-      name: isWork ? "Work Deliverables" : "Bills Tracker",
-      space: isWork && state.spaces.some(space=>space.id==="work") ? "work" : preferredSpace(),
-      columns: isWork
-        ? [
-            { id:createId(), name:"Deliverable", type:"text" },
-            { id:createId(), name:"Owner", type:"text" },
-            { id:createId(), name:"Progress", type:"progress" },
-            { id:createId(), name:"Due", type:"date" },
-            { id:createId(), name:"Status", type:"status" },
-            { id:createId(), name:"Remarks", type:"text" },
-            { id:createId(), name:"Done", type:"checkbox" }
-          ]
-        : [
-            { id:createId(), name:"Bill", type:"text" },
-            { id:createId(), name:"Amount", type:"money" },
-            { id:createId(), name:"Due", type:"date" },
-            { id:createId(), name:"Paid", type:"checkbox" }
-          ],
-      rows: [],
-      createdAt: Date.now()
+  if(templateId==="work-deliverables"||templateId==="bills-tracker"){
+    const isWork=templateId==="work-deliverables";
+    return openTableTemplateDraft({
+      name:isWork?"Work Deliverables":"Bills Tracker",
+      space:isWork&&state.spaces.some(item=>item.id==="work")?"work":space,
+      columns:isWork?[
+        {name:"Deliverable",type:"text"},{name:"Owner",type:"text"},{name:"Progress",type:"progress"},{name:"Due",type:"date"},{name:"Status",type:"status"},{name:"Remarks",type:"text"},{name:"Done",type:"checkbox"}
+      ]:[
+        {name:"Bill",type:"text"},{name:"Amount",type:"money"},{name:"Due",type:"date"},{name:"Paid",type:"checkbox"}
+      ],
+      statusOptions:DEFAULT_TABLE_STATUSES.slice()
     });
-    state.tables.push(table);
-    state.activeTableId = table.id;
-    showToast(`${table.name} created 📋`);
-    return changePage("tables");
   }
 
   showToast("Template not found.");

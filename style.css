@@ -4713,3 +4713,21 @@ body.modal-open{overflow:hidden}
 
 /* HANA TAPPABLE NOTE CARDS */
 .note-card-openable{cursor:pointer;touch-action:manipulation;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}.note-card-openable:active{transform:scale(.992)}.note-card-openable:focus-visible{outline:2px solid var(--rose);outline-offset:3px}@media(hover:hover){.note-card-openable:hover{border-color:color-mix(in srgb,var(--rose) 34%,var(--border));box-shadow:0 8px 24px rgba(86,61,72,.07)}}
+
+
+/* HANA TEMPLATE DRAFT PREVIEW */
+.template-draft-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: -2px 0 14px;
+  padding: 12px 13px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--blush) 65%, var(--surface));
+}
+.template-draft-banner-icon { font-size: 18px; line-height: 1.2; }
+.template-draft-banner strong { display:block; font-size:12px; }
+.template-draft-banner p { margin:3px 0 0; color:var(--text-soft); font-size:10px; line-height:1.45; }
+.template-draft-preview-items { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.template-draft-preview-items span { padding:4px 7px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--text-soft); font-size:9px; }
