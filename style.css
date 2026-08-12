@@ -4388,3 +4388,21 @@ body.modal-open{overflow:hidden}
   .list-column-item-shell .list-item-main strong{font-size:9.5px}
   .update-available-banner{bottom:calc(90px + env(safe-area-inset-bottom));padding:10px 11px 10px 13px}
 }
+
+
+/* v2.0.12 — Hana menu identity + reference note templates */
+.nav-drawer-about-hana{padding-top:10px;padding-bottom:14px}
+.nav-drawer-about-card{display:grid;grid-template-columns:46px 1fr;gap:11px;align-items:start;padding:12px;border:1px solid var(--border);border-radius:20px;background:linear-gradient(145deg,var(--white),var(--pink-50))}
+.nav-drawer-about-mark{width:46px;height:46px;border-radius:15px;background:rgba(255,255,255,.72);display:grid;place-items:center;overflow:hidden;border:1px solid var(--border)}
+.nav-drawer-about-mark img{width:40px;height:40px;object-fit:contain}
+.nav-drawer-about-copy .nav-drawer-group-title{padding:0 0 4px;font-size:12px}
+.nav-drawer-about-copy p{margin:0;color:var(--text-soft);font-size:10.5px;line-height:1.5}
+.nav-drawer-about-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:9px;font-size:9.5px;color:var(--text-soft)}
+.nav-drawer-about-actions button{border:0;background:transparent;color:var(--rose);font-size:9.5px;font-weight:800;padding:4px 0}
+.note-template-launcher{margin:0 0 12px;border:1px solid var(--border);border-radius:18px;background:var(--white);overflow:hidden}
+.note-template-launcher summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;cursor:pointer;font-weight:800;font-size:11px}
+.note-template-launcher summary::-webkit-details-marker{display:none}
+.note-template-launcher summary small{color:var(--text-soft);font-size:9px;font-weight:600;text-align:right}
+.note-template-chip-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:0 10px 10px}
+.note-template-chip-grid button{min-height:38px;border:1px solid var(--border);border-radius:14px;background:var(--pink-50);color:var(--text);font-size:10px;font-weight:750;padding:8px 10px;text-align:left}
+@media(max-width:420px){.note-template-launcher summary{align-items:flex-start;flex-direction:column;gap:2px}.note-template-launcher summary small{text-align:left}.note-template-chip-grid{grid-template-columns:1fr 1fr}}

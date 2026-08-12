@@ -1,14 +1,14 @@
 /* =====================================================
-   HANA 🌸 Service Worker v44
+   HANA 🌸 Service Worker v45
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v44";
+const CACHE_NAME = "hana-shell-v45";
 const CORE_SHELL = [
   "./",
   "./index.html",
   "./style.css",
-  "./app.js?v=2.0.11",
-  "./firebase-bridge.js?v=2.0.11"
+  "./app.js?v=2.0.12",
+  "./firebase-bridge.js?v=2.0.12"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",

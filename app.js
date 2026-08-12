@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.11
+   HANA 🌸 v2.0.12
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -125,13 +125,41 @@ const STARTER_TEMPLATES = [
     title: "Weekly Reset",
     description: "A gentle reset checklist for home and personal planning.",
     kind: "note"
+  },
+  {
+    id: "skincare-routine-note",
+    icon: "🧴",
+    title: "Skincare Routine",
+    description: "A reusable AM / PM routine with skin goals, products and observations.",
+    kind: "note"
+  },
+  {
+    id: "professional-bionote",
+    icon: "👤",
+    title: "Professional Bionote",
+    description: "A structured biography for current role, experience, education, training and achievements.",
+    kind: "note"
+  },
+  {
+    id: "strategy-outline-note",
+    icon: "🧭",
+    title: "Strategy / Meeting Outline",
+    description: "Keep strategies, presentation structure, decisions, action items and ways forward together.",
+    kind: "note"
+  },
+  {
+    id: "measurement-profile-note",
+    icon: "📏",
+    title: "Measurement Profile",
+    description: "A tidy reference sheet for body measurements, units and dated updates.",
+    kind: "note"
   }
 ];
 
 const QUICK_ACCESS_MENU = {
   today: { label: "Today", icon: "🌸", description: "What matters right now" },
   tasks: { label: "Tasks", icon: "✓", description: "Your actionable to-dos" },
-  lists: { label: "Lists", icon: "☑️", description: "Groceries, packing and simple checklists" },
+  lists: { label: "Lists", icon: "☑️", description: "Checklists with optional 1–5 custom columns" },
   notes: { label: "Notes", icon: "📝", description: "Ideas, context and meeting notes" },
   reminders: { label: "Reminders", icon: "🔔", description: "Repeats, snooze and reminder chains" },
   tables: { label: "Trackers", icon: "📒", description: "Progress, status, remarks and custom columns" },
@@ -704,18 +732,17 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.11";
+const HANA_APP_VERSION = "2.0.12";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Startup stability repair 🌸",
-  intro: "Hana 2.0.11 repairs a startup crash from the previous build while keeping flexible 1–5 List columns and the recent Partner Link improvements.",
+  title: "Hana menu + Reference Note templates 🌸",
+  intro: "Hana 2.0.12 makes the hamburger a true app directory again and adds reusable structures for the kinds of reference notes you actually keep.",
   items: [
-    { icon: "🛠️", title: "Startup crash fixed", text: "Core state-normalization helpers accidentally removed in 2.0.10 have been restored, so Hana can open normally again." },
-    { icon: "🛡️", title: "Safer startup fallback", text: "If a future runtime problem happens while opening, Hana now falls back safely instead of leaving you with a blank screen." },
-    { icon: "1️⃣", title: "1–5 List columns retained", text: "Choose 1 to 5 custom columns per List. Three remains the default, and private Lists can use columns without Partner Link." },
-    { icon: "🔄", title: "Fresh build forced", text: "The app and service-worker versions were bumped so the repaired files are fetched instead of reusing the broken 2.0.10 cache." },
-    { icon: "💕", title: "Partner Link retained", text: "The working Partner Link architecture and Firebase sharing changes from the recent builds are unchanged." }
+    { icon: "🌸", title: "About Hana moved to the menu", text: "The Hana name meaning and version now live at the top of the hamburger instead of taking space in Settings." },
+    { icon: "✨", title: "Quick Access no longer duplicates the menu", text: "Pinned shortcuts stay in the sparkle button, while every section remains visible in its normal hamburger group." },
+    { icon: "📝", title: "Reference Note templates", text: "Start Skincare Routine, Professional Bionote, Strategy / Meeting Outline, and Measurement Profile notes without rebuilding the structure each time." },
+    { icon: "🛠️", title: "Startup repair retained", text: "The 2.0.11 startup stability fixes, flexible List columns, update prompt, and Partner Link architecture remain intact." }
   ]
 };
 let hanaAccountState = {
@@ -1195,9 +1222,6 @@ function renderQuickAccess() {
   }
   renderHeaderQuickAccess();
 
-  document.querySelectorAll('.nav-drawer-group:not(.nav-drawer-quick-access) .nav-drawer-item[data-goto]').forEach(button => {
-    button.classList.toggle("quick-access-duplicate", selected.includes(button.dataset.goto));
-  });
 }
 
 function quickAccessOptionsHTML(selectedValue = "") {
@@ -1906,7 +1930,16 @@ function renderNotes() {
   const container = document.getElementById("pageContent");
   const notes = filterByMode(state.notes).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||b.updatedAt-a.updatedAt);
   container.innerHTML = `
-    <div class="page-heading"><p class="eyebrow">THOUGHTS THAT CAN BECOME ACTION</p><h1>Notes</h1><p>Editable notes, meeting actions and resettable checklists.</p></div>
+    <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Keep free-form thoughts, structured references, meeting actions and resettable checklists.</p></div>
+    <details class="note-template-launcher">
+      <summary><span>🧩 Start from a note template</span><small>Skincare · Bionote · Strategy · Measurements</small></summary>
+      <div class="note-template-chip-grid">
+        <button type="button" data-use-template="skincare-routine-note">🧴 Skincare Routine</button>
+        <button type="button" data-use-template="professional-bionote">👤 Professional Bionote</button>
+        <button type="button" data-use-template="strategy-outline-note">🧭 Strategy / Meeting Outline</button>
+        <button type="button" data-use-template="measurement-profile-note">📏 Measurement Profile</button>
+      </div>
+    </details>
     <div class="search-box"><input id="noteSearch" type="search" placeholder="Search notes and tags..." /></div>
     <div id="notesResults">${notes.length ? `<div class="note-grid">${notes.map(noteCard).join("")}</div>` : emptyState("📝","Your pages are waiting","Capture anything worth remembering.","Add note","open-note")}</div>
   `;
@@ -3626,7 +3659,7 @@ function renderTemplates() {
     <div class="page-heading">
       <p class="eyebrow">DON'T REBUILD THE SAME THING TWICE</p>
       <h1>Templates</h1>
-      <p>Starter structures for things Hana users are likely to repeat.</p>
+      <p>Reusable structures for recurring tasks, lists, trackers and reference notes.</p>
     </div>
 
     <div class="template-grid">
@@ -3646,7 +3679,7 @@ function renderTemplates() {
     <div class="card soft-card" style="margin-top:16px;">
       <strong>Why templates belong in Hana 🌸</strong>
       <p style="margin:6px 0 0;color:var(--text-soft);font-size:12px;line-height:1.5;">
-        Grocery lists, packing lists, meeting notes, recurring reviews and tracking tables should feel reusable instead of disposable.
+        Grocery lists, routines, bionotes, measurement references, strategy notes, recurring reviews and trackers should feel reusable instead of disposable.
       </p>
     </div>
   `;
@@ -3708,6 +3741,155 @@ function useTemplate(templateId) {
     });
     state.notes.push(note);
     showToast("Meeting note created 👥");
+    return openNoteModal(note.id);
+  }
+
+  if (["skincare-routine-note","professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)) {
+    const definitions = {
+      "skincare-routine-note": {
+        title: "Skincare Routine",
+        tags: ["reference","skincare"],
+        content: `## Focus / skin goals
+- Skin type / concerns:
+- Main goals:
+- Current focus:
+
+## Day / routine theme
+Date or day:
+Theme / active:
+
+## AM
+- Cleanser:
+- Toner / essence:
+- Serum / treatment:
+- Moisturizer:
+- Sunscreen:
+
+## PM
+- Cleanser:
+- Mask / exfoliant:
+- Toner / essence:
+- Serum / treatment:
+- Moisturizer:
+- Spot treatment:
+
+## Notes / reactions
+- Irritation or sensitivity:
+- Breakouts / texture:
+- Changes to try next:`
+      },
+      "professional-bionote": {
+        title: "Professional Bionote",
+        tags: ["reference","bio","professional"],
+        content: `## Name & current role
+Full name:
+Current title / position:
+Organization:
+Primary responsibilities:
+
+## Professional experience
+Years of experience:
+Key areas of work:
+Major programs / responsibilities:
+
+## Education
+Degree / institution:
+Graduate studies / institution:
+Honors / distinctions:
+
+## Training & development
+- Program / institution / year:
+- Program / institution / year:
+
+## Projects, achievements & presentations
+-
+
+## Short version
+Write a 2–4 sentence version here for programs, introductions or speaker profiles.`
+      },
+      "strategy-outline-note": {
+        title: "Strategy / Meeting Outline",
+        tags: ["work","strategy","meeting"],
+        content: `## Objective
+
+## Additional strategies / ideas
+-
+
+## Presentation / meeting structure
+1.
+2.
+3.
+
+## Key data / evidence needed
+-
+
+## Decisions / agreements
+-
+
+## Action items
+- Owner — Action — Due date
+
+## Assistance / dependencies
+-
+
+## Ways forward
+-`
+      },
+      "measurement-profile-note": {
+        title: "Measurement Profile",
+        tags: ["reference","measurements"],
+        content: `## Profile
+Person:
+Date measured:
+Units: inches / cm
+
+## Upper body
+1. Neck —
+2. Overbust —
+3. Bust —
+4. Underbust —
+5. Shoulder to shoulder —
+6. Shoulder seam to wrist —
+7. Shoulder seam to neck —
+8. Arm hole —
+9. Bicep —
+10. Forearm —
+11. Wrist around —
+
+## Torso / lower body
+12. Waist —
+13. Hips —
+14. Top of shoulder to waist —
+15. Inseam —
+16. Outseam —
+
+## Length references
+17. Neck to top of heel —
+18. Neck to top of knee —
+19. Top of knee to ankle —
+
+## Height / weight
+Height —
+Weight —
+
+## Notes
+- Fit preference / ease:
+- Clothing / tailoring notes:
+- Updated measurements:`
+      }
+    };
+    const definition = definitions[templateId];
+    const note = normalizeNote({
+      title: definition.title,
+      type: "note",
+      space,
+      tags: definition.tags,
+      content: definition.content,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    state.notes.push(note);
+    showToast(`${definition.title} created 📝`);
     return openNoteModal(note.id);
   }
 
@@ -4571,7 +4753,6 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
 
   ${renderPartnerSettingsCard()}
 
-  <section class="section settings-section"><div class="section-header"><h2>About Hana</h2></div><div class="settings-card about-hana-card"><div class="about-hana-mark"><img src="icons/hana-peony.png" alt="" aria-hidden="true" /></div><div class="about-hana-copy"><h3>Hana (花) 🌸</h3><p class="about-hana-description">Hana (花) means “flower.” Like a flower blooming one petal at a time, Hana helps you take care of your ideas, notes, and tasks one bloom at a time.</p><div class="about-hana-actions"><span>Version ${HANA_APP_VERSION}</span><button class="secondary-button compact-button" type="button" data-open-whats-new>What’s new</button></div></div></div></section>
 
   <section class="section settings-section"><div class="section-header"><h2>Bottom navigation</h2></div><div class="settings-card"><h3>Your everyday tabs ✨</h3><p>Today, Tasks and + stay fixed. Choose the two shortcuts that appear on the right side of the bottom bar.</p><div class="settings-inline bottom-nav-settings"><div class="form-group"><label for="bottomNavSlot1Setting">Slot 1</label><select id="bottomNavSlot1Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[0]||"lists")}</select></div><div class="form-group"><label for="bottomNavSlot2Setting">Slot 2</label><select id="bottomNavSlot2Setting">${bottomNavOptionsHTML(state.settings.bottomNav?.[1]||"calendar")}</select></div></div><div class="settings-button-row"><button class="primary-button" data-save-bottom-nav>Save navigation</button><button class="secondary-button" data-restore-bottom-nav>Restore default</button></div><small class="field-help">Default: Today · Tasks · + · Lists · Calendar</small></div></section>
 
