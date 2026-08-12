@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v2.0.5
-   Partner Link stability + UI polish
+   HANA 🌸 v2.0.7
+   Partner Link architecture repair + stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -679,18 +679,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.6";
+const HANA_APP_VERSION = "2.0.7";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Partner Link deep repair 💕",
-  intro: "Partner Link now uses simpler Firestore permissions, refreshes Firebase authentication before partner operations, and includes stronger update handling for the installed iPhone PWA.",
+  title: "Partner Link architecture repair 💕",
+  intro: "Partner Link no longer depends on Hana's repeatedly blocked top-level invite collection. Invitations and shared couple data now use an owner-scoped Firestore structure built around the same authenticated user tree that already powers Cloud Backup.",
   items: [
-    { icon: "🔐", title: "Simpler Partner permissions", text: "Invite and connection rules were reduced to the minimum checks needed for Hana instead of fragile cross-document conditions." },
-    { icon: "🪪", title: "Fresh auth before sharing", text: "Hana refreshes the signed-in Firebase token before creating, accepting, cancelling or disconnecting a Partner Link." },
-    { icon: "🔄", title: "PWA updates are harder to miss", text: "Hana now bypasses stale service-worker script caches and reloads once when a new service worker takes control." },
-    { icon: "🧪", title: "Partner diagnostics", text: "If Partner Link is still blocked, Hana can run a safe create/delete test and copy the exact Firebase stage, code, project and app version." },
-    { icon: "🌸", title: "Existing stability fixes retained", text: "Realtime retry, conflict-safe shared edits, private-by-default sharing, list gestures and tracker protections remain unchanged." }
+    { icon: "🏡", title: "Owner-scoped Partner data", text: "Partner invitations now live inside the inviting account's user tree instead of the old top-level partnerInvites collection." },
+    { icon: "💌", title: "New copyable invite key", text: "New Partner invites carry the owner and a private random token together, so Martin can open one exact Firestore document without any collection search." },
+    { icon: "⚡", title: "Realtime sharing retained", text: "Lists, tasks, notes, trackers, events, reminders and projects still use realtime Firestore listeners once the link is accepted." },
+    { icon: "🔒", title: "Private by default", text: "Nothing is exposed merely by linking accounts. Each entry still has to be explicitly shared." },
+    { icon: "🧪", title: "More meaningful diagnostics", text: "Diagnostics now test the same owner-scoped invitation path used by the real Partner Link flow." }
   ]
 };
 let hanaAccountState = {
@@ -4080,7 +4080,7 @@ function renderPartnerSettingsCard(){
   if(!user)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Share only what you choose</h3><p>Sign in to Hana first. Partner Link connects one person and keeps everything private by default.</p></div></div><button class="secondary-button" type="button" data-auth-email-mode="signin">Sign in to use Partner Link</button></div></section>`;
   if(hanaPartnerState.status==="loading")return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><h3>Checking your Partner Link…</h3><p>Your private Hana data stays local while this loads.</p></div></section>`;
   if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2>${partnerSyncBadgeHTML()}</div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
-  if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Send this one-time code. Hana will connect automatically when they accept it.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy invite code"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy</small></button><p class="field-help">Invite codes expire after 7 days. Only one partner can be connected.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
+  if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Tap the invite key to copy it, then send it to your partner. They can paste the whole key into Hana.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy Partner invite"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy Partner invite</small></button><p class="field-help">This invite is longer than the old 8-character code because it securely points to one exact private invite document. It expires after 7 days.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
   return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small>${hanaPartnerState.error?`<div class="partner-diagnostic-card"><strong>Partner Link needs attention</strong><small>${escapeHTML(hanaPartnerState.error)}</small><button class="secondary-button compact-button" type="button" data-run-partner-diagnostics>Run diagnostics</button></div>`:""}</div></section>`;
 }
 
@@ -4142,7 +4142,7 @@ async function runPartnerDiagnostics(){
   }catch(error){showToast(firebaseFriendlyError(error));}
 }
 async function acceptPartnerInvite(){
-  const code=String(document.getElementById("partnerJoinCode")?.value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  const code=String(document.getElementById("partnerJoinCode")?.value||"").trim();
   if(!code)return showToast("Enter the invite code first 💕");
   try{const fb=await firebaseReady();const result=await fb.acceptPartnerInvite(hanaAccountState.user.uid,code,accountDisplayName(hanaAccountState.user));closeModal("partnerJoinModal");showToast(`Connected to ${result.partnerName||"your partner"} 💕`);}
   catch(error){showToast(firebaseFriendlyError(error));}
@@ -5062,7 +5062,7 @@ document.addEventListener("click",event=>{
   if(event.target.closest("[data-create-partner-invite]")){createPartnerInvite();return;}
   if(event.target.closest("[data-run-partner-diagnostics]")){runPartnerDiagnostics();return;}
   if(event.target.closest("[data-open-partner-join]")){document.getElementById("partnerJoinCode").value="";openModal("partnerJoinModal");setTimeout(()=>document.getElementById("partnerJoinCode")?.focus(),80);return;}
-  if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(code)navigator.clipboard?.writeText(code).then(()=>showToast("Invite code copied 💌")).catch(()=>showToast(`Invite code: ${code}`));return;}
+  if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(code)navigator.clipboard?.writeText(code).then(()=>showToast("Partner invite copied 💌")).catch(()=>showToast(`Partner invite: ${code}`));return;}
   if(event.target.closest("[data-cancel-partner-invite]")){cancelPartnerInvite();return;}
   if(event.target.closest("[data-disconnect-partner]")){disconnectPartner();return;}
 });

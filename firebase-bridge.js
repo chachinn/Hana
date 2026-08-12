@@ -1,12 +1,12 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0.6 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.7 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
 (() => {
   const SDK_VERSION = "12.16.0";
   const CHUNK_BYTES = 240000;
-  const BRIDGE_VERSION = "2.0.6";
+  const BRIDGE_VERSION = "2.0.7";
   const FIREBASE_PROJECT_ID = "hana-e78b1";
 
   const firebaseConfig = {
@@ -195,15 +195,50 @@
 
       const partnerProfileRef = uid => firestoreSdk.doc(db, "users", uid, "hanaPartner", "profile");
       const partnerInviteStateRef = uid => firestoreSdk.doc(db, "users", uid, "hanaPartner", "invite");
-      const partnerInviteRef = code => firestoreSdk.doc(db, "partnerInvites", code);
-      const partnerLinkRef = linkId => firestoreSdk.doc(db, "partnerLinks", linkId);
-      const sharedItemsRef = linkId => firestoreSdk.collection(db, "partnerLinks", linkId, "items");
-      const sharedItemRef = (linkId, key) => firestoreSdk.doc(db, "partnerLinks", linkId, "items", key);
-      const cleanCode = value => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const partnerInviteDocRef = (ownerUid, token) => firestoreSdk.doc(db, "users", ownerUid, "hanaPartnerInvites", token);
+      const cleanInviteToken = value => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      const generateInviteCode = () => {
-        const bytes = new Uint8Array(8); crypto.getRandomValues(bytes);
+      const generateInviteToken = () => {
+        const bytes = new Uint8Array(12); crypto.getRandomValues(bytes);
         return Array.from(bytes, value => inviteAlphabet[value % inviteAlphabet.length]).join("");
+      };
+      const encodeUidForInvite = uid => bytesToBase64(new TextEncoder().encode(String(uid || "")))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      const decodeUidFromInvite = encoded => {
+        let value = String(encoded || "").replace(/-/g, "+").replace(/_/g, "/");
+        while (value.length % 4) value += "=";
+        return new TextDecoder().decode(base64ToBytes(value));
+      };
+      const makePartnerCode = (ownerUid, token) => `H2.${encodeUidForInvite(ownerUid)}.${cleanInviteToken(token)}`;
+      const normalizePartnerCodeInput = raw => {
+        let value = String(raw || "").trim();
+        if (/^https?:\/\//i.test(value)) {
+          try {
+            const parsed = new URL(value);
+            value = parsed.searchParams.get("hanaPartner") || parsed.searchParams.get("partner") || value;
+          } catch {}
+        }
+        return value.trim();
+      };
+      const parsePartnerCode = raw => {
+        const value = normalizePartnerCodeInput(raw);
+        const parts = value.split(".");
+        if (parts.length !== 3 || parts[0].toUpperCase() !== "H2") {
+          throw new Error("That Partner invite is from an older Hana build. Create a new invite in Hana v2.0.7 or later.");
+        }
+        let ownerUid = "";
+        try { ownerUid = decodeUidFromInvite(parts[1]); } catch {}
+        const token = cleanInviteToken(parts[2]);
+        if (!ownerUid || token.length < 8) throw new Error("That Partner invite is not valid.");
+        return { code: `H2.${parts[1]}.${token}`, ownerUid, token };
+      };
+      const sharedItemsRef = linkId => {
+        const { ownerUid, token } = parsePartnerCode(linkId);
+        return firestoreSdk.collection(db, "users", ownerUid, "hanaShared", token, "items");
+      };
+      const sharedItemRef = (linkId, key) => {
+        const { ownerUid, token } = parsePartnerCode(linkId);
+        return firestoreSdk.doc(db, "users", ownerUid, "hanaShared", token, "items", key);
       };
 
       const isPartnerPermissionError = error => {
@@ -213,18 +248,15 @@
       };
       const rethrowPartnerPermission = (error, stage = "Partner Link") => {
         if (isPartnerPermissionError(error)) {
-          const code=String(error?.code||"permission-denied");
-          const wrapped=new Error(`${stage} was blocked by Firestore (${code}). Hana build ${BRIDGE_VERSION} is connected to ${FIREBASE_PROJECT_ID}. Publish the matching v2.0.6 Firestore rules, then try again.`);
-          wrapped.code=code;
-          wrapped.stage=stage;
-          wrapped.diagnostic=JSON.stringify({stage,code,build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:auth.currentUser?.uid||""});
+          const code = String(error?.code || "permission-denied");
+          const wrapped = new Error(`${stage} was blocked by Firestore (${code}). Hana v2.0.7 now uses your authenticated user tree instead of the old top-level invite collection. Publish the matching v2.0.7 Firestore rules, then try again.`);
+          wrapped.code = code;
+          wrapped.stage = stage;
+          wrapped.diagnostic = JSON.stringify({ stage, code, build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, uid: auth.currentUser?.uid || "", architecture: "user-tree-v7" });
           throw wrapped;
         }
         throw error;
       };
-
-      // Invite creation deliberately performs no collection/query permission probe.
-      // Hana only touches the exact invite document it is creating or a code the user already knows.
 
       async function createPartnerInvite(uid, displayName = "") {
         const user = await preparePartnerUser(uid);
@@ -236,265 +268,309 @@
           rethrowPartnerPermission(error, "Reading your private Partner Link settings");
         }
         if (profileSnap.exists()) throw new Error("This Hana account already has a Partner Link.");
-        if (pointerSnap.exists() && pointerSnap.data().code) {
-          try {
-            const existingInvite = await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));
-            if (existingInvite.exists() && existingInvite.data().status === "open") {
-              const expiresAt = existingInvite.data().expiresAt ? new Date(existingInvite.data().expiresAt).getTime() : 0;
-              if (!expiresAt || expiresAt > Date.now()) return existingInvite.data();
-              await firestoreSdk.updateDoc(partnerInviteRef(pointerSnap.data().code), {
-                status: "cancelled",
-                cancelledAt: new Date().toISOString()
-              }).catch(() => {});
+
+        if (pointerSnap.exists()) {
+          const pointer = pointerSnap.data() || {};
+          if (pointer.token && pointer.code) {
+            try {
+              const existingSnap = await firestoreSdk.getDoc(partnerInviteDocRef(uid, cleanInviteToken(pointer.token)));
+              if (existingSnap.exists()) {
+                const existing = existingSnap.data();
+                if (existing.status === "open") {
+                  const expiresAt = existing.expiresAt ? new Date(existing.expiresAt).getTime() : 0;
+                  if (!expiresAt || expiresAt > Date.now()) return existing;
+                  await firestoreSdk.updateDoc(existingSnap.ref, { status: "cancelled", cancelledAt: new Date().toISOString() }).catch(() => {});
+                }
+                if (existing.status === "accepted" && existing.acceptedUid) {
+                  throw new Error("Your Partner invite was already accepted. Reopen Hana on both devices so the connection can finish.");
+                }
+              }
+            } catch (error) {
+              if (!isPartnerPermissionError(error)) throw error;
+              rethrowPartnerPermission(error, "Reading your existing Partner invite");
             }
-          } catch (error) {
-            rethrowPartnerPermission(error, "Reading your previous Partner invite");
           }
         }
 
-        // Do NOT pre-read random candidate codes. An 8-character code from this
-        // alphabet has roughly a trillion possible values; a collision is vastly
-        // less likely than a permission/cache failure. More importantly, the old
-        // pre-read was outside the guarded create step and was the source of the
-        // raw "Missing or insufficient permissions" message.
-        const code = generateInviteCode();
+        const token = generateInviteToken();
+        const code = makePartnerCode(uid, token);
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
         const data = {
           code,
+          token,
           ownerUid: uid,
           ownerName: displayName || user.displayName || user.email?.split("@")[0] || "Hana user",
           ownerEmail: user.email || "",
           status: "open",
           createdAt: createdAt.toISOString(),
           expiresAt: expiresAt.toISOString(),
-          schemaVersion: 4
+          schemaVersion: 7
         };
         try {
-          await firestoreSdk.setDoc(partnerInviteRef(code), data);
-        } catch (error) {
-          rethrowPartnerPermission(error, "Creating the Partner invite");
-        }
-        try {
+          await firestoreSdk.setDoc(partnerInviteDocRef(uid, token), data);
           await firestoreSdk.setDoc(partnerInviteStateRef(uid), {
             code,
+            token,
             updatedAt: createdAt.toISOString(),
-            schemaVersion: 4
+            schemaVersion: 7
           });
         } catch (error) {
-          await firestoreSdk.deleteDoc(partnerInviteRef(code)).catch(() => {});
-          rethrowPartnerPermission(error, "Saving the invite to your Hana account");
+          await firestoreSdk.deleteDoc(partnerInviteDocRef(uid, token)).catch(() => {});
+          rethrowPartnerPermission(error, "Creating your private Partner invite");
         }
         return data;
       }
 
       async function acceptPartnerInvite(uid, rawCode, displayName = "") {
-        const user = await preparePartnerUser(uid), code = cleanCode(rawCode);
-        if (!code) throw new Error("Enter a valid Partner Link code.");
-        let ownProfile, ownInvitePointer;
+        const user = await preparePartnerUser(uid);
+        const parsed = parsePartnerCode(rawCode);
+        const { code, ownerUid, token } = parsed;
+        if (ownerUid === uid) throw new Error("Open this Partner invite on your partner's Hana account, not your own.");
+
+        let ownProfile, ownPointer;
         try {
           ownProfile = await firestoreSdk.getDoc(partnerProfileRef(uid));
-          ownInvitePointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+          ownPointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
         } catch (error) {
           rethrowPartnerPermission(error, "Reading your private Partner Link settings");
         }
         if (ownProfile.exists()) throw new Error("This Hana account is already connected to a partner.");
-        if (ownInvitePointer.exists() && ownInvitePointer.data().code) {
-          const ownInvite = await firestoreSdk.getDoc(partnerInviteRef(ownInvitePointer.data().code));
-          if (ownInvite.exists() && ownInvite.data().status === "open") {
-            throw new Error("Cancel your current Partner Link invite before joining someone else's link.");
+        if (ownPointer.exists() && ownPointer.data()?.token) {
+          try {
+            const ownInvite = await firestoreSdk.getDoc(partnerInviteDocRef(uid, cleanInviteToken(ownPointer.data().token)));
+            if (ownInvite.exists() && ownInvite.data().status === "open") {
+              throw new Error("Cancel your current Partner invite before joining someone else's link.");
+            }
+          } catch (error) {
+            if (!isPartnerPermissionError(error)) throw error;
+            rethrowPartnerPermission(error, "Reading your current Partner invite");
           }
         }
 
         let inviteSnap;
         try {
-          inviteSnap = await firestoreSdk.getDoc(partnerInviteRef(code));
+          inviteSnap = await firestoreSdk.getDoc(partnerInviteDocRef(ownerUid, token));
         } catch (error) {
           rethrowPartnerPermission(error, "Reading the Partner invite");
         }
-        if (!inviteSnap.exists()) throw new Error("That Partner Link code was not found.");
+        if (!inviteSnap.exists()) throw new Error("That Partner invite was not found. Ask your partner to create a new one.");
         let invite = inviteSnap.data();
-        if (invite.ownerUid === uid) throw new Error("Use this code on your partner's Hana account.");
-        if (invite.status === "cancelled") throw new Error("That Partner Link code was cancelled.");
-        if (invite.status === "accepted" && invite.acceptedUid !== uid) throw new Error("That Partner Link code has already been used.");
-        if (!['open','accepted'].includes(invite.status)) throw new Error("That Partner Link code is no longer available.");
-        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) throw new Error("That Partner Link code has expired. Ask for a new one.");
+        if (invite.ownerUid !== ownerUid || invite.token !== token || invite.code !== code) throw new Error("That Partner invite does not match its owner.");
+        if (invite.status === "cancelled") throw new Error("That Partner invite was cancelled.");
+        if (invite.status === "disconnected") throw new Error("That Partner Link was disconnected. Ask for a new invite.");
+        if (invite.status === "accepted" && invite.acceptedUid !== uid) throw new Error("That Partner invite has already been used.");
+        if (!['open', 'accepted'].includes(invite.status)) throw new Error("That Partner invite is no longer available.");
+        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) throw new Error("That Partner invite has expired. Ask for a new one.");
 
-        const linkId = code;
         const partnerName = invite.ownerName || invite.ownerEmail?.split("@")[0] || "Partner";
         const myName = displayName || user.displayName || user.email?.split("@")[0] || "Hana user";
         const now = new Date().toISOString();
 
-        // Step 1: create (or verify) the shared link while the invite is still open.
-        // This avoids a cross-document atomic batch and makes retries recoverable.
-        let linkSnap = null;
-        try {
-          linkSnap = await firestoreSdk.getDoc(partnerLinkRef(linkId));
-        } catch (error) {
-          // A missing link may be denied by member-only read rules, which is fine
-          // before creation. The create attempt below is authoritative.
-          if (!isPartnerPermissionError(error)) throw error;
-        }
-        if (linkSnap?.exists()) {
-          const existing = linkSnap.data();
-          if (!Array.isArray(existing.members) || !existing.members.includes(uid) || !existing.members.includes(invite.ownerUid)) {
-            throw new Error("That Partner Link code is already attached to another connection.");
-          }
-        } else {
-          try {
-            await firestoreSdk.setDoc(partnerLinkRef(linkId), {
-              linkId,
-              members: [invite.ownerUid, uid],
-              status: "active",
-              createdByUid: uid,
-              createdAt: now,
-              memberProfiles: [
-                { uid: invite.ownerUid, name: partnerName },
-                { uid, name: myName }
-              ],
-              schemaVersion: 4
-            });
-          } catch (error) {
-            rethrowPartnerPermission(error, "Creating the shared Partner Link");
-          }
-        }
-
-        // Step 2: mark the invitation accepted. On a retry by the same recipient,
-        // this is already complete and we simply continue.
         if (invite.status === "open") {
           try {
-            await firestoreSdk.updateDoc(partnerInviteRef(code), {
+            await firestoreSdk.updateDoc(inviteSnap.ref, {
               status: "accepted",
               acceptedUid: uid,
               acceptedName: myName,
               acceptedEmail: user.email || "",
               acceptedAt: now,
-              linkId
+              schemaVersion: 7
             });
           } catch (error) {
             rethrowPartnerPermission(error, "Accepting the Partner invite");
           }
-          invite = { ...invite, status: "accepted", acceptedUid: uid, linkId };
+          invite = { ...invite, status: "accepted", acceptedUid: uid, acceptedName: myName, acceptedEmail: user.email || "" };
         }
 
-        // Step 3: save the recipient's private pointer. The owner creates their own
-        // private pointer from the accepted-invite listener, so neither user ever
-        // writes inside the other user's /users/{uid} tree.
         try {
           await firestoreSdk.setDoc(partnerProfileRef(uid), {
-            linkId,
-            partnerUid: invite.ownerUid,
+            linkId: code,
+            ownerUid,
+            inviteToken: token,
+            partnerUid: ownerUid,
             partnerName,
             partnerEmail: invite.ownerEmail || "",
             connectedAt: now,
-            schemaVersion: 4
+            schemaVersion: 7
           });
         } catch (error) {
           rethrowPartnerPermission(error, "Saving Partner Link to your Hana account");
         }
-        return { linkId, partnerUid: invite.ownerUid, partnerName, partnerEmail: invite.ownerEmail || "" };
+        return { linkId: code, partnerUid: ownerUid, partnerName, partnerEmail: invite.ownerEmail || "" };
       }
 
       async function cancelPartnerInvite(uid, rawCode) {
-        await preparePartnerUser(uid); const code=cleanCode(rawCode); if(!code)return;
-        const snap=await firestoreSdk.getDoc(partnerInviteRef(code));
-        if(snap.exists()&&snap.data().ownerUid===uid&&snap.data().status==="open")await firestoreSdk.updateDoc(partnerInviteRef(code),{status:"cancelled",cancelledAt:new Date().toISOString()});
-        await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+        await preparePartnerUser(uid);
+        let parsed = null;
+        try { parsed = parsePartnerCode(rawCode); } catch {}
+        let token = parsed?.ownerUid === uid ? parsed.token : "";
+        if (!token) {
+          const pointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+          token = cleanInviteToken(pointer.data()?.token || "");
+        }
+        if (token) {
+          const ref = partnerInviteDocRef(uid, token);
+          const snap = await firestoreSdk.getDoc(ref).catch(() => null);
+          if (snap?.exists() && snap.data().ownerUid === uid && snap.data().status === "open") {
+            await firestoreSdk.updateDoc(ref, { status: "cancelled", cancelledAt: new Date().toISOString() });
+          }
+        }
+        await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(() => {});
       }
 
       async function disconnectPartner(uid, linkId) {
         await preparePartnerUser(uid);
-        const snap=await firestoreSdk.getDoc(partnerLinkRef(linkId));
-        if(snap.exists()&&Array.isArray(snap.data().members)&&snap.data().members.includes(uid))await firestoreSdk.updateDoc(partnerLinkRef(linkId),{status:"disconnected",disconnectedAt:new Date().toISOString(),disconnectedBy:uid});
-        await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(()=>{});
-        await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+        const { ownerUid, token } = parsePartnerCode(linkId);
+        const ref = partnerInviteDocRef(ownerUid, token);
+        let inviteSnap;
+        try { inviteSnap = await firestoreSdk.getDoc(ref); }
+        catch (error) { rethrowPartnerPermission(error, "Reading the active Partner Link"); }
+        if (inviteSnap.exists()) {
+          const invite = inviteSnap.data();
+          const isMember = uid === ownerUid || uid === invite.acceptedUid;
+          if (isMember && invite.status === "accepted") {
+            try {
+              await firestoreSdk.updateDoc(ref, { status: "disconnected", disconnectedAt: new Date().toISOString(), disconnectedBy: uid });
+            } catch (error) {
+              rethrowPartnerPermission(error, "Disconnecting Partner Link");
+            }
+          }
+        }
+        await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(() => {});
+        if (uid === ownerUid) await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(() => {});
       }
 
       async function diagnosePartner(uid) {
-        const tests=[];
+        const tests = [];
         let user;
         try {
-          user=await preparePartnerUser(uid);
-          tests.push({stage:"Firebase authentication",ok:true,uid:user.uid});
+          user = await preparePartnerUser(uid);
+          tests.push({ stage: "Firebase authentication", ok: true, uid: user.uid });
         } catch (error) {
-          tests.push({stage:"Firebase authentication",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
-          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,tests};
+          tests.push({ stage: "Firebase authentication", ok: false, code: String(error?.code || ""), message: String(error?.message || error) });
+          return { build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, architecture: "user-tree-v7", tests };
         }
         try {
           await firestoreSdk.getDoc(partnerProfileRef(uid));
-          tests.push({stage:"Private Partner settings read",ok:true});
+          tests.push({ stage: "Private Partner settings read", ok: true });
         } catch (error) {
-          tests.push({stage:"Private Partner settings read",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
-          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
+          tests.push({ stage: "Private Partner settings read", ok: false, code: String(error?.code || ""), message: String(error?.message || error) });
+          return { build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, uid: user.uid, architecture: "user-tree-v7", tests };
         }
-        const code=generateInviteCode();
-        const ref=partnerInviteRef(code);
+        const token = generateInviteToken();
+        const ref = partnerInviteDocRef(uid, token);
         try {
-          await firestoreSdk.setDoc(ref,{code,ownerUid:uid,status:"open",createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+60000).toISOString(),diagnostic:true});
-          tests.push({stage:"Partner invite create",ok:true,code});
+          await firestoreSdk.setDoc(ref, { code: makePartnerCode(uid, token), token, ownerUid: uid, status: "open", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60000).toISOString(), diagnostic: true, schemaVersion: 7 });
+          tests.push({ stage: "Private invite create", ok: true });
         } catch (error) {
-          tests.push({stage:"Partner invite create",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
-          return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
+          tests.push({ stage: "Private invite create", ok: false, code: String(error?.code || ""), message: String(error?.message || error) });
+          return { build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, uid: user.uid, architecture: "user-tree-v7", tests };
         }
         try {
-          const snap=await firestoreSdk.getDoc(ref);
-          tests.push({stage:"Partner invite get",ok:Boolean(snap.exists())});
+          const snap = await firestoreSdk.getDoc(ref);
+          tests.push({ stage: "Private invite get", ok: Boolean(snap.exists()) });
         } catch (error) {
-          tests.push({stage:"Partner invite get",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+          tests.push({ stage: "Private invite get", ok: false, code: String(error?.code || ""), message: String(error?.message || error) });
         }
         try {
           await firestoreSdk.deleteDoc(ref);
-          tests.push({stage:"Partner invite cleanup",ok:true});
+          tests.push({ stage: "Private invite cleanup", ok: true });
         } catch (error) {
-          tests.push({stage:"Partner invite cleanup",ok:false,code:String(error?.code||""),message:String(error?.message||error)});
+          tests.push({ stage: "Private invite cleanup", ok: false, code: String(error?.code || ""), message: String(error?.message || error) });
         }
-        return {build:BRIDGE_VERSION,projectId:FIREBASE_PROJECT_ID,online:navigator.onLine,uid:user.uid,tests};
+        return { build: BRIDGE_VERSION, projectId: FIREBASE_PROJECT_ID, online: navigator.onLine, uid: user.uid, architecture: "user-tree-v7", tests };
       }
 
       function watchPartner(uid, callback) {
         assertUser(uid);
-        let profile=null, invitePointer=null, invite=null, link=null;
-        let stopInvite=()=>{}, stopLink=()=>{};
-        const inviteUsable=()=>{
-          if(!invitePointer||invite?.status!=="open")return false;
-          if(!invite?.expiresAt)return true;
-          const expiresAt=new Date(invite.expiresAt).getTime();
-          return !Number.isFinite(expiresAt)||expiresAt>Date.now();
+        let profile = null, ownPointer = null, ownInvite = null, linkInvite = null;
+        let stopOwnInvite = () => {}, stopLinkInvite = () => {};
+
+        const validOpenInvite = () => {
+          if (!ownPointer?.token || !ownInvite || ownInvite.status !== "open") return false;
+          const expiresAt = ownInvite.expiresAt ? new Date(ownInvite.expiresAt).getTime() : 0;
+          return !expiresAt || expiresAt > Date.now();
         };
-        const publish=()=>{
-          if(profile&&link?.status==="active") return callback({connected:true,linkId:profile.linkId,partnerUid:profile.partnerUid,partnerName:profile.partnerName,partnerEmail:profile.partnerEmail});
-          if(inviteUsable()) return callback({connected:false,inviteCode:invitePointer.code,inviteExpiresAt:invite.expiresAt||""});
-          callback({connected:false});
+        const memberOf = invite => Boolean(invite && invite.status === "accepted" && (invite.ownerUid === uid || invite.acceptedUid === uid));
+        const publish = () => {
+          if (profile && memberOf(linkInvite)) {
+            callback({ connected: true, linkId: profile.linkId, partnerUid: profile.partnerUid, partnerName: profile.partnerName, partnerEmail: profile.partnerEmail });
+            return;
+          }
+          if (!profile && validOpenInvite()) {
+            callback({ connected: false, inviteCode: ownInvite.code || ownPointer.code, inviteExpiresAt: ownInvite.expiresAt || "" });
+            return;
+          }
+          callback({ connected: false });
         };
-        const attachLink=linkId=>{
-          stopLink();stopLink=()=>{};link=null;
-          if(!linkId)return publish();
-          stopLink=firestoreSdk.onSnapshot(partnerLinkRef(linkId),async snap=>{
-            link=snap.exists()?snap.data():null;
-            if(profile&&(!link||link.status!=="active")){
-              const endedLinkId=profile.linkId||linkId;
-              await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(()=>{});
-              profile=null;
-              callback({connected:false,disconnected:true,linkId:endedLinkId});
+
+        const attachOwnInvite = pointer => {
+          stopOwnInvite(); stopOwnInvite = () => {}; ownInvite = null;
+          const token = cleanInviteToken(pointer?.token || "");
+          if (!token) return publish();
+          stopOwnInvite = firestoreSdk.onSnapshot(partnerInviteDocRef(uid, token), async snap => {
+            ownInvite = snap.exists() ? snap.data() : null;
+            if (ownInvite?.status === "accepted" && ownInvite.ownerUid === uid && ownInvite.acceptedUid && !profile) {
+              const now = new Date().toISOString();
+              const code = ownInvite.code || makePartnerCode(uid, token);
+              await firestoreSdk.setDoc(partnerProfileRef(uid), {
+                linkId: code,
+                ownerUid: uid,
+                inviteToken: token,
+                partnerUid: ownInvite.acceptedUid,
+                partnerName: ownInvite.acceptedName || ownInvite.acceptedEmail?.split("@")[0] || "Partner",
+                partnerEmail: ownInvite.acceptedEmail || "",
+                connectedAt: now,
+                schemaVersion: 7
+              }).catch(() => {});
+            }
+            const expiresAt = ownInvite?.expiresAt ? new Date(ownInvite.expiresAt).getTime() : 0;
+            if (ownInvite?.status === "open" && expiresAt && expiresAt <= Date.now()) {
+              await firestoreSdk.updateDoc(partnerInviteDocRef(uid, token), { status: "cancelled", cancelledAt: new Date().toISOString() }).catch(() => {});
+              await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(() => {});
+              ownInvite = null;
+            }
+            publish();
+          }, () => publish());
+        };
+
+        const attachLinkInvite = linkId => {
+          stopLinkInvite(); stopLinkInvite = () => {}; linkInvite = null;
+          if (!linkId) return publish();
+          let parsed;
+          try { parsed = parsePartnerCode(linkId); }
+          catch {
+            const ended = profile?.linkId || linkId;
+            firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(() => {});
+            profile = null;
+            callback({ connected: false, disconnected: true, linkId: ended });
+            return;
+          }
+          stopLinkInvite = firestoreSdk.onSnapshot(partnerInviteDocRef(parsed.ownerUid, parsed.token), async snap => {
+            linkInvite = snap.exists() ? snap.data() : null;
+            if (profile && !memberOf(linkInvite)) {
+              const ended = profile.linkId || linkId;
+              await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(() => {});
+              profile = null;
+              callback({ connected: false, disconnected: true, linkId: ended });
               return;
             }
             publish();
-          },()=>publish());
+          }, () => publish());
         };
-        const attachInvite=code=>{stopInvite();stopInvite=()=>{};invite=null;if(!code)return publish();stopInvite=firestoreSdk.onSnapshot(partnerInviteRef(code),async snap=>{
-          invite=snap.exists()?snap.data():null;
-          if(invite?.status==="accepted"&&invite.ownerUid===uid&&!profile){const now=new Date().toISOString();await firestoreSdk.setDoc(partnerProfileRef(uid),{linkId:invite.linkId||code,partnerUid:invite.acceptedUid,partnerName:invite.acceptedName||invite.acceptedEmail?.split("@")[0]||"Partner",partnerEmail:invite.acceptedEmail||"",connectedAt:now});}
-          const expiresAt=invite?.expiresAt?new Date(invite.expiresAt).getTime():0;
-          if(invite?.status==="open"&&invite.ownerUid===uid&&expiresAt&&expiresAt<=Date.now()){
-            await firestoreSdk.updateDoc(partnerInviteRef(code),{status:"cancelled",cancelledAt:new Date().toISOString()}).catch(()=>{});
-            await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
-            invite=null;
-          }
+
+        const stopProfile = firestoreSdk.onSnapshot(partnerProfileRef(uid), snap => {
+          profile = snap.exists() ? snap.data() : null;
+          attachLinkInvite(profile?.linkId || "");
           publish();
-        },()=>publish());};
-        const stopProfile=firestoreSdk.onSnapshot(partnerProfileRef(uid),snap=>{profile=snap.exists()?snap.data():null;attachLink(profile?.linkId||"");publish();},()=>publish());
-        const stopPointer=firestoreSdk.onSnapshot(partnerInviteStateRef(uid),snap=>{invitePointer=snap.exists()?snap.data():null;attachInvite(invitePointer?.code||"");publish();},()=>publish());
-        return ()=>{stopProfile();stopPointer();stopInvite();stopLink();};
+        }, () => publish());
+        const stopPointer = firestoreSdk.onSnapshot(partnerInviteStateRef(uid), snap => {
+          ownPointer = snap.exists() ? snap.data() : null;
+          attachOwnInvite(ownPointer);
+          publish();
+        }, () => publish());
+        return () => { stopProfile(); stopPointer(); stopOwnInvite(); stopLinkInvite(); };
       }
 
       const granularFieldForType = type => type === "list" ? "listItems" : type === "table" ? "tableRows" : "";
