@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.2
+   HANA 🌸 v2.0.3
    Partner Link stability + UI polish
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -218,7 +218,7 @@ const defaultState = {
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false,
     accountPromptSeen: false,
-    lastSeenUpdateVersion: "2.0.2"
+    lastSeenUpdateVersion: "2.0.1"
   },
 
   tasks: [],
@@ -679,21 +679,17 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.2";
+const HANA_APP_VERSION = "2.0.3";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Stability & polish 🌸",
-  intro: "A reliability pass for Partner Link and a cleanup pass across Hana so shared work feels calmer, safer and smoother.",
+  title: "Partner Link permission fix 💕",
+  intro: "A focused Firebase permission fix for creating Partner Link invite codes, with clearer guidance if Hana detects outdated Firestore rules.",
   items: [
-    { icon: "⚡", title: "Safer realtime sync", text: "Partner writes now run in order, failed shared changes retry automatically, and the realtime listener reliably reconnects after account refreshes." },
-    { icon: "💕", title: "Better couple editing", text: "Independent changes from both partners are merged more carefully, and existing shared records update only the fields that actually changed." },
-    { icon: "📶", title: "Reconnect recovery", text: "Shared edits waiting on a connection resume automatically when Hana comes back online." },
-    { icon: "✍️", title: "Typing stays put", text: "Incoming partner updates no longer refresh the page out from under you while you are typing, and Task search is lighter while you type." },
-    { icon: "🔐", title: "Safer sign-out", text: "Hana waits for pending Partner Link edits before signing out, then removes shared entries from the local view until that account signs back in." },
-    { icon: "🌿", title: "Cleaner screens", text: "Page introductions, cards, Settings, Partner Link controls and helper text use tighter, more consistent mobile spacing." },
-    { icon: "🫧", title: "Fresh means fresh", text: "Brand-new Hana installs start with empty Tasks, Notes and Trackers instead of sample entries." },
-    { icon: "🛟", title: "Modal cleanup", text: "Tapping outside a modal now closes it through Hana's normal cleanup path, preventing stale form state from lingering." }
+    { icon: "💌", title: "Partner invite permissions repaired", text: "Invite creation now uses explicit recoverable writes and simplified v2.0.3 Firestore rules." },
+    { icon: "🔐", title: "Rules tightened", text: "Private Hana data remains UID-protected, and only the original owner can delete an entire shared top-level item." },
+    { icon: "🧭", title: "Clearer Firebase errors", text: "If Partner Link permissions are outdated, Hana tells you exactly where to publish the latest rules instead of only showing a generic permission error." },
+    { icon: "🌸", title: "All v2.0.1 fixes retained", text: "Realtime retry, reconnect recovery, safer simultaneous edits, compact UI, list gestures and tracker fixes remain unchanged." }
   ]
 };
 let hanaAccountState = {
@@ -4148,7 +4144,6 @@ function firebaseFriendlyError(error){
   if(code.includes("invalid-email"))return "Enter a valid email address.";
   if(code.includes("too-many-requests"))return "Too many attempts. Try again a little later.";
   if(code.includes("network-request-failed"))return "Hana couldn't reach Firebase. Check your internet connection.";
-  if(code.includes("permission-denied")||String(error?.message||"").toLowerCase().includes("insufficient permissions"))return "Partner Link is blocked by the current Firestore rules. Publish the v2.0.2 Partner Link rules in Firebase, then try again.";
   if(code.includes("popup-closed-by-user"))return "Google sign-in was closed before it finished.";
   return error?.message ? String(error.message).replace(/^Firebase:\s*/i,"") : "Something went wrong with your Hana account.";
 }

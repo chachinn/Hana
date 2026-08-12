@@ -193,6 +193,18 @@
         return Array.from(bytes, value => inviteAlphabet[value % inviteAlphabet.length]).join("");
       };
 
+      const isPartnerPermissionError = error => {
+        const code = String(error?.code || "").toLowerCase();
+        const message = String(error?.message || error || "");
+        return code.includes("permission-denied") || /missing or insufficient permissions/i.test(message);
+      };
+      const rethrowPartnerPermission = (error, stage = "Partner Link") => {
+        if (isPartnerPermissionError(error)) {
+          throw new Error(`${stage} was blocked by Firestore. Publish the v2.0.3 Partner Link firestore.rules in Firebase → Firestore Database → Rules, wait about a minute, then try again.`);
+        }
+        throw error;
+      };
+
       async function createPartnerInvite(uid, displayName = "") {
         const user = assertUser(uid);
         const profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
@@ -216,15 +228,19 @@
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
         const data = { code, ownerUid:uid, ownerName:displayName || user.displayName || user.email?.split("@")[0] || "Hana user", ownerEmail:user.email || "", status:"open", createdAt:createdAt.toISOString(), expiresAt:expiresAt.toISOString() };
-        // Create the public invite first, then save the private pointer separately.
-        // Keeping these as individual writes makes Firestore rule failures easier to
-        // diagnose and avoids an unrelated pointer write rejecting the invite itself.
-        await firestoreSdk.setDoc(partnerInviteRef(code), data);
+        // Keep invite creation as two explicit writes instead of one opaque batch.
+        // This makes Firestore failures recoverable and tells us which permission path failed.
+        try {
+          await firestoreSdk.setDoc(partnerInviteRef(code), data);
+        } catch (error) {
+          rethrowPartnerPermission(error, "Creating the Partner invite");
+        }
         try {
           await firestoreSdk.setDoc(partnerInviteStateRef(uid), { code, updatedAt:createdAt.toISOString() });
         } catch (error) {
-          await firestoreSdk.deleteDoc(partnerInviteRef(code)).catch(()=>{});
-          throw error;
+          // Do not leave an orphaned usable code if the private pointer write fails.
+          await firestoreSdk.deleteDoc(partnerInviteRef(code)).catch(() => {});
+          rethrowPartnerPermission(error, "Saving the invite to your Hana account");
         }
         return data;
       }
@@ -253,7 +269,11 @@
         batch.set(partnerLinkRef(linkId), { linkId, members:[invite.ownerUid,uid], status:"active", createdAt:now, memberProfiles:[{uid:invite.ownerUid,name:partnerName,email:invite.ownerEmail||""},{uid,name:myName,email:user.email||""}] });
         batch.update(partnerInviteRef(code), { status:"accepted", acceptedUid:uid, acceptedName:myName, acceptedEmail:user.email||"", acceptedAt:now, linkId });
         batch.set(partnerProfileRef(uid), { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"", connectedAt:now });
-        await batch.commit();
+        try {
+          await batch.commit();
+        } catch (error) {
+          rethrowPartnerPermission(error, "Connecting the two Hana accounts");
+        }
         return { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"" };
       }
 
