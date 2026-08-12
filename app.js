@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 v2.0.17
+   HANA 🌸 v2.0.18
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -783,18 +783,16 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.17";
+const HANA_APP_VERSION = "2.0.18";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
-  date: "August 12, 2026",
-  title: "Skincare pages, Quick Notes + Partner repair 🌸",
-  intro: "Hana 2.0.17 makes recurring routines faster to edit, Notes quicker to capture, and Partner Link much more tolerant of real iPhone copy/paste behavior.",
+  date: "August 13, 2026",
+  title: "Faster skincare + safer tracker cleanup 🌸",
+  intro: "Hana 2.0.18 makes recurring skincare easier to enter and gives large trackers a much faster, safer cleanup flow.",
   items: [
-    { icon: "🧴", title: "Skincare now edits one day at a time", text: "Move Monday through Sunday with Previous/Next, then copy a full AM/PM day to any combination of other days." },
-    { icon: "✨", title: "More skincare product types", text: "The dropdown now covers cleansing oils, micellar water, acids, retinoids, acne treatments, masks, eye care, pimple patches and more." },
-    { icon: "📝", title: "Quick Note", text: "Capture a simple Apple Notes-style note with just an optional title and body. Detailed note settings remain available separately." },
-    { icon: "💕", title: "Partner invite repair", text: "Hana extracts valid H2 keys from surrounding text, repairs legacy stored invite codes, and stops mislabeling malformed text as an old app version." },
-    { icon: "🛟", title: "Stability cleanup", text: "Partner reconnect logic, duplicate preparation work and update/cache versioning were cleaned up without changing your existing data." }
+    { icon: "🧴", title: "AM and PM are now grouped tables", text: "Skincare products are entered directly under one AM routine table or one PM routine table, with Product Type, Product, and Notes columns." },
+    { icon: "🗑️", title: "Delete multiple tracker rows", text: "Open Bulk edit, check the rows you want gone, then use Delete selected. Hana confirms first, creates a safety copy, and moves every deleted row to Trash." },
+    { icon: "🌸", title: "Built for the real app", text: "The update keeps existing skincare plans and tracker data compatible while preserving Hana local-first safety behavior." }
   ]
 };
 let hanaAccountState = {
@@ -2761,12 +2759,29 @@ function toggleTableBulkMode(tableId){
   if(isTableBulkActive(tableId))resetTableBulkState(table,false);else resetTableBulkState(table,true);
   render();
 }
+function deleteSelectedTableRows(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  const rows=selectedBulkRows(table);if(!rows.length)return showToast("Select at least one row to delete 🌸");
+  if(!confirm(`Move ${rows.length} selected row${rows.length===1?"":"s"} to Trash?`))return;
+  createSafetySnapshot("pre-bulk-row-delete",JSON.stringify(state),{force:true});
+  const rowIds=new Set(rows.map(row=>row.id));
+  rows.forEach(row=>{
+    const linkedReminders=state.reminders.filter(reminder=>reminder.linkedTableId===tableId&&reminder.linkedRowId===row.id);
+    moveToTrash("tableRow",row,{tableId,tableName:table.name,linkedReminders});
+  });
+  table.rows=table.rows.filter(row=>!rowIds.has(row.id));
+  table.updatedAt=Date.now();
+  state.reminders=state.reminders.filter(reminder=>!(reminder.linkedTableId===tableId&&rowIds.has(reminder.linkedRowId)));
+  tableBulkState.selectedRows.clear();
+  showToast(`${rows.length} row${rows.length===1?"":"s"} moved to Trash 🗑️`);
+  render();
+}
 function refreshBulkControls(tableId){
   const table=state.tables.find(item=>item.id===tableId);if(!table||!isTableBulkActive(tableId))return;
   const rows=selectedBulkRows(table),cols=selectedBulkCols(table),allRows=getSortedTableRows(table);
   const summary=document.querySelector(`[data-bulk-summary="${tableId}"]`);
   if(summary)summary.textContent=`${rows.length} row${rows.length===1?"":"s"} · ${cols.length} column${cols.length===1?"":"s"}`;
-  document.querySelectorAll(`[data-bulk-action-for="${tableId}"]`).forEach(button=>button.disabled=!rows.length||!cols.length);
+  document.querySelectorAll(`[data-bulk-action-for="${tableId}"]`).forEach(button=>{const needsColumns=button.dataset.bulkRequires!=="rows";button.disabled=!rows.length||(needsColumns&&!cols.length);});
   const rowAll=document.querySelector(`[data-bulk-select-all-rows="${tableId}"]`);if(rowAll){rowAll.checked=Boolean(allRows.length&&rows.length===allRows.length);rowAll.indeterminate=rows.length>0&&rows.length<allRows.length;}
   const colAll=document.querySelector(`[data-bulk-select-all-cols="${tableId}"]`);if(colAll){colAll.checked=Boolean(table.columns.length&&cols.length===table.columns.length);colAll.indeterminate=cols.length>0&&cols.length<table.columns.length;}
   document.querySelectorAll(`[data-bulk-row="${tableId}"]`).forEach(row=>row.classList.toggle("bulk-selected",tableBulkState.selectedRows.has(row.dataset.rowId)));
@@ -3010,11 +3025,11 @@ function renderSingleTable(table){
   const selectedRows=selectedBulkRows(table),selectedCols=selectedBulkCols(table);
   const rowView=table.rowView||"compact";
   const normalActions=`<div class="tracker-toolbar"><div class="tracker-primary-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add</button></div><details class="tracker-more-actions"><summary>More</summary><div class="tracker-more-menu"><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Bulk edit</button><button class="secondary-button" data-import-table="${table.id}">⇩ Import sheet</button><button class="secondary-button" data-cycle-row-view="${table.id}">Rows: ${rowView[0].toUpperCase()+rowView.slice(1)}</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div></details></div>`;
-  const bulkActions=`<div class="table-bulk-bar"><div><strong data-bulk-summary="${table.id}">${selectedRows.length} row${selectedRows.length===1?"":"s"} · ${selectedCols.length} column${selectedCols.length===1?"":"s"}</strong><small>Select rows and columns, then edit or copy them together.</small></div><div class="table-bulk-actions"><button class="primary-button" data-bulk-edit="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>✎ Edit selected</button><button class="secondary-button" data-bulk-copy="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Copy cells</button><button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button></div></div>`;
+  const bulkActions=`<div class="table-bulk-bar"><div><strong data-bulk-summary="${table.id}">${selectedRows.length} row${selectedRows.length===1?"":"s"} · ${selectedCols.length} column${selectedCols.length===1?"":"s"}</strong><small>Select rows and columns, then edit or copy them together.</small></div><div class="table-bulk-actions"><button class="primary-button" data-bulk-edit="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>✎ Edit selected</button><button class="secondary-button" data-bulk-copy="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Copy cells</button><button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="danger-button" data-bulk-delete-rows="${table.id}" data-bulk-action-for="${table.id}" data-bulk-requires="rows" ${!selectedRows.length?"disabled":""}>Delete selected</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button></div></div>`;
   const head=bulkActive?`<tr><th class="bulk-select-head"><label class="bulk-check-label" title="Select all rows"><input type="checkbox" data-bulk-select-all-rows="${table.id}" ${rows.length&&selectedRows.length===rows.length?"checked":""}/><span>Rows</span></label></th>${table.columns.map(c=>`<th class="bulk-column-head ${bulk.selectedCols.has(c.id)?"bulk-selected":""}" data-bulk-col-head="${table.id}" data-col-id="${c.id}"><label class="bulk-check-label"><input type="checkbox" data-bulk-col-toggle="${c.id}" data-table-id="${table.id}" ${bulk.selectedCols.has(c.id)?"checked":""}/><span>${escapeHTML(c.name)}</span></label></th>`).join("")}<th class="row-actions-head"></th></tr>`:`<tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}<th class="row-actions-head"></th></tr>`;
   const body=rows.length?rows.map(row=>bulkActive?`<tr class="bulk-table-row ${bulk.selectedRows.has(row.id)?"bulk-selected":""}" data-bulk-row="${table.id}" data-row-id="${row.id}"><td class="bulk-row-check"><input type="checkbox" data-bulk-row-toggle="${row.id}" data-table-id="${table.id}" ${bulk.selectedRows.has(row.id)?"checked":""} aria-label="Select row" /></td>${table.columns.map(c=>`<td>${renderBulkPreviewCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`:`<tr class="gesture-table-row tracker-row-${rowView}" data-gesture-row="${row.id}" data-table-id="${table.id}">${table.columns.map(c=>`<td><div class="tracker-cell-content">${renderTableCell(c,row.values[c.id],table.id,row.id)}</div></td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`).join(""):`<tr><td colspan="${table.columns.length+(bulkActive?2:1)}">No rows yet.</td></tr>`;
   const bulkSelectAll=bulkActive?`<div class="bulk-selection-shortcuts"><label><input type="checkbox" data-bulk-select-all-cols="${table.id}" ${selectedCols.length===table.columns.length?"checked":""}/> All columns</label><span>Tip: select one column + all rows to copy a whole column.</span></div>`:"";
-  return `${bulkActive?bulkActions:normalActions}${bulkActive?"":renderInlineTableRow(table)}${bulkSelectAll}<div class="table-wrapper tracker-freeze-wrapper"><table class="smart-table ${bulkActive?"smart-table-bulk":""}"><thead>${head}</thead><tbody>${body}</tbody></table></div><p class="gesture-hint">${bulkActive?"Bulk mode: choose rows and columns. Edit selected saves several rows at once; Copy/Paste uses spreadsheet-style tab-separated cells.":"Double-tap to edit · long-press to copy row · swipe right to edit · ••• for row actions"}</p>`;
+  return `${bulkActive?bulkActions:normalActions}${bulkActive?"":renderInlineTableRow(table)}${bulkSelectAll}<div class="table-wrapper tracker-freeze-wrapper"><table class="smart-table ${bulkActive?"smart-table-bulk":""}"><thead>${head}</thead><tbody>${body}</tbody></table></div><p class="gesture-hint">${bulkActive?"Bulk mode: choose rows and columns. Edit/Copy/Paste works on selected cells; Delete selected removes all checked rows together.":"Double-tap to edit · long-press to copy row · swipe right to edit · ••• for row actions"}</p>`;
 }
 
 const expandedTrackerRows=new Set();
@@ -5588,6 +5603,7 @@ document.addEventListener("click", event => {
   const bulkEdit=event.target.closest("[data-bulk-edit]");if(bulkEdit){openBulkTableEdit(bulkEdit.dataset.bulkEdit);return;}
   const bulkCopy=event.target.closest("[data-bulk-copy]");if(bulkCopy){copyBulkTableCells(bulkCopy.dataset.bulkCopy);return;}
   const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}
+  const bulkDeleteRows=event.target.closest("[data-bulk-delete-rows]");if(bulkDeleteRows){deleteSelectedTableRows(bulkDeleteRows.dataset.bulkDeleteRows);return;}
   const bulkRowTap=event.target.closest("[data-bulk-row]");if(bulkRowTap&&!event.target.closest("input,select,textarea,button,a,label")){const tableId=bulkRowTap.dataset.bulkRow,rowId=bulkRowTap.dataset.rowId,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);const checkbox=bulkRowTap.querySelector(`[data-bulk-row-toggle="${rowId}"]`);const next=!tableBulkState.selectedRows.has(rowId);if(next)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);if(checkbox)checkbox.checked=next;refreshBulkControls(tableId);}return;}
   const removeTableCol=event.target.closest("[data-remove-table-col]");if(removeTableCol){removeTableColumnBuilder(removeTableCol.dataset.removeTableCol);return;}
   const shiftTableCol=event.target.closest("[data-shift-table-col]");if(shiftTableCol){moveTableColumn(shiftTableCol.dataset.colId, shiftTableCol.dataset.shiftTableCol);return;}
