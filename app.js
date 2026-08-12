@@ -301,6 +301,37 @@ const defaultState = {
   dailyCloseHistory: []
 };
 
+function normalizeShareMeta(item = {}) {
+  return {
+    sharedWithPartner: Boolean(item.sharedWithPartner),
+    sharedOwnerUid: String(item.sharedOwnerUid || ""),
+    sharedOwnerName: String(item.sharedOwnerName || ""),
+    sharedLinkId: String(item.sharedLinkId || "")
+  };
+}
+
+function shareMetaFromControl(prefix, old = null) {
+  const currentUid = hanaAccountState?.user?.uid || "";
+  if (old?.sharedWithPartner && old.sharedOwnerUid && old.sharedOwnerUid !== currentUid) return normalizeShareMeta(old);
+  if (old?.sharedWithPartner && (!hanaPartnerState?.connected || !currentUid)) return normalizeShareMeta(old);
+  const input = document.getElementById(`${prefix}SharePartner`);
+  const wantsShare = Boolean(input?.checked && hanaPartnerState?.connected && currentUid);
+  if (!wantsShare) return { sharedWithPartner:false, sharedOwnerUid:"", sharedOwnerName:"", sharedLinkId:"" };
+  return {
+    sharedWithPartner: true,
+    sharedOwnerUid: old?.sharedOwnerUid || currentUid,
+    sharedOwnerName: old?.sharedOwnerName || accountDisplayName(hanaAccountState.user),
+    sharedLinkId: hanaPartnerState.linkId || old?.sharedLinkId || ""
+  };
+}
+
+function sharedBadgeHTML(item, compact = false) {
+  if (!item?.sharedWithPartner) return "";
+  const mine = item.sharedOwnerUid && item.sharedOwnerUid === hanaAccountState?.user?.uid;
+  const label = mine ? `Shared with ${hanaPartnerState.partnerName || "partner"}` : `Shared by ${item.sharedOwnerName || hanaPartnerState.partnerName || "partner"}`;
+  return `<span class="shared-pill ${compact ? "shared-pill-compact" : ""}" title="${escapeHTML(label)}">💕${compact ? "" : ` ${escapeHTML(label)}`}</span>`;
+}
+
 function normalizeTask(task = {}) {
   const recurrence = task.recurrence || (
     task.rolling
@@ -350,7 +381,8 @@ function normalizeTask(task = {}) {
     completedDate: task.completedDate || null,
     completedAt: task.completedAt ? Number(task.completedAt) : null,
     createdAt: Number(task.createdAt || Date.now()),
-    updatedAt: Number(task.updatedAt || task.createdAt || Date.now())
+    updatedAt: Number(task.updatedAt || task.createdAt || Date.now()),
+    ...normalizeShareMeta(task)
   };
 }
 
@@ -369,7 +401,8 @@ function normalizeNote(note = {}) {
     resettable: Boolean(note.resettable),
     pinned: Boolean(note.pinned),
     createdAt: Number(note.createdAt || Date.now()),
-    updatedAt: Number(note.updatedAt || note.createdAt || Date.now())
+    updatedAt: Number(note.updatedAt || note.createdAt || Date.now()),
+    ...normalizeShareMeta(note)
   };
 }
 
@@ -392,7 +425,8 @@ function normalizeReminder(reminder = {}) {
     linkedRowId: reminder.linkedRowId || "",
     linkedEventId: reminder.linkedEventId || "",
     createdAt: Number(reminder.createdAt || Date.now()),
-    updatedAt: Number(reminder.updatedAt || reminder.createdAt || Date.now())
+    updatedAt: Number(reminder.updatedAt || reminder.createdAt || Date.now()),
+    ...normalizeShareMeta(reminder)
   };
 }
 
@@ -420,7 +454,9 @@ function normalizeTable(table = {}) {
     rows: Array.isArray(table.rows)
       ? table.rows.map(row => ({ id: row.id || createId(), values: row.values || {}, createdAt: Number(row.createdAt || Date.now()) }))
       : [],
-    createdAt: Number(table.createdAt || Date.now())
+    createdAt: Number(table.createdAt || Date.now()),
+    updatedAt: Number(table.updatedAt || table.createdAt || Date.now()),
+    ...normalizeShareMeta(table)
   };
 }
 
@@ -449,7 +485,8 @@ function normalizeList(list = {}) {
         })).filter(item => item.title)
       : [],
     createdAt: Number(list.createdAt || Date.now()),
-    updatedAt: Number(list.updatedAt || list.createdAt || Date.now())
+    updatedAt: Number(list.updatedAt || list.createdAt || Date.now()),
+    ...normalizeShareMeta(list)
   };
 }
 
@@ -511,7 +548,8 @@ function normalizeEvent(event = {}) {
     repeatType: ["none","daily","weekly","monthly","yearly"].includes(event.repeatType) ? event.repeatType : "none",
     reminderEnabled: Boolean(event.reminderEnabled),
     createdAt: Number(event.createdAt || Date.now()),
-    updatedAt: Number(event.updatedAt || event.createdAt || Date.now())
+    updatedAt: Number(event.updatedAt || event.createdAt || Date.now()),
+    ...normalizeShareMeta(event)
   };
 }
 
@@ -528,7 +566,8 @@ function normalizeProject(project = {}) {
       id: m.id || createId(), title: String(m.title || "Milestone"), dueDate: m.dueDate || "", completed: Boolean(m.completed)
     })).filter(m=>m.title) : [],
     createdAt: Number(project.createdAt || Date.now()),
-    updatedAt: Number(project.updatedAt || project.createdAt || Date.now())
+    updatedAt: Number(project.updatedAt || project.createdAt || Date.now()),
+    ...normalizeShareMeta(project)
   };
 }
 
@@ -609,7 +648,7 @@ function normalizeState(data = {}) {
   const fallbackSpace = validSpaceIds.has(normalized.settings.defaultSpace) ? normalized.settings.defaultSpace : firstSpaceId;
   normalized.settings.defaultSpace = fallbackSpace;
   [normalized.tasks, normalized.notes, normalized.reminders, normalized.events, normalized.tables, normalized.lists, normalized.pins, normalized.inbox, normalized.futureNotes, normalized.threads, normalized.tinyWins, normalized.projects].forEach(collection => {
-    collection.forEach(item => { if (item && !validSpaceIds.has(item.space)) item.space = fallbackSpace; });
+    collection.forEach(item => { if (item && !validSpaceIds.has(item.space) && !item.sharedWithPartner) item.space = fallbackSpace; });
   });
   if (!validSpaceIds.has(normalized.settings.workFirewallSpaceId)) {
     normalized.settings.workFirewallSpaceId = validSpaceIds.has("work") ? "work" : "";
@@ -627,7 +666,7 @@ function normalizeState(data = {}) {
   if (!normalized.activeProjectId || !normalized.projects.some(p=>p.id===normalized.activeProjectId)) normalized.activeProjectId = normalized.projects[0]?.id || "";
   if (!normalized.activeTableId && normalized.tables[0]) normalized.activeTableId = normalized.tables[0].id;
   if (!normalized.activeListId && normalized.lists[0]) normalized.activeListId = normalized.lists[0].id;
-  if (normalized.currentMode !== "all" && !validSpaceIds.has(normalized.currentMode)) normalized.currentMode = "all";
+  if (normalized.currentMode !== "all" && normalized.currentMode !== "shared" && !validSpaceIds.has(normalized.currentMode)) normalized.currentMode = "all";
   if (!Object.prototype.hasOwnProperty.call(THEME_LABELS, normalized.appearance.theme)) normalized.appearance.theme = "sakura";
   if (!["light", "medium", "strong"].includes(normalized.appearance.overlayStrength)) normalized.appearance.overlayStrength = "medium";
   if (!["top", "center", "bottom"].includes(normalized.appearance.wallpaperPosition)) normalized.appearance.wallpaperPosition = "center";
@@ -686,16 +725,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "1.9.8";
+const HANA_APP_VERSION = "2.0.0";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Cleaner List swipe actions ✨",
-  intro: "A small polish update fixes List swipe controls so Edit and Delete stay hidden until you actually swipe a checklist item.",
+  title: "Partner Link 💕",
+  intro: "Hana can now connect to one partner while keeping everything private by default. Share only the things you choose and edit them together in real time.",
   items: [
-    { icon: "↔️", title: "Clean List swipe actions", text: "Edit and Delete are now completely hidden during normal viewing. Swipe right to reveal Edit or left to reveal Delete." },
-    { icon: "🛡️", title: "Safer actions", text: "A swipe only reveals the action. Hana still waits for you to tap Edit or Delete before doing anything." },
-    { icon: "🌸", title: "Everything else stays intact", text: "Your header Quick Access, About Hana, cloud backup, tracker fixes, and other recent updates remain included." }
+    { icon: "💕", title: "One-person Partner Link", text: "Connect one Hana account to one partner using a private invite code. Linking accounts does not reveal existing private data." },
+    { icon: "⚡", title: "Realtime shared entries", text: "Shared Lists, Tasks, Notes, Trackers, Events, Reminders and Projects update on both accounts through Firestore realtime listeners." },
+    { icon: "🔒", title: "Private by default", text: "Every entry stays Just me unless its owner explicitly turns on Share with Partner. Shared entries are clearly marked with a heart." },
+    { icon: "☑️", title: "Shared checklists", text: "Both partners can add, edit and tick list items. Changes appear on the other device as soon as Firebase delivers them." },
+    { icon: "📒", title: "Shared trackers", text: "Rows, columns, progress and statuses can be edited by either partner and stay synchronized." }
   ]
 };
 let hanaAccountState = {
@@ -707,6 +748,25 @@ let hanaAccountState = {
 let authActionPending = false;
 let firebaseAuthListenerInstalled = false;
 let cloudOperationBusy = false;
+let hanaPartnerState = {
+  status: "idle",
+  connected: false,
+  linkId: "",
+  partnerUid: "",
+  partnerName: "",
+  partnerEmail: "",
+  inviteCode: "",
+  inviteExpiresAt: "",
+  error: ""
+};
+let partnerWatchStop = null;
+let sharedWatchStop = null;
+let partnerSyncTimer = null;
+let applyingRemoteShare = false;
+let partnerSharedInitialized = false;
+let lastSharedEntityMap = new Map();
+const SHARE_COLLECTIONS = { task:"tasks", note:"notes", list:"lists", table:"tables", event:"events", reminder:"reminders", project:"projects" };
+
 
 function daysBetweenISO(from, to) {
   if (!from || !to) return 0;
@@ -737,6 +797,7 @@ function saveState(options = {}) {
     lastSavedStateJSON = json;
     storageErrorShown = false;
     if (options.snapshot !== false && !safetyRecoveryPending) queueSafetySnapshot(json);
+    if (!applyingRemoteShare) schedulePartnerEntitySync();
     return true;
   } catch (error) {
     console.error("Unable to save Hana data locally:", error);
@@ -809,7 +870,7 @@ function refreshSpaceSelects() {
 function renderModeBar() {
   const bar = document.getElementById("modeBar");
   if (!bar) return;
-  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}`;
+  bar.innerHTML = `<button class="mode-button ${state.currentMode==="all"?"active":""}" data-mode="all">🌸 All</button>${hanaPartnerState.connected?`<button class="mode-button ${state.currentMode==="shared"?"active":""}" data-mode="shared">💕 Shared</button>`:""}${state.spaces.map(space=>`<button class="mode-button ${state.currentMode===space.id?"active":""}" data-mode="${escapeHTML(space.id)}">${escapeHTML(space.emoji)} ${escapeHTML(space.name)}</button>`).join("")}`;
 }
 function statusLabel(status) { return ({ todo:"To Do", doing:"Doing", waiting:"Waiting", blocked:"Blocked", done:"Done" })[status] || status; }
 
@@ -922,7 +983,8 @@ function firewallIsActive() {
 
 function filterByMode(items, { respectFirewall = true } = {}) {
   let result = items;
-  if (state.currentMode !== "all") result = result.filter(item => item.space === state.currentMode);
+  if (state.currentMode === "shared") result = result.filter(item => item.sharedWithPartner);
+  else if (state.currentMode !== "all") result = result.filter(item => item.space === state.currentMode);
   if (respectFirewall && firewallIsActive()) result = result.filter(item => item.space !== state.settings.workFirewallSpaceId);
   return result;
 }
@@ -1054,7 +1116,7 @@ function emptyTrash() {
   render();
 }
 
-function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); }
+function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); refreshModalShareControl(id); }
 function closeModal(id) { document.getElementById(id)?.classList.add("hidden"); if(id==="tableRowModal")resetTableRowModal(); }
 
 function resetDailyFocusIfNeeded() {
@@ -1381,7 +1443,7 @@ function renderToday() {
     ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip compact-life-flow">${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me</strong></button>` : ""}${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong></button>` : ""}</section>` : ""}
     ${futureDue.length ? `<section class="future-morning-card compact-future-card"><p class="eyebrow">FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Make task</button><button data-archive-future-note="${futureDue[0].id}">Archive</button></div></section>` : ""}
     <section class="section focus-section-simple"><div class="section-header"><div><p class="eyebrow">TODAY</p><h2>Focus Bouquet</h2></div><button data-goto="bloom">View all</button></div><div class="bloom-count">${focusTasks.length} in focus · ${completedToday} completed</div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div><div class="focus-grid">${focusTasks.length ? focusTasks.map(t => focusTaskRow(t, true)).join("") : `<div class="empty-state compact-empty"><div class="empty-icon">💐</div><h3>Your bouquet is empty</h3><p>Add only what matters today.</p><button class="secondary-button" data-goto="tasks">Choose tasks</button></div>`}</div></section>
-    <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong><small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
+    <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong>${sharedBadgeHTML(task,true)}<small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
     <section class="section compact-more-section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong></button></div></section>
   `;
 }
@@ -1483,7 +1545,7 @@ function taskCard(task) {
     <div class="task-item gesture-task-item ${task.completed ? "completed" : ""}" data-gesture-task="${task.id}">
       <button class="task-checkbox ${task.completed ? "checked" : ""}" data-toggle-task="${task.id}" aria-label="Toggle task">${task.completed ? "✓" : ""}</button>
       <div class="task-main" data-edit-task="${task.id}">
-        <div class="task-title">${escapeHTML(task.title)}</div>
+        <div class="task-title">${escapeHTML(task.title)} ${sharedBadgeHTML(task,true)}</div>
         <div class="task-meta task-meta-primary">
           <span class="badge ${modeBadge(task.space)}">${modeLabel(task.space)}</span>
           ${task.project ? `<span>🌷 ${escapeHTML(task.project)}</span>` : ""}
@@ -1652,6 +1714,7 @@ function saveTask() {
     followUpAfterCompletion: document.getElementById("taskFollowUpAfterCompletion").checked,
     reminderEnabled: document.getElementById("taskReminderEnabled").checked,
     reminderChain: document.getElementById("taskReminderChain").checked,
+    ...shareMetaFromControl("task", old),
     recurrence: {
       type: document.getElementById("taskRecurrenceType").value,
       interval: Number(document.getElementById("taskRecurrenceInterval").value || 1),
@@ -1811,7 +1874,7 @@ function noteTypeIcon(type) { return type === "meeting" ? "👥" : type === "che
 function noteCard(note) {
   const done = note.checklist.filter(i=>i.completed).length;
   return `<article class="note-card ${note.pinned ? "pinned" : ""}">
-    <h3>${note.pinned ? "📌 " : ""}${noteTypeIcon(note.type)} ${escapeHTML(note.title)}</h3>
+    <h3>${note.pinned ? "📌 " : ""}${noteTypeIcon(note.type)} ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3>
     <div class="note-preview">${escapeHTML(note.content).slice(0,320)}</div>
     ${note.checklist.length ? `<div class="note-checklist">${note.checklist.slice(0,5).map(item=>`<button class="note-check-row ${item.completed?"done":""}" data-toggle-note-check="${note.id}" data-note-check-id="${item.id}"><span class="note-check-box">${item.completed?"✓":""}</span><span>${escapeHTML(item.title)}</span></button>`).join("")}</div><div class="task-meta" style="margin-top:7px;">${done}/${note.checklist.length} complete</div>` : ""}
     <div class="note-footer"><span>${modeLabel(note.space)}</span><span>${note.tags.map(t=>`#${escapeHTML(t)}`).join(" ")}</span></div>
@@ -1867,7 +1930,7 @@ function saveNote() {
   if (!title && !content) return showToast("Write something first 🌸");
   const oldChecks=old?.checklist||[];
   const checks=parseLines(document.getElementById("noteChecklist").value).map(title=>{ const e=oldChecks.find(i=>i.title===title); return e?{...e}:{id:createId(),title,completed:false}; });
-  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||"Untitled note",type:document.getElementById("noteType").value,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||"Untitled note",type:document.getElementById("noteType").value,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old) state.notes[state.notes.findIndex(n=>n.id===id)]=note; else state.notes.push(note);
   ensureProjectRecord(note.project, note.space);
   closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
@@ -1931,7 +1994,7 @@ function updateReminderConditionalFields(){document.getElementById("reminderRepe
 function saveReminder() {
   const id=document.getElementById("reminderEditId").value; const old=id?state.reminders.find(r=>r.id===id):null; const title=document.getElementById("reminderTitle").value.trim(); const date=document.getElementById("reminderDate").value;
   if(!title)return showToast("What should Hana remind you about?"); if(!date)return showToast("Choose a reminder date 🌸");
-  const r=normalizeReminder({...(old||{}),id:id||createId(),title,space:document.getElementById("reminderSpace").value,date,time:document.getElementById("reminderTime").value||"09:00",repeatType:document.getElementById("reminderRepeat").value,repeatInterval:Number(document.getElementById("reminderRepeatInterval").value||1),chainEnabled:document.getElementById("reminderChainEnabled").checked,notified:false,chainNotified:[],completed:false,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const r=normalizeReminder({...(old||{}),id:id||createId(),title,space:document.getElementById("reminderSpace").value,date,time:document.getElementById("reminderTime").value||"09:00",repeatType:document.getElementById("reminderRepeat").value,repeatInterval:Number(document.getElementById("reminderRepeatInterval").value||1),chainEnabled:document.getElementById("reminderChainEnabled").checked,notified:false,chainNotified:[],completed:false,...shareMetaFromControl("reminder",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old)state.reminders[state.reminders.findIndex(x=>x.id===id)]=r;else state.reminders.push(r);closeModal("reminderModal");showToast(old?"Reminder updated 🔔":"Reminder planted 🔔");render();
 }
 
@@ -1970,7 +2033,7 @@ function renderLists() {
       <button data-list-template="simple">☑️ Blank Checklist</button>
     </div>
     <div class="table-tabs">
-      ${lists.map(list => `<button class="table-tab ${list.id===state.activeListId?"active":""}" data-select-list="${list.id}">${escapeHTML(list.icon)} ${escapeHTML(list.name)}</button>`).join("")}
+      ${lists.map(list => `<button class="table-tab ${list.id===state.activeListId?"active":""}" data-select-list="${list.id}">${escapeHTML(list.icon)} ${escapeHTML(list.name)}${list.sharedWithPartner?" 💕":""}</button>`).join("")}
       <button class="table-tab" data-open-list>+ New list</button>
     </div>
     ${active ? renderSingleList(active) : emptyState("☑️", "No checklists yet", "Create a grocery list, shopping list, packing list, or any checklist you want.", "Create checklist", "open-list")}
@@ -1986,7 +2049,7 @@ function renderSingleList(list) {
       <div class="checklist-heading">
         <div>
           <span class="badge ${modeBadge(list.space)}">${modeLabel(list.space)}</span>
-          <h2>${escapeHTML(list.icon)} ${escapeHTML(list.name)}</h2>
+          <h2>${escapeHTML(list.icon)} ${escapeHTML(list.name)} ${sharedBadgeHTML(list,true)}</h2>
           <p>${completed}/${total} checked</p>
         </div>
         <button class="mini-icon-button list-edit-button" data-edit-list="${list.id}" title="Edit list">✎</button>
@@ -2082,6 +2145,7 @@ function saveList() {
     quantityLabel: document.getElementById("listQuantityLabel").value.trim() || "Quantity",
     detailLabel: document.getElementById("listDetailLabel").value.trim() || "Detail",
     items: old?.items || [],
+    ...shareMetaFromControl("list", old),
     createdAt: old?.createdAt || Date.now(),
     updatedAt: Date.now()
   });
@@ -2228,7 +2292,7 @@ function renderTables(){
   const tables=filterByMode(state.tables); if(!tables.find(t=>t.id===state.activeTableId))state.activeTableId=tables[0]?.id||"";
   const table=tables.find(t=>t.id===state.activeTableId);
   container.innerHTML=`<div class="page-heading tracker-page-heading"><p class="eyebrow">TRACKERS & LIVING TABLES</p><h1>Trackers</h1><p>Track progress, status, due dates, remarks, money, or anything structured. Add or remove rows and columns whenever the tracker changes.</p></div>
-    <div class="table-tabs">${tables.map(t=>`<button class="table-tab ${t.id===state.activeTableId?"active":""}" data-select-table="${t.id}">${escapeHTML(t.name)}</button>`).join("")}<button class="table-tab" data-open="tableModal">+ New tracker</button></div>
+    <div class="table-tabs">${tables.map(t=>`<button class="table-tab ${t.id===state.activeTableId?"active":""}" data-select-table="${t.id}">${escapeHTML(t.name)}${t.sharedWithPartner?" 💕":""}</button>`).join("")}<button class="table-tab" data-open="tableModal">+ New tracker</button></div>
     ${table?renderSingleTable(table):emptyState("📋","No trackers yet","Start with the standard Progress Tracker or build your own columns.","Create tracker","open-table")}`;
 }
 
@@ -2412,7 +2476,7 @@ function applyTableTemplate(templateId,force=false){const template=getTemplateDe
 function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";document.getElementById("tableRowView").value="compact";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
 function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";document.getElementById("tableRowView").value=t.rowView||"compact";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
-function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],createdAt:old?.createdAt||Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
+function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],...shareMetaFromControl("table",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
 function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
 let tableRowSaveLocked=false;
@@ -2716,7 +2780,7 @@ function saveEvent(){
   const title=document.getElementById("eventTitle").value.trim(); if(!title)return showToast("Give the event a name 🌸");
   const start=document.getElementById("eventStart").value||"09:00", end=document.getElementById("eventEnd").value||addMinutesToTime(start,60);
   if(minutesFromTime(end)<=minutesFromTime(start))return showToast("End time needs to be after start time.");
-  const item=normalizeEvent({...(old||{}),id:id||createId(),title,space:document.getElementById("eventSpace").value,date:document.getElementById("eventDate").value,startTime:start,endTime:end,location:document.getElementById("eventLocation").value.trim(),notes:document.getElementById("eventNotes").value.trim(),repeatType:document.getElementById("eventRepeat").value,reminderEnabled:document.getElementById("eventReminder").checked,createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const item=normalizeEvent({...(old||{}),id:id||createId(),title,space:document.getElementById("eventSpace").value,date:document.getElementById("eventDate").value,startTime:start,endTime:end,location:document.getElementById("eventLocation").value.trim(),notes:document.getElementById("eventNotes").value.trim(),repeatType:document.getElementById("eventRepeat").value,reminderEnabled:document.getElementById("eventReminder").checked,...shareMetaFromControl("event",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old)state.events[state.events.findIndex(e=>e.id===id)]=item;else state.events.push(item);
   syncEventReminder(item); closeModal("eventModal"); showToast(old?"Event updated 📅":"Event added 📅"); render();
 }
@@ -2783,7 +2847,7 @@ function openProjectModal(projectId=""){
 }
 function saveProject(){
   const id=document.getElementById("projectEditId").value,old=state.projects.find(p=>p.id===id),name=document.getElementById("projectName").value.trim();if(!name)return showToast("Give the project a name 🌷");if(state.projects.some(p=>p.id!==id&&p.name.toLowerCase()===name.toLowerCase()))return showToast("A project already uses that name.");
-  const p=normalizeProject({...(old||{}),id:id||createId(),emoji:document.getElementById("projectEmoji").value||"🌷",name,space:document.getElementById("projectSpace").value,dueDate:document.getElementById("projectDue").value,status:document.getElementById("projectStatus").value,description:document.getElementById("projectDescription").value.trim(),milestones:old?.milestones||[],createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const p=normalizeProject({...(old||{}),id:id||createId(),emoji:document.getElementById("projectEmoji").value||"🌷",name,space:document.getElementById("projectSpace").value,dueDate:document.getElementById("projectDue").value,status:document.getElementById("projectStatus").value,description:document.getElementById("projectDescription").value.trim(),milestones:old?.milestones||[],...shareMetaFromControl("project",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old&&old.name!==name){state.tasks.forEach(t=>{if(t.project===old.name)t.project=name});state.notes.forEach(n=>{if(n.project===old.name)n.project=name});state.tables.forEach(t=>{if(t.project===old.name)t.project=name});}
   if(old)state.projects[state.projects.findIndex(x=>x.id===id)]=p;else state.projects.push(p);state.activeProjectId=p.id;closeModal("projectModal");showToast(old?"Project updated 🌷":"Project planted 🌱");render();
 }
@@ -2796,7 +2860,7 @@ function renderProjectDetail(p){
   const ts=projectTasks(p),open=ts.filter(t=>!t.completed),waiting=open.filter(t=>t.status==="waiting"),notes=state.notes.filter(n=>n.project===p.name),tables=state.tables.filter(t=>t.project===p.name),progress=projectProgress(p),links=ts.filter(t=>t.link),activity=[...ts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)).slice(0,8);
   return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📒</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(t.link)}" target="_blank" rel="noopener"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
 }
-function renderProjects(){const c=document.getElementById("pageContent");const projects=filterByMode(state.projects,{respectFirewall:false});if(!projects.some(p=>p.id===state.activeProjectId))state.activeProjectId=projects[0]?.id||"";const active=projects.find(p=>p.id===state.activeProjectId);c.innerHTML=`<div class="page-heading projects-heading"><div><p class="eyebrow">FROM TASK LIST TO REAL PROJECT</p><h1>Projects</h1><p>Milestones, tasks, waiting items, notes and trackers stay together.</p></div><button class="primary-button" data-new-project>+ Project</button></div>${projects.length?`<div class="project-tabs">${projects.map(p=>`<button class="${p.id===state.activeProjectId?"active":""}" data-select-project="${p.id}">${escapeHTML(p.emoji)} ${escapeHTML(p.name)}</button>`).join("")}</div>${active?renderProjectDetail(active):""}`:emptyState("🌷","No projects yet","Create a project when a goal needs more than a single task.","Create project","open-project")}`;}
+function renderProjects(){const c=document.getElementById("pageContent");const projects=filterByMode(state.projects,{respectFirewall:false});if(!projects.some(p=>p.id===state.activeProjectId))state.activeProjectId=projects[0]?.id||"";const active=projects.find(p=>p.id===state.activeProjectId);c.innerHTML=`<div class="page-heading projects-heading"><div><p class="eyebrow">FROM TASK LIST TO REAL PROJECT</p><h1>Projects</h1><p>Milestones, tasks, waiting items, notes and trackers stay together.</p></div><button class="primary-button" data-new-project>+ Project</button></div>${projects.length?`<div class="project-tabs">${projects.map(p=>`<button class="${p.id===state.activeProjectId?"active":""}" data-select-project="${p.id}">${escapeHTML(p.emoji)} ${escapeHTML(p.name)}${p.sharedWithPartner?" 💕":""}</button>`).join("")}</div>${active?renderProjectDetail(active):""}`:emptyState("🌷","No projects yet","Create a project when a goal needs more than a single task.","Create project","open-project")}`;}
 
 function bloomStage(progress,activity=0){if(progress>=100)return{icon:"🌸",label:"Blooming"};if(progress>=60||activity>=8)return{icon:"🌺",label:"Growing strong"};if(progress>=25||activity>=3)return{icon:"🌷",label:"Growing"};if(progress>0||activity>0)return{icon:"🌿",label:"Taking root"};return{icon:"🌱",label:"Ready to nurture"};}
 function recentCompletedForSpace(spaceId,days=30){const cutoff=addDaysISO(todayISO(),-days);return state.tasks.filter(t=>t.space===spaceId&&t.completedDate&&t.completedDate>=cutoff).length+state.tinyWins.filter(w=>w.space===spaceId&&w.date>=cutoff).length;}
@@ -3603,6 +3667,285 @@ function renderTrash() {
 
 
 
+/* ================= PARTNER LINK / REALTIME SHARING ================= */
+
+function shareControlConfig(prefix){
+  return {
+    input: document.getElementById(`${prefix}SharePartner`),
+    wrap: document.getElementById(`${prefix}ShareWrap`),
+    help: document.getElementById(`${prefix}ShareHelp`)
+  };
+}
+
+function refreshShareControl(prefix, item = null){
+  const {input,wrap,help}=shareControlConfig(prefix); if(!input||!wrap)return;
+  const user=hanaAccountState.user;
+  const connected=Boolean(user&&hanaPartnerState.connected);
+  const received=Boolean(item?.sharedWithPartner&&item.sharedOwnerUid&&user?.uid&&item.sharedOwnerUid!==user.uid);
+  input.checked=Boolean(item?.sharedWithPartner);
+  input.disabled=!connected||received;
+  wrap.classList.toggle("partner-share-disabled",!connected);
+  wrap.classList.toggle("partner-share-received",received);
+  const partner=hanaPartnerState.partnerName||"your partner";
+  const label=wrap.querySelector("[data-partner-share-label]");
+  if(label)label.textContent=connected?`Share with ${partner}`:"Share with Partner";
+  if(help){
+    if(received)help.textContent=`Shared by ${item.sharedOwnerName||partner}. You can edit it together; only the owner can make it private.`;
+    else if(connected)help.textContent=`Private by default. Turn this on to make this entry appear in ${partner}'s Hana in real time.`;
+    else if(user)help.textContent="Connect one person in Settings → Partner Link to share this entry.";
+    else help.textContent="Sign in to Hana first, then connect a partner in Settings.";
+  }
+}
+
+function refreshModalShareControl(modalId){
+  const configs={
+    taskModal:["task","tasks","taskEditId"], noteModal:["note","notes","noteEditId"], reminderModal:["reminder","reminders","reminderEditId"],
+    tableModal:["table","tables","tableEditId"], listModal:["list","lists","listEditId"], eventModal:["event","events","eventEditId"], projectModal:["project","projects","projectEditId"]
+  };
+  const config=configs[modalId]; if(!config)return;
+  const [prefix,collection,idField]=config, id=document.getElementById(idField)?.value||"";
+  const item=id?state[collection]?.find(entry=>entry.id===id):null;
+  refreshShareControl(prefix,item||null);
+}
+
+function sharedEntitySnapshot(){
+  const map=new Map();
+  Object.entries(SHARE_COLLECTIONS).forEach(([type,collection])=>{
+    (state[collection]||[]).forEach(item=>{
+      if(!item?.sharedWithPartner||!item.id)return;
+      if(hanaPartnerState.linkId&&item.sharedLinkId&&item.sharedLinkId!==hanaPartnerState.linkId)return;
+      const clean=clone(item);
+      clean.sharedWithPartner=true;
+      clean.sharedLinkId=hanaPartnerState.linkId||clean.sharedLinkId||"";
+      const key=`${type}__${item.id}`;
+      map.set(key,{key,type,itemId:item.id,data:clean,serialized:JSON.stringify(clean)});
+    });
+  });
+  return map;
+}
+
+function normalizeSharedEntity(type,data){
+  const source={...(data||{}),sharedWithPartner:true,sharedLinkId:hanaPartnerState.linkId||data?.sharedLinkId||""};
+  if(type==="task")return normalizeTask(source);
+  if(type==="note")return normalizeNote(source);
+  if(type==="list")return normalizeList(source);
+  if(type==="table")return normalizeTable(source);
+  if(type==="event")return normalizeEvent(source);
+  if(type==="reminder")return normalizeReminder(source);
+  if(type==="project")return normalizeProject(source);
+  return null;
+}
+
+function captureLiveSharedEntities(){
+  if(!hanaPartnerState.connected||!hanaPartnerState.linkId)return null;
+  const preserved={};
+  Object.values(SHARE_COLLECTIONS).forEach(collection=>{
+    preserved[collection]=clone((state[collection]||[]).filter(item=>item?.sharedWithPartner&&item.sharedLinkId===hanaPartnerState.linkId));
+  });
+  return preserved;
+}
+
+function normalizeStatePreservingLiveShared(rawState){
+  const preserved=captureLiveSharedEntities();
+  const next=normalizeState(rawState);
+  if(!preserved)return next;
+  Object.values(SHARE_COLLECTIONS).forEach(collection=>{
+    const live=preserved[collection]||[];
+    const liveIds=new Set(live.map(item=>item.id));
+    // While connected, Firestore is the source of truth for shared entries.
+    // Backups restore private data only so an old backup cannot overwrite/delete
+    // a partner's current realtime copy.
+    const privateEntries=(next[collection]||[]).filter(item=>!item?.sharedWithPartner&&!liveIds.has(item.id));
+    next[collection]=[...privateEntries,...live];
+  });
+  return next;
+}
+
+function removeSharedLocalEntity(type,itemId){
+  const collection=SHARE_COLLECTIONS[type]; if(!collection)return false;
+  const before=state[collection].length;
+  state[collection]=state[collection].filter(item=>item.id!==itemId);
+  if(type==="list"&&state.activeListId===itemId)state.activeListId=state.lists[0]?.id||"";
+  if(type==="table"&&state.activeTableId===itemId)state.activeTableId=state.tables[0]?.id||"";
+  if(type==="project"&&state.activeProjectId===itemId)state.activeProjectId=state.projects[0]?.id||"";
+  return before!==state[collection].length;
+}
+
+function applyRemoteSharedSnapshot(payload={docs:[],initial:false}){
+  if(!hanaPartnerState.connected)return;
+  const docs=Array.isArray(payload)?payload:(payload.docs||[]);
+  const initial=Array.isArray(payload)?!partnerSharedInitialized:Boolean(payload.initial);
+  const remote=new Map();
+  docs.forEach(doc=>{ if(doc?.key&&doc?.type&&doc?.data)remote.set(doc.key,doc); });
+  let changed=false;
+  applyingRemoteShare=true;
+  try{
+    remote.forEach(entry=>{
+      const collection=SHARE_COLLECTIONS[entry.type]; if(!collection)return;
+      const normalized=normalizeSharedEntity(entry.type,{...entry.data,sharedOwnerUid:entry.ownerUid||entry.data.sharedOwnerUid,sharedOwnerName:entry.ownerName||entry.data.sharedOwnerName});
+      if(!normalized)return;
+      const index=state[collection].findIndex(item=>item.id===entry.itemId);
+      if(index<0){state[collection].push(normalized);changed=true;}
+      else{
+        const before=JSON.stringify(state[collection][index]);
+        const after=JSON.stringify(normalized);
+        if(before!==after){state[collection][index]=normalized;changed=true;}
+      }
+      lastSharedEntityMap.set(entry.key,JSON.stringify(normalized));
+    });
+    Object.entries(SHARE_COLLECTIONS).forEach(([type,collection])=>{
+      [...(state[collection]||[])].forEach(item=>{
+        if(!item?.sharedWithPartner||item.sharedLinkId!==hanaPartnerState.linkId)return;
+        const key=`${type}__${item.id}`;
+        if(remote.has(key))return;
+        if(initial&&item.sharedOwnerUid===hanaAccountState.user?.uid){lastSharedEntityMap.delete(key);return;}
+        if(removeSharedLocalEntity(type,item.id)){lastSharedEntityMap.delete(key);changed=true;}
+      });
+    });
+    if(changed){lastSavedStateJSON="";saveState({snapshot:false});render();}
+  } finally {applyingRemoteShare=false;}
+  partnerSharedInitialized=true;
+  schedulePartnerEntitySync();
+}
+
+function stopSharedRealtime(){
+  try{sharedWatchStop?.();}catch{}
+  sharedWatchStop=null;lastSharedEntityMap=new Map();partnerSharedInitialized=false;
+  if(partnerSyncTimer){clearTimeout(partnerSyncTimer);partnerSyncTimer=null;}
+}
+
+async function cleanupLocalAfterPartnerDisconnect(linkId,userUid){
+  if(!linkId||!userUid)return false;
+  let changed=false;
+  await createSafetySnapshot("pre-partner-disconnect",JSON.stringify(state),{force:true});
+  applyingRemoteShare=true;
+  try{
+    Object.entries(SHARE_COLLECTIONS).forEach(([type,collection])=>{
+      const source=Array.isArray(state[collection])?state[collection]:[];
+      const next=[];
+      source.forEach(item=>{
+        if(!item?.sharedWithPartner||item.sharedLinkId!==linkId){next.push(item);return;}
+        const mine=!item.sharedOwnerUid||item.sharedOwnerUid===userUid;
+        if(mine){
+          next.push({...item,sharedWithPartner:false,sharedOwnerUid:"",sharedOwnerName:"",sharedLinkId:"",updatedAt:Date.now()});
+        }
+        changed=true;
+      });
+      state[collection]=next;
+    });
+    if(state.activeListId&&!state.lists.some(item=>item.id===state.activeListId))state.activeListId=state.lists[0]?.id||"";
+    if(state.activeTableId&&!state.tables.some(item=>item.id===state.activeTableId))state.activeTableId=state.tables[0]?.id||"";
+    if(state.activeProjectId&&!state.projects.some(item=>item.id===state.activeProjectId))state.activeProjectId=state.projects[0]?.id||"";
+    if(changed){lastSavedStateJSON="";saveState({snapshot:false});}
+  }finally{applyingRemoteShare=false;}
+  if(changed)await createSafetySnapshot("post-partner-disconnect",JSON.stringify(state),{force:true});
+  return changed;
+}
+
+async function startSharedRealtime(){
+  stopSharedRealtime();
+  if(!hanaPartnerState.connected||!hanaPartnerState.linkId||!hanaAccountState.user)return;
+  try{
+    const fb=await firebaseReady();
+    sharedWatchStop=fb.watchSharedItems(hanaPartnerState.linkId,docs=>applyRemoteSharedSnapshot(docs));
+  }catch(error){console.error("Unable to start Partner Link sharing:",error);}
+}
+
+function schedulePartnerEntitySync(){
+  if(applyingRemoteShare||!hanaPartnerState.connected||!hanaAccountState.user||!hanaPartnerState.linkId)return;
+  clearTimeout(partnerSyncTimer);
+  partnerSyncTimer=setTimeout(syncPartnerEntitiesNow,140);
+}
+
+async function syncPartnerEntitiesNow(){
+  if(applyingRemoteShare||!hanaPartnerState.connected||!hanaAccountState.user)return;
+  const current=sharedEntitySnapshot();
+  const changes=[];
+  current.forEach((entry,key)=>{
+    const previousSerialized=lastSharedEntityMap.get(key);
+    if(previousSerialized!==entry.serialized){
+      let previousData=null;
+      if(previousSerialized){try{previousData=JSON.parse(previousSerialized);}catch{}}
+      changes.push({action:"set",...entry,previousData});
+    }
+  });
+  lastSharedEntityMap.forEach((serialized,key)=>{if(!current.has(key))changes.push({action:"delete",key});});
+  if(!changes.length)return;
+  try{
+    const fb=await firebaseReady();
+    await fb.syncSharedChanges(hanaPartnerState.linkId,changes.map(change=>change.action==="delete"?change:{...change,ownerUid:change.data.sharedOwnerUid||hanaAccountState.user.uid,ownerName:change.data.sharedOwnerName||accountDisplayName(hanaAccountState.user),updatedByUid:hanaAccountState.user.uid,updatedByName:accountDisplayName(hanaAccountState.user)}));
+    current.forEach((entry,key)=>lastSharedEntityMap.set(key,entry.serialized));
+    changes.filter(change=>change.action==="delete").forEach(change=>lastSharedEntityMap.delete(change.key));
+  }catch(error){console.warn("Partner Link sync will retry:",error);}
+}
+
+function partnerStatusText(){
+  if(hanaPartnerState.connected)return `Connected to ${hanaPartnerState.partnerName||"your partner"}`;
+  if(hanaPartnerState.inviteCode)return "Waiting for your partner to join";
+  return "Not connected";
+}
+
+function renderPartnerSettingsCard(){
+  const user=hanaAccountState.user;
+  if(!user)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Share only what you choose</h3><p>Sign in to Hana first. Partner Link connects one person and keeps everything private by default.</p></div></div><button class="secondary-button" type="button" data-auth-email-mode="signin">Sign in to use Partner Link</button></div></section>`;
+  if(hanaPartnerState.status==="loading")return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><h3>Checking your Partner Link…</h3><p>Your private Hana data stays local while this loads.</p></div></section>`;
+  if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2><span class="realtime-badge"><i></i>Realtime</span></div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
+  if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Send this one-time code. Hana will connect automatically when they accept it.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy invite code"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy</small></button><p class="field-help">Invite codes expire after 7 days. Only one partner can be connected.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
+  return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small></div></section>`;
+}
+
+async function startPartnerForUser(user){
+  try{partnerWatchStop?.();}catch{};partnerWatchStop=null;stopSharedRealtime();
+  if(!user){hanaPartnerState={status:"idle",connected:false,linkId:"",partnerUid:"",partnerName:"",partnerEmail:"",inviteCode:"",inviteExpiresAt:"",error:""};return;}
+  hanaPartnerState={...hanaPartnerState,status:"loading",error:""};
+  try{
+    const fb=await firebaseReady();
+    partnerWatchStop=fb.watchPartner(user.uid,async next=>{
+      const previousLink=hanaPartnerState.linkId;
+      const endedLink=next?.disconnected?(next.linkId||previousLink):"";
+      if(endedLink)await cleanupLocalAfterPartnerDisconnect(endedLink,user.uid);
+      hanaPartnerState={status:"ready",connected:Boolean(next?.connected),linkId:next?.connected?(next?.linkId||""):"",partnerUid:next?.partnerUid||"",partnerName:next?.partnerName||"",partnerEmail:next?.partnerEmail||"",inviteCode:next?.inviteCode||"",inviteExpiresAt:next?.inviteExpiresAt||"",error:""};
+      if(hanaPartnerState.connected&&hanaPartnerState.linkId!==previousLink)await startSharedRealtime();
+      else if(!hanaPartnerState.connected)stopSharedRealtime();
+      if(state.currentMode==="shared"&&!hanaPartnerState.connected)state.currentMode="all";
+      renderModeBar();
+      if(state.currentPage==="settings")renderSettings();
+      else if(endedLink)render();
+    });
+  }catch(error){hanaPartnerState={...hanaPartnerState,status:"error",error:firebaseFriendlyError(error)};}
+}
+
+async function createPartnerInvite(){
+  if(!hanaAccountState.user)return openEmailAuth("signin");
+  try{const fb=await firebaseReady();const invite=await fb.createPartnerInvite(hanaAccountState.user.uid,accountDisplayName(hanaAccountState.user));hanaPartnerState={...hanaPartnerState,status:"ready",inviteCode:invite.code,inviteExpiresAt:invite.expiresAt};renderSettings();showToast("Partner invite ready 💌");}
+  catch(error){showToast(firebaseFriendlyError(error));}
+}
+async function acceptPartnerInvite(){
+  const code=String(document.getElementById("partnerJoinCode")?.value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(!code)return showToast("Enter the invite code first 💕");
+  try{const fb=await firebaseReady();const result=await fb.acceptPartnerInvite(hanaAccountState.user.uid,code,accountDisplayName(hanaAccountState.user));closeModal("partnerJoinModal");showToast(`Connected to ${result.partnerName||"your partner"} 💕`);}
+  catch(error){showToast(firebaseFriendlyError(error));}
+}
+async function cancelPartnerInvite(){
+  if(!hanaPartnerState.inviteCode)return;
+  try{const fb=await firebaseReady();await fb.cancelPartnerInvite(hanaAccountState.user.uid,hanaPartnerState.inviteCode);showToast("Partner invite cancelled.");}
+  catch(error){showToast(firebaseFriendlyError(error));}
+}
+async function disconnectPartner(){
+  if(!hanaPartnerState.connected)return;
+  if(!confirm(`Disconnect from ${hanaPartnerState.partnerName||"your partner"}? Shared entries will stop syncing. Entries you originally shared will stay in your Hana as private; entries shared by your partner will be removed from this device.`))return;
+  const linkId=hanaPartnerState.linkId,userUid=hanaAccountState.user?.uid||"";
+  try{
+    const fb=await firebaseReady();
+    await fb.disconnectPartner(userUid,linkId);
+    stopSharedRealtime();
+    await cleanupLocalAfterPartnerDisconnect(linkId,userUid);
+    if(state.currentMode==="shared")state.currentMode="all";
+    render();
+    showToast("Partner Link disconnected. Your shared items are private again.");
+  }catch(error){showToast(firebaseFriendlyError(error));}
+}
+
 /* ================= HANA ACCOUNT / CLOUD BACKUP ================= */
 
 function firebaseFriendlyError(error){
@@ -3711,6 +4054,7 @@ async function sendHanaPasswordReset(){
 
 function buildCloudBackupPayload(){
   const snapshot=clone(state);
+  Object.values(SHARE_COLLECTIONS).forEach(collection=>{snapshot[collection]=(snapshot[collection]||[]).filter(item=>!item.sharedWithPartner);});
   snapshot.currentPage="today";
   snapshot.taskSearch="";
   snapshot.calendarDragTaskId="";
@@ -3756,7 +4100,7 @@ async function restoreHanaFromCloud(options={}){
     if(!cloudState||!isLikelyHanaState(cloudState))throw new Error("This cloud backup does not look like valid Hana data.");
     await createSafetySnapshot("pre-cloud-restore",JSON.stringify(state),{force:true});
     await ensureWallpaperLoaded();
-    state=normalizeState(cloudState);
+    state=normalizeStatePreservingLiveShared(cloudState);
     state.settings.accountPromptSeen=true;
     if(!hanaWallpaperData)state.appearance.wallpaperEnabled=false;
     lastSavedStateJSON="";
@@ -3799,9 +4143,10 @@ async function handleAuthChanged(user){
   if(user){
     state.settings.accountPromptSeen=true;saveState({snapshot:false});
     await refreshCloudMeta({quiet:true});
+    await startPartnerForUser(user);
     let pending=authActionPending;try{pending=pending||sessionStorage.getItem("hana_auth_flow_pending")==="1";}catch{}
     if(pending){authActionPending=false;try{sessionStorage.removeItem("hana_auth_flow_pending");}catch{};setTimeout(openCloudChoiceForUser,100);}
-  }else{hanaAccountState.meta=null;}
+  }else{hanaAccountState.meta=null;await startPartnerForUser(null);}
   if(state.currentPage==="settings")renderSettings();
 }
 
@@ -3838,6 +4183,8 @@ function renderSettings(){const c=document.getElementById("pageContent");c.inner
   <div class="page-heading settings-page-heading"><p class="eyebrow">MAKE HANA YOURS</p><h1>Settings & spaces</h1><p>Customization and app controls live here so your everyday screens can stay calm.</p></div>
 
   ${renderAccountSettingsCard()}
+
+  ${renderPartnerSettingsCard()}
 
   <section class="section settings-section"><div class="section-header"><h2>About Hana</h2></div><div class="settings-card about-hana-card"><div class="about-hana-mark"><img src="icons/hana-peony.png" alt="" aria-hidden="true" /></div><div class="about-hana-copy"><h3>Hana (花) 🌸</h3><p class="about-hana-description">Hana (花) means “flower.” Like a flower blooming one petal at a time, Hana helps you take care of your ideas, notes, and tasks one bloom at a time.</p><div class="about-hana-actions"><span>Version ${HANA_APP_VERSION}</span><button class="secondary-button compact-button" type="button" data-open-whats-new>What’s new</button></div></div></div></section>
 
@@ -3943,7 +4290,7 @@ async function restoreSafetySnapshotRecord(record,options={}){
     if(!record?.stateJson)return false;
     const parsed=JSON.parse(record.stateJson);
     if(!isLikelyHanaState(parsed))return false;
-    state=normalizeState(parsed);
+    state=normalizeStatePreservingLiveShared(parsed);
     state.lastOpenedDate=todayISO();
     lastSavedStateJSON="";
     saveState({snapshot:false});
@@ -4231,7 +4578,7 @@ async function importData(file){
     if(!isLikelyHanaState(backupState))throw new Error("Invalid Hana backup");
     if(!confirm("Replace the current local Hana data with this backup? Hana will make a safety copy of your current data first."))return;
     await createSafetySnapshot("pre-import",JSON.stringify(state),{force:true});
-    state=normalizeState(backupState);
+    state=normalizeStatePreservingLiveShared(backupState);
     lastSavedStateJSON="";
     saveState({snapshot:false});
     if(parsed?.hanaBackup){
@@ -4471,6 +4818,14 @@ document.addEventListener("click", event => {
   if(event.target.id==="restoreSafetyBackupButton"){restoreSafetyCopyFromSettings();return;}
 });
 
+document.addEventListener("click",event=>{
+  if(event.target.closest("[data-create-partner-invite]")){createPartnerInvite();return;}
+  if(event.target.closest("[data-open-partner-join]")){document.getElementById("partnerJoinCode").value="";openModal("partnerJoinModal");setTimeout(()=>document.getElementById("partnerJoinCode")?.focus(),80);return;}
+  if(event.target.closest("[data-copy-partner-code]")){const code=hanaPartnerState.inviteCode;if(code)navigator.clipboard?.writeText(code).then(()=>showToast("Invite code copied 💌")).catch(()=>showToast(`Invite code: ${code}`));return;}
+  if(event.target.closest("[data-cancel-partner-invite]")){cancelPartnerInvite();return;}
+  if(event.target.closest("[data-disconnect-partner]")){disconnectPartner();return;}
+});
+
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
 
 document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
@@ -4644,6 +4999,7 @@ document.addEventListener("drop",event=>{const slot=event.target.closest("[data-
 
 document.getElementById("mainAddButton").addEventListener("click",()=>openModal("addMenu"));
 document.getElementById("saveQuickTaskButton")?.addEventListener("click",saveQuickTask);
+document.getElementById("acceptPartnerInviteButton")?.addEventListener("click",acceptPartnerInvite);
 document.getElementById("saveQuickAccessButton")?.addEventListener("click", saveQuickAccess);
 document.getElementById("addTableColumnButton")?.addEventListener("click",()=>addTableColumnBuilder());
 let tableColumnDrag=null;

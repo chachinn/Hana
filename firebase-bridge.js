@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v1.9
+   HANA 🌸 Firebase bridge v2.0 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
@@ -60,7 +60,14 @@
     async signOut() { throw new Error("Firebase is still loading."); },
     async getCloudMeta() { return null; },
     async backupSnapshot() { throw new Error("Firebase is still loading."); },
-    async restoreSnapshot() { throw new Error("Firebase is still loading."); }
+    async restoreSnapshot() { throw new Error("Firebase is still loading."); },
+    async createPartnerInvite() { throw new Error("Firebase is still loading."); },
+    async acceptPartnerInvite() { throw new Error("Firebase is still loading."); },
+    async cancelPartnerInvite() { throw new Error("Firebase is still loading."); },
+    async disconnectPartner() { throw new Error("Firebase is still loading."); },
+    watchPartner() { return () => {}; },
+    watchSharedItems() { return () => {}; },
+    async syncSharedChanges() { throw new Error("Firebase is still loading."); }
   };
 
   window.HanaFirebase.ready = (async () => {
@@ -73,7 +80,17 @@
 
       const app = appSdk.initializeApp(firebaseConfig);
       const auth = authSdk.getAuth(app);
-      const db = firestoreSdk.getFirestore(app);
+      let db;
+      try {
+        db = firestoreSdk.initializeFirestore(app, {
+          localCache: firestoreSdk.persistentLocalCache({
+            tabManager: firestoreSdk.persistentMultipleTabManager()
+          })
+        });
+      } catch (error) {
+        console.info("Hana Firestore persistent cache unavailable; using memory cache:", error?.code || error?.message || error);
+        db = firestoreSdk.getFirestore(app);
+      }
       const googleProvider = new authSdk.GoogleAuthProvider();
       googleProvider.setCustomParameters({ prompt: "select_account" });
 
@@ -162,6 +179,192 @@
         return { meta, payload: JSON.parse(json) };
       }
 
+
+      const partnerProfileRef = uid => firestoreSdk.doc(db, "users", uid, "hanaPartner", "profile");
+      const partnerInviteStateRef = uid => firestoreSdk.doc(db, "users", uid, "hanaPartner", "invite");
+      const partnerInviteRef = code => firestoreSdk.doc(db, "partnerInvites", code);
+      const partnerLinkRef = linkId => firestoreSdk.doc(db, "partnerLinks", linkId);
+      const sharedItemsRef = linkId => firestoreSdk.collection(db, "partnerLinks", linkId, "items");
+      const sharedItemRef = (linkId, key) => firestoreSdk.doc(db, "partnerLinks", linkId, "items", key);
+      const cleanCode = value => String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const generateInviteCode = () => {
+        const bytes = new Uint8Array(8); crypto.getRandomValues(bytes);
+        return Array.from(bytes, value => inviteAlphabet[value % inviteAlphabet.length]).join("");
+      };
+
+      async function createPartnerInvite(uid, displayName = "") {
+        const user = assertUser(uid);
+        const profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
+        if (profileSnap.exists()) throw new Error("This Hana account already has a Partner Link.");
+        const pointerSnap = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+        if(pointerSnap.exists()&&pointerSnap.data().code){const existingInvite=await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));if(existingInvite.exists()&&existingInvite.data().status==="open")return existingInvite.data();}
+        let code = generateInviteCode();
+        for (let tries = 0; tries < 4; tries++) {
+          const existing = await firestoreSdk.getDoc(partnerInviteRef(code));
+          if (!existing.exists()) break;
+          code = generateInviteCode();
+        }
+        const createdAt = new Date();
+        const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const data = { code, ownerUid:uid, ownerName:displayName || user.displayName || user.email?.split("@")[0] || "Hana user", ownerEmail:user.email || "", status:"open", createdAt:createdAt.toISOString(), expiresAt:expiresAt.toISOString() };
+        const batch = firestoreSdk.writeBatch(db);
+        batch.set(partnerInviteRef(code), data);
+        batch.set(partnerInviteStateRef(uid), { code, updatedAt:createdAt.toISOString() });
+        await batch.commit();
+        return data;
+      }
+
+      async function acceptPartnerInvite(uid, rawCode, displayName = "") {
+        const user = assertUser(uid), code = cleanCode(rawCode);
+        if (!code) throw new Error("Enter a valid Partner Link code.");
+        const ownProfile = await firestoreSdk.getDoc(partnerProfileRef(uid));
+        if (ownProfile.exists()) throw new Error("This Hana account is already connected to a partner.");
+        const ownInvitePointer = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
+        if(ownInvitePointer.exists()&&ownInvitePointer.data().code){
+          const ownInvite=await firestoreSdk.getDoc(partnerInviteRef(ownInvitePointer.data().code));
+          if(ownInvite.exists()&&ownInvite.data().status==="open")throw new Error("Cancel your current Partner Link invite before joining someone else's link.");
+        }
+        const inviteSnap = await firestoreSdk.getDoc(partnerInviteRef(code));
+        if (!inviteSnap.exists()) throw new Error("That Partner Link code was not found.");
+        const invite = inviteSnap.data();
+        if (invite.ownerUid === uid) throw new Error("Use this code on your partner's Hana account.");
+        if (invite.status !== "open") throw new Error("That Partner Link code has already been used or cancelled.");
+        if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) throw new Error("That Partner Link code has expired. Ask for a new one.");
+        const linkId = code;
+        const partnerName = invite.ownerName || invite.ownerEmail?.split("@")[0] || "Partner";
+        const myName = displayName || user.displayName || user.email?.split("@")[0] || "Hana user";
+        const now = new Date().toISOString();
+        const batch = firestoreSdk.writeBatch(db);
+        batch.set(partnerLinkRef(linkId), { linkId, members:[invite.ownerUid,uid], status:"active", createdAt:now, memberProfiles:[{uid:invite.ownerUid,name:partnerName,email:invite.ownerEmail||""},{uid,name:myName,email:user.email||""}] });
+        batch.update(partnerInviteRef(code), { status:"accepted", acceptedUid:uid, acceptedName:myName, acceptedEmail:user.email||"", acceptedAt:now, linkId });
+        batch.set(partnerProfileRef(uid), { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"", connectedAt:now });
+        await batch.commit();
+        return { linkId, partnerUid:invite.ownerUid, partnerName, partnerEmail:invite.ownerEmail||"" };
+      }
+
+      async function cancelPartnerInvite(uid, rawCode) {
+        assertUser(uid); const code=cleanCode(rawCode); if(!code)return;
+        const snap=await firestoreSdk.getDoc(partnerInviteRef(code));
+        if(snap.exists()&&snap.data().ownerUid===uid&&snap.data().status==="open")await firestoreSdk.updateDoc(partnerInviteRef(code),{status:"cancelled",cancelledAt:new Date().toISOString()});
+        await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+      }
+
+      async function disconnectPartner(uid, linkId) {
+        assertUser(uid);
+        const snap=await firestoreSdk.getDoc(partnerLinkRef(linkId));
+        if(snap.exists()&&Array.isArray(snap.data().members)&&snap.data().members.includes(uid))await firestoreSdk.updateDoc(partnerLinkRef(linkId),{status:"disconnected",disconnectedAt:new Date().toISOString(),disconnectedBy:uid});
+        await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(()=>{});
+        await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+      }
+
+      function watchPartner(uid, callback) {
+        assertUser(uid);
+        let profile=null, invitePointer=null, invite=null, link=null;
+        let stopInvite=()=>{}, stopLink=()=>{};
+        const publish=()=>{
+          if(profile&&link?.status==="active") return callback({connected:true,linkId:profile.linkId,partnerUid:profile.partnerUid,partnerName:profile.partnerName,partnerEmail:profile.partnerEmail});
+          if(invitePointer&&invite?.status==="open") return callback({connected:false,inviteCode:invitePointer.code,inviteExpiresAt:invite.expiresAt||""});
+          callback({connected:false});
+        };
+        const attachLink=linkId=>{
+          stopLink();stopLink=()=>{};link=null;
+          if(!linkId)return publish();
+          stopLink=firestoreSdk.onSnapshot(partnerLinkRef(linkId),async snap=>{
+            link=snap.exists()?snap.data():null;
+            if(profile&&(!link||link.status!=="active")){
+              const endedLinkId=profile.linkId||linkId;
+              await firestoreSdk.deleteDoc(partnerProfileRef(uid)).catch(()=>{});
+              profile=null;
+              callback({connected:false,disconnected:true,linkId:endedLinkId});
+              return;
+            }
+            publish();
+          },()=>publish());
+        };
+        const attachInvite=code=>{stopInvite();stopInvite=()=>{};invite=null;if(!code)return publish();stopInvite=firestoreSdk.onSnapshot(partnerInviteRef(code),async snap=>{invite=snap.exists()?snap.data():null;if(invite?.status==="accepted"&&invite.ownerUid===uid&&!profile){const now=new Date().toISOString();await firestoreSdk.setDoc(partnerProfileRef(uid),{linkId:invite.linkId||code,partnerUid:invite.acceptedUid,partnerName:invite.acceptedName||invite.acceptedEmail?.split("@")[0]||"Partner",partnerEmail:invite.acceptedEmail||"",connectedAt:now});}publish();},()=>publish());};
+        const stopProfile=firestoreSdk.onSnapshot(partnerProfileRef(uid),snap=>{profile=snap.exists()?snap.data():null;attachLink(profile?.linkId||"");publish();},()=>publish());
+        const stopPointer=firestoreSdk.onSnapshot(partnerInviteStateRef(uid),snap=>{invitePointer=snap.exists()?snap.data():null;attachInvite(invitePointer?.code||"");publish();},()=>publish());
+        return ()=>{stopProfile();stopPointer();stopInvite();stopLink();};
+      }
+
+      const granularFieldForType = type => type === "list" ? "listItems" : type === "table" ? "tableRows" : "";
+      const childArrayForType = type => type === "list" ? "items" : type === "table" ? "rows" : "";
+      const safeChildFieldKey = value => encodeURIComponent(String(value || "")).replaceAll(".", "%2E");
+      const stripWireOrder = value => { const copy={...(value||{})}; delete copy.__hanaOrder; return copy; };
+      const splitGranularData = (type, rawData={}) => {
+        const data={...(rawData||{})};
+        const arrayField=childArrayForType(type), granularField=granularFieldForType(type);
+        if(!arrayField||!granularField)return {data,granularField:"",children:{}};
+        const rows=Array.isArray(data[arrayField])?data[arrayField]:[];
+        delete data[arrayField];
+        const children={};
+        rows.forEach((item,index)=>{
+          if(!item?.id)return;
+          children[safeChildFieldKey(item.id)]={...item,__hanaOrder:index};
+        });
+        return {data,granularField,children};
+      };
+      const hydrateGranularData = value => {
+        const type=value.type||"";
+        const data={...(value.data||{})};
+        const arrayField=childArrayForType(type), granularField=granularFieldForType(type);
+        if(arrayField&&granularField&&value[granularField]&&typeof value[granularField]==="object"){
+          data[arrayField]=Object.values(value[granularField])
+            .sort((a,b)=>Number(a?.__hanaOrder||0)-Number(b?.__hanaOrder||0))
+            .map(stripWireOrder);
+        }
+        return data;
+      };
+
+      function watchSharedItems(linkId, callback) {
+        let first=true;
+        return firestoreSdk.onSnapshot(sharedItemsRef(linkId), snapshot => {
+          const docs=snapshot.docs.map(snap=>{
+            const value=snap.data();
+            const hydrated=hydrateGranularData(value);
+            return {key:snap.id,type:value.type||"",itemId:value.itemId||"",data:hydrated,ownerUid:value.ownerUid||hydrated?.sharedOwnerUid||"",ownerName:value.ownerName||hydrated?.sharedOwnerName||"",updatedByUid:value.updatedByUid||"",updatedByName:value.updatedByName||""};
+          });
+          callback({docs,initial:first}); first=false;
+        }, error => console.warn("Hana Partner Link listener:",error));
+      }
+
+      async function syncSharedChanges(linkId, changes=[]) {
+        if(!changes.length)return true;
+        // Keep list items and tracker rows as individual map fields inside their
+        // shared document. Different rows/items can then update without replacing
+        // the whole array, greatly reducing couple-edit conflicts.
+        const chunkSize=350;
+        for(let start=0;start<changes.length;start+=chunkSize){
+          const batch=firestoreSdk.writeBatch(db);
+          changes.slice(start,start+chunkSize).forEach(change=>{
+            const ref=sharedItemRef(linkId,change.key);
+            if(change.action==="delete"){batch.delete(ref);return;}
+            const ownerUid=change.ownerUid||change.data?.sharedOwnerUid||"";
+            const ownerName=change.ownerName||change.data?.sharedOwnerName||"";
+            const current=splitGranularData(change.type,change.data||{});
+            const previous=change.previousData?splitGranularData(change.type,change.previousData):null;
+            const base={type:change.type,itemId:change.itemId,data:current.data,ownerUid,ownerName,updatedByUid:change.updatedByUid||"",updatedByName:change.updatedByName||"",serverUpdatedAt:firestoreSdk.serverTimestamp(),structureVersion:2};
+            if(!current.granularField||!previous){
+              if(current.granularField)base[current.granularField]=current.children;
+              batch.set(ref,base);
+              return;
+            }
+            const patch={...base};
+            const allKeys=new Set([...Object.keys(previous.children),...Object.keys(current.children)]);
+            allKeys.forEach(key=>{
+              const before=previous.children[key],after=current.children[key];
+              const field=`${current.granularField}.${key}`;
+              if(!after)patch[field]=firestoreSdk.deleteField();
+              else if(!before||JSON.stringify(before)!==JSON.stringify(after))patch[field]=after;
+            });
+            batch.update(ref,patch);
+          });
+          await batch.commit();
+        }
+        return true;
+      }
+
       Object.assign(window.HanaFirebase, {
         available: true,
         error: null,
@@ -201,7 +404,14 @@
         },
         getCloudMeta,
         backupSnapshot,
-        restoreSnapshot
+        restoreSnapshot,
+        createPartnerInvite,
+        acceptPartnerInvite,
+        cancelPartnerInvite,
+        disconnectPartner,
+        watchPartner,
+        watchSharedItems,
+        syncSharedChanges
       });
 
       authSdk.onAuthStateChanged(auth, user => {
