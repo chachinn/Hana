@@ -4114,4 +4114,48 @@ body.wallpaper-active .nav-drawer {
 .whats-new-item h3{margin:0 0 3px;font-size:12px}
 .whats-new-item p{margin:0;color:var(--text-soft);font-size:10.5px;line-height:1.4}
 @media(max-width:640px){.about-hana-card{grid-template-columns:46px 1fr}.about-hana-mark{width:46px;height:46px;border-radius:15px}.about-hana-mark img{width:40px;height:40px}.settings-card .about-hana-description{font-size:11px}.whats-new-card{padding:15px;border-radius:25px}.whats-new-header h2{font-size:20px}.whats-new-hero{font-size:38px}.whats-new-intro{font-size:11px}.whats-new-item{grid-template-columns:31px 1fr;padding:9px 10px}.whats-new-item>span{font-size:20px}.whats-new-item h3{font-size:11.5px}.whats-new-item p{font-size:10px}}
-\n\n/* ===== v1.9.6 · Lists swipe action reveal ===== */\n.list-swipe-shell{\n  position:relative;\n  overflow:hidden;\n  border-radius:15px;\n  background:#f6edf1;\n}\n.list-swipe-shell .standalone-check-item{\n  position:relative;\n  z-index:2;\n  transition:transform .2s ease;\n  will-change:transform;\n  margin:0;\n}\n.list-swipe-action{\n  position:absolute;\n  top:0;\n  bottom:0;\n  width:82px;\n  border:0;\n  color:#fff;\n  font-size:12px;\n  font-weight:850;\n  z-index:1;\n  display:flex;\n  align-items:center;\n  justify-content:center;\n}\n.list-swipe-edit{left:0;background:#d98aa7}\n.list-swipe-delete{right:0;background:#c8556f}\n.list-swipe-shell.swipe-edit-open .standalone-check-item{transform:translateX(82px)}\n.list-swipe-shell.swipe-delete-open .standalone-check-item{transform:translateX(-82px)}\n.list-swipe-shell.swipe-edit-open .list-swipe-delete,\n.list-swipe-shell.swipe-delete-open .list-swipe-edit{pointer-events:none}\n.list-gesture-item{touch-action:pan-y}\n
+
+/* ===== v1.9.8 · Lists swipe action reveal ===== */
+.list-swipe-shell{
+  position:relative;
+  overflow:hidden;
+  border-radius:15px;
+  background:#f6edf1;
+}
+.list-swipe-shell .standalone-check-item{
+  position:relative;
+  z-index:2;
+  transition:transform .2s ease;
+  will-change:transform;
+  margin:0;
+  background:var(--surface,#fff);
+}
+.list-swipe-action{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:82px;
+  border:0;
+  color:#fff;
+  font-size:12px;
+  font-weight:850;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .16s ease;
+}
+.list-swipe-edit{left:0;background:#d98aa7}
+.list-swipe-delete{right:0;background:#c8556f}
+.list-swipe-shell.swipe-edit-open .standalone-check-item{transform:translateX(82px)}
+.list-swipe-shell.swipe-delete-open .standalone-check-item{transform:translateX(-82px)}
+.list-swipe-shell.swipe-edit-open .list-swipe-edit,
+.list-swipe-shell.swipe-delete-open .list-swipe-delete{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+}
+.list-gesture-item{touch-action:pan-y}

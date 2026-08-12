@@ -686,18 +686,16 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "1.9.7";
+const HANA_APP_VERSION = "1.9.8";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Cleaner tracker entries + faster access ✨",
-  intro: "This combined update keeps all pending Hana changes and fixes the stale Add Row form that could accidentally repeat your previous tracker entry.",
+  title: "Cleaner List swipe actions ✨",
+  intro: "A small polish update fixes List swipe controls so Edit and Delete stay hidden until you actually swipe a checklist item.",
   items: [
-    { icon: "📒", title: "Fresh Add Row form", text: "Opening Add Row now always starts with a clean form. Saving or cancelling also clears the temporary row fields so old values cannot carry into the next entry." },
-    { icon: "🛡️", title: "Duplicate-save protection", text: "The Save Row button locks during a save so an accidental double tap cannot create the same new row twice." },
-    { icon: "✨", title: "Quick Access in the header", text: "Your saved Quick Access shortcuts open from the sparkle button between Search and the hamburger menu." },
-    { icon: "↔️", title: "Swipe actions for Lists", text: "Swipe a checklist item right to reveal Edit, or left to reveal Delete. The action only happens after you tap the revealed button." },
-    { icon: "🌸", title: "About Hana + What's New", text: "Hana's name story now lives in Settings, and update notes can be reopened anytime." }
+    { icon: "↔️", title: "Clean List swipe actions", text: "Edit and Delete are now completely hidden during normal viewing. Swipe right to reveal Edit or left to reveal Delete." },
+    { icon: "🛡️", title: "Safer actions", text: "A swipe only reveals the action. Hana still waits for you to tap Edit or Delete before doing anything." },
+    { icon: "🌸", title: "Everything else stays intact", text: "Your header Quick Access, About Hana, cloud backup, tracker fixes, and other recent updates remain included." }
   ]
 };
 let hanaAccountState = {
