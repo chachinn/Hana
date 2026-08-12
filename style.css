@@ -4474,3 +4474,207 @@ body.modal-open{overflow:hidden}
 .partner-code-input.is-valid{border-color:color-mix(in srgb,var(--success,#4c9b69) 65%,var(--border))!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--success,#4c9b69) 12%,transparent)!important}.partner-code-input.is-invalid{border-color:color-mix(in srgb,var(--danger) 65%,var(--border))!important}.partner-code-status{display:block;margin-top:5px;font-size:8px;line-height:1.35;color:var(--text-soft)}.partner-code-status.valid{color:#3d7f57}.partner-code-status.invalid{color:var(--danger)}
 @media(max-width:520px){.notes-quick-actions{grid-template-columns:1fr 1fr}.quick-note-modal{width:100%;height:92dvh;border-radius:24px 24px 0 0;align-self:flex-end}.skincare-week-editor-nav{grid-template-columns:82px 1fr 82px}.skincare-week-editor-nav button{padding:8px 6px!important;font-size:8px!important}}
 .partner-invite-code{display:block;width:100%;padding:12px;border:1px solid var(--border);border-radius:16px;background:var(--surface-soft);overflow-wrap:anywhere}.partner-invite-code strong{display:block;font-size:11px;line-height:1.4}.partner-invite-code small{display:block;margin-top:5px;font-size:8px;color:var(--text-soft)}.partner-invite-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.partner-invite-actions button{min-height:42px}
+
+
+/* HANA SKINCARE GROUPED TABLE EDITOR */
+.skincare-batch-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.skincare-routine-batch {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 13px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--blush));
+}
+
+.skincare-routine-batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.skincare-routine-batch-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.skincare-routine-batch-title > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--blush);
+  font-size: 17px;
+}
+
+.skincare-routine-batch-title strong,
+.skincare-routine-batch-title small {
+  display: block;
+}
+
+.skincare-routine-batch-title strong {
+  font-size: 13px;
+}
+
+.skincare-routine-batch-title small {
+  margin-top: 2px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.skincare-routine-badge {
+  min-width: 39px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--rose);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.skincare-routine-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.skincare-routine-table-head,
+.skincare-table-row {
+  display: grid;
+  grid-template-columns: minmax(92px, .85fr) minmax(118px, 1.2fr) minmax(118px, 1.25fr) 34px;
+  gap: 7px;
+  align-items: center;
+}
+
+.skincare-routine-table-head {
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--border);
+  background: var(--blush);
+  color: var(--text-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.skincare-table-row {
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skincare-table-row:last-child {
+  border-bottom: 0;
+}
+
+.skincare-table-cell {
+  min-width: 0;
+  margin: 0;
+}
+
+.skincare-table-cell input,
+.skincare-table-cell select {
+  width: 100%;
+  min-width: 0;
+  height: 39px;
+  margin: 0;
+  padding: 8px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.skincare-table-cell-label {
+  display: none;
+}
+
+.skincare-table-remove {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--danger);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.skincare-table-remove:active {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.skincare-routine-empty {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+.skincare-routine-empty p {
+  margin: 0;
+  font-size: 11px;
+}
+
+.skincare-batch-add {
+  width: 100%;
+  margin-top: 9px;
+}
+
+.skincare-batch-help {
+  margin: 9px 3px 2px;
+  color: var(--text-soft);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@media (max-width: 390px) {
+  .skincare-routine-table-head {
+    display: none;
+  }
+
+  .skincare-table-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+    align-items: start;
+    padding: 10px;
+  }
+
+  .skincare-type-cell {
+    grid-column: 1;
+  }
+
+  .skincare-product-cell {
+    grid-column: 2;
+  }
+
+  .skincare-notes-cell {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+
+  .skincare-table-remove {
+    grid-column: 3;
+    grid-row: 1;
+    margin-top: 17px;
+  }
+
+  .skincare-table-cell-label {
+    display: block;
+    margin: 0 0 4px 2px;
+    color: var(--text-soft);
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+}
