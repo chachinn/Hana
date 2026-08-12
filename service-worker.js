@@ -1,14 +1,14 @@
 /* =====================================================
-   HANA 🌸 Service Worker v40
+   HANA 🌸 Service Worker v41
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v40";
+const CACHE_NAME = "hana-shell-v41";
 const CORE_SHELL = [
   "./",
   "./index.html",
   "./style.css",
-  "./app.js?v=2.0.7",
-  "./firebase-bridge.js?v=2.0.7"
+  "./app.js?v=2.0.8",
+  "./firebase-bridge.js?v=2.0.8"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",
@@ -25,8 +25,11 @@ self.addEventListener("install", event => {
     // new Hana build from installing if one icon is temporarily unavailable.
     await cache.addAll(CORE_SHELL);
     await Promise.allSettled(OPTIONAL_SHELL.map(asset => cache.add(asset)));
-    await self.skipWaiting();
   })());
+});
+
+self.addEventListener("message", event => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {

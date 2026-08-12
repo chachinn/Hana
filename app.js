@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 v2.0.7
-   Partner Link architecture repair + stability
+   HANA 🌸 v2.0.8
+   List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -420,6 +420,9 @@ function validColumnType(type) {
 }
 
 function normalizeList(list = {}) {
+  const hasColumnMode = Object.prototype.hasOwnProperty.call(list, "columnMode");
+  const inferredGroceryColumns = /\bgrocer(?:y|ies)\b/i.test(String(list.name || "")) || String(list.icon || "") === "🛒";
+  const labels = list.columnLabels && typeof list.columnLabels === "object" ? list.columnLabels : {};
   return {
     id: list.id || createId(),
     name: String(list.name || "Checklist"),
@@ -427,12 +430,19 @@ function normalizeList(list = {}) {
     space: String(list.space || "personal"),
     quantityLabel: String(list.quantityLabel || "Quantity"),
     detailLabel: String(list.detailLabel || "Detail"),
+    columnMode: hasColumnMode ? Boolean(list.columnMode) : inferredGroceryColumns,
+    columnLabels: {
+      partner: String(labels.partner || ""),
+      me: String(labels.me || "Me"),
+      both: String(labels.both || "Both")
+    },
     items: Array.isArray(list.items)
       ? list.items.map(item => ({
           id: item.id || createId(),
           title: String(item.title || ""),
           quantity: String(item.quantity || ""),
           detail: String(item.detail || item.notes || ""),
+          lane: ["partner", "me", "both"].includes(item.lane) ? item.lane : "both",
           completed: Boolean(item.completed),
           createdAt: Number(item.createdAt || Date.now()),
           updatedAt: Number(item.updatedAt || item.createdAt || Date.now())
@@ -679,18 +689,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.7";
+const HANA_APP_VERSION = "2.0.8";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Partner Link architecture repair 💕",
-  intro: "Partner Link no longer depends on Hana's repeatedly blocked top-level invite collection. Invitations and shared couple data now use an owner-scoped Firestore structure built around the same authenticated user tree that already powers Cloud Backup.",
+  title: "Smarter Lists + clearer updates 🌸",
+  intro: "Hana Lists can now separate shopping and shared checklist items into three people-based columns, and the PWA now tells you when a newer Hana build is ready instead of silently changing underneath you.",
   items: [
-    { icon: "🏡", title: "Owner-scoped Partner data", text: "Partner invitations now live inside the inviting account's user tree instead of the old top-level partnerInvites collection." },
-    { icon: "💌", title: "New copyable invite key", text: "New Partner invites carry the owner and a private random token together, so Martin can open one exact Firestore document without any collection search." },
-    { icon: "⚡", title: "Realtime sharing retained", text: "Lists, tasks, notes, trackers, events, reminders and projects still use realtime Firestore listeners once the link is accepted." },
-    { icon: "🔒", title: "Private by default", text: "Nothing is exposed merely by linking accounts. Each entry still has to be explicitly shared." },
-    { icon: "🧪", title: "More meaningful diagnostics", text: "Diagnostics now test the same owner-scoped invitation path used by the real Partner Link flow." }
+    { icon: "🛒", title: "Partner / Me / Both columns", text: "Grocery-style lists can organize pending items into three compact columns. Existing grocery lists turn this on automatically, while other lists can enable it from Edit list." },
+    { icon: "💕", title: "Partner-aware labels", text: "The first column can use your connected partner's name, while Me and Both stay easy to scan. Each item remembers its column and syncs with shared Lists." },
+    { icon: "⚡", title: "Quick add by column", text: "When columns are enabled, Quick add can send a whole batch directly to Partner, Me, or Both." },
+    { icon: "🔄", title: "Update available banner", text: "When a new Hana service worker is ready, Hana now shows an Update available banner with a Refresh button instead of silently reloading." },
+    { icon: "🧩", title: "Partner Link repair retained", text: "The owner-scoped Partner Link architecture from v2.0.7 remains intact; this release does not change the Firestore paths or rules." }
   ]
 };
 let hanaAccountState = {
@@ -2030,17 +2040,73 @@ function renderLists() {
   `;
 }
 
+function listColumnLabels(list) {
+  return {
+    partner: String(list.columnLabels?.partner || hanaPartnerState.partnerName || "Partner"),
+    me: String(list.columnLabels?.me || "Me"),
+    both: String(list.columnLabels?.both || "Both")
+  };
+}
+
+function listLaneLabel(list, lane) {
+  const labels = listColumnLabels(list);
+  return labels[["partner","me","both"].includes(lane) ? lane : "both"] || labels.both;
+}
+
+function listItemHTML(list, item, { compact = false, showLane = false } = {}) {
+  const metaParts = [
+    item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "",
+    item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""
+  ].filter(Boolean);
+  if (showLane && list.columnMode) metaParts.unshift(`👥 ${escapeHTML(listLaneLabel(list, item.lane))}`);
+  const meta = metaParts.join(" · ");
+  return `
+    <div class="list-swipe-shell ${compact ? "list-column-item-shell" : ""}" data-list-swipe-shell="${item.id}" data-list-id="${list.id}">
+      <button class="list-swipe-action list-swipe-edit" data-swipe-list-edit="${item.id}" data-list-id="${list.id}" aria-label="Edit ${escapeHTML(item.title)}">✎ Edit</button>
+      <button class="list-swipe-action list-swipe-delete" data-swipe-list-delete="${item.id}" data-list-id="${list.id}" aria-label="Delete ${escapeHTML(item.title)}">Delete</button>
+      <div class="standalone-check-item list-gesture-item ${compact ? "list-column-item" : ""} ${item.completed?"done":""}" data-gesture-list-item="${item.id}" data-list-id="${list.id}">
+        <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
+        <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
+          <strong>${escapeHTML(item.title)}</strong>
+          ${meta ? `<small>${meta}</small>` : ""}
+        </button>
+        <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
+      </div>
+    </div>`;
+}
+
+function renderListColumnBoard(list, items) {
+  const labels = listColumnLabels(list);
+  const lanes = [
+    { id:"partner", icon:"💗", label:labels.partner },
+    { id:"me", icon:"🌸", label:labels.me },
+    { id:"both", icon:"💕", label:labels.both }
+  ];
+  return `<div class="list-column-board" aria-label="Checklist columns">
+    ${lanes.map(lane => {
+      const laneItems = items.filter(item => (item.lane || "both") === lane.id);
+      return `<section class="list-lane-column" data-list-lane="${lane.id}">
+        <div class="list-lane-heading"><span>${lane.icon}</span><strong>${escapeHTML(lane.label)}</strong><small>${laneItems.length}</small></div>
+        <div class="list-lane-items">${laneItems.length ? laneItems.map(item => listItemHTML(list,item,{compact:true})).join("") : `<button class="list-lane-empty" data-add-list-item="${list.id}" data-list-lane-default="${lane.id}">+ Add</button>`}</div>
+      </section>`;
+    }).join("")}
+  </div>`;
+}
+
 function renderSingleList(list) {
   const completed = list.items.filter(item => item.completed).length;
   const total = list.items.length;
   const progress = total ? Math.round((completed / total) * 100) : 0;
+  const pendingItems = list.items.filter(item => !item.completed);
+  const completedItems = list.items.filter(item => item.completed);
+  const labels = listColumnLabels(list);
   return `
     <section class="checklist-shell">
       <div class="checklist-heading">
         <div>
           <span class="badge ${modeBadge(list.space)}">${modeLabel(list.space)}</span>
           <h2>${escapeHTML(list.icon)} ${escapeHTML(list.name)} ${sharedBadgeHTML(list,true)}</h2>
-          <p>${completed}/${total} checked</p>
+          <p>${completed}/${total} checked${list.columnMode ? ` · ${escapeHTML(labels.partner)} / ${escapeHTML(labels.me)} / ${escapeHTML(labels.both)}` : ""}</p>
         </div>
         <button class="mini-icon-button list-edit-button" data-edit-list="${list.id}" title="Edit list">✎</button>
       </div>
@@ -2057,36 +2123,22 @@ function renderSingleList(list) {
         </summary>
         <div class="quick-list-add-body">
           <div class="quick-list-add-head"><small>One line per item. Optional: item | quantity | detail</small></div>
+          ${list.columnMode ? `<div class="quick-list-lane-picker"><label for="quickListLane_${list.id}">Add these to</label><select id="quickListLane_${list.id}"><option value="partner">💗 ${escapeHTML(labels.partner)}</option><option value="me">🌸 ${escapeHTML(labels.me)}</option><option value="both" selected>💕 ${escapeHTML(labels.both)}</option></select></div>` : ""}
           <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk
 Eggs | 1 tray
 Shampoo | 2 | refill pouches"></textarea>
           <div class="quick-list-add-actions"><button class="secondary-button" data-quick-add-list="${list.id}">Add lines</button></div>
         </div>
       </details>
-      <div class="standalone-checklist">
-        ${total ? (() => {
-          const pendingItems = list.items.filter(item => !item.completed);
-          const completedItems = list.items.filter(item => item.completed);
-          const itemHTML = item => {
-            const meta = [item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "", item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""].filter(Boolean).join(" · ");
-            return `
-            <div class="list-swipe-shell" data-list-swipe-shell="${item.id}" data-list-id="${list.id}">
-              <button class="list-swipe-action list-swipe-edit" data-swipe-list-edit="${item.id}" data-list-id="${list.id}" aria-label="Edit ${escapeHTML(item.title)}">✎ Edit</button>
-              <button class="list-swipe-action list-swipe-delete" data-swipe-list-delete="${item.id}" data-list-id="${list.id}" aria-label="Delete ${escapeHTML(item.title)}">Delete</button>
-              <div class="standalone-check-item list-gesture-item ${item.completed?"done":""}" data-gesture-list-item="${item.id}" data-list-id="${list.id}">
-                <button class="list-check-box ${item.completed?"checked":""}" data-toggle-list-item="${item.id}" data-list-id="${list.id}" aria-label="Toggle ${escapeHTML(item.title)}">${item.completed?"✓":""}</button>
-                <button class="list-item-main" data-edit-list-item="${item.id}" data-list-id="${list.id}">
-                  <strong>${escapeHTML(item.title)}</strong>
-                  ${meta ? `<small>${meta}</small>` : ""}
-                </button>
-                <button class="mini-icon-button" data-edit-list-item="${item.id}" data-list-id="${list.id}" title="Edit item">✎</button>
-              </div>
-            </div>`;
-          };
-          return `${pendingItems.map(itemHTML).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div>${completedItems.map(itemHTML).join("")}` : ""}`;
-        })() : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
+      <div class="standalone-checklist ${list.columnMode ? "standalone-checklist-columns" : ""}">
+        ${total ? `${list.columnMode ? renderListColumnBoard(list,pendingItems) : pendingItems.map(item=>listItemHTML(list,item)).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div><div class="completed-list-items">${completedItems.map(item=>listItemHTML(list,item,{showLane:list.columnMode})).join("")}</div>` : ""}` : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
       </div>
     </section>`;
+}
+
+function updateListColumnSettingsVisibility() {
+  const enabled = Boolean(document.getElementById("listColumnMode")?.checked);
+  document.getElementById("listColumnOptions")?.classList.toggle("hidden", !enabled);
 }
 
 function clearListForm() {
@@ -2097,6 +2149,11 @@ function clearListForm() {
   document.getElementById("listSpace").value = preferredSpace();
   document.getElementById("listQuantityLabel").value = "Quantity";
   document.getElementById("listDetailLabel").value = "Detail";
+  document.getElementById("listColumnMode").checked = false;
+  document.getElementById("listColumnPartnerLabel").value = hanaPartnerState.partnerName || "Partner";
+  document.getElementById("listColumnMeLabel").value = "Me";
+  document.getElementById("listColumnBothLabel").value = "Both";
+  updateListColumnSettingsVisibility();
   document.getElementById("listModalEyebrow").textContent = "NEW CHECKLIST";
   document.getElementById("listModalTitle").textContent = "Create a list";
   document.getElementById("saveListButton").textContent = "Create list";
@@ -2113,6 +2170,12 @@ function openListModal(listId = "") {
     document.getElementById("listSpace").value = list.space;
     document.getElementById("listQuantityLabel").value = list.quantityLabel || "Quantity";
     document.getElementById("listDetailLabel").value = list.detailLabel || "Detail";
+    document.getElementById("listColumnMode").checked = Boolean(list.columnMode);
+    const labels = listColumnLabels(list);
+    document.getElementById("listColumnPartnerLabel").value = labels.partner;
+    document.getElementById("listColumnMeLabel").value = labels.me;
+    document.getElementById("listColumnBothLabel").value = labels.both;
+    updateListColumnSettingsVisibility();
     document.getElementById("listModalEyebrow").textContent = "CHECKLIST DETAILS";
     document.getElementById("listModalTitle").textContent = "Edit list";
     document.getElementById("saveListButton").textContent = "Save changes";
@@ -2134,6 +2197,12 @@ function saveList() {
     space: document.getElementById("listSpace").value,
     quantityLabel: document.getElementById("listQuantityLabel").value.trim() || "Quantity",
     detailLabel: document.getElementById("listDetailLabel").value.trim() || "Detail",
+    columnMode: document.getElementById("listColumnMode").checked,
+    columnLabels: {
+      partner: document.getElementById("listColumnPartnerLabel").value.trim() || hanaPartnerState.partnerName || "Partner",
+      me: document.getElementById("listColumnMeLabel").value.trim() || "Me",
+      both: document.getElementById("listColumnBothLabel").value.trim() || "Both"
+    },
     items: old?.items || [],
     ...shareMetaFromControl("list", old),
     createdAt: old?.createdAt || Date.now(),
@@ -2166,6 +2235,18 @@ function openListItemModal(listId, itemId = "") {
   document.getElementById("listItemTitle").value = item?.title || "";
   document.getElementById("listItemQuantity").value = item?.quantity || "";
   document.getElementById("listItemDetail").value = item?.detail || "";
+  const laneWrap = document.getElementById("listItemLaneWrap");
+  const laneSelect = document.getElementById("listItemLane");
+  if (laneWrap && laneSelect) {
+    laneWrap.classList.toggle("hidden", !list.columnMode);
+    if (list.columnMode) {
+      const labels = listColumnLabels(list);
+      laneSelect.innerHTML = `<option value="partner">💗 ${escapeHTML(labels.partner)}</option><option value="me">🌸 ${escapeHTML(labels.me)}</option><option value="both">💕 ${escapeHTML(labels.both)}</option>`;
+      const requestedLane = item?.lane || openListItemModal.defaultLane || "both";
+      laneSelect.value = ["partner","me","both"].includes(requestedLane) ? requestedLane : "both";
+    }
+  }
+  openListItemModal.defaultLane = "";
   document.getElementById("listItemQuantityLabel").innerHTML = `${escapeHTML(list.quantityLabel || "Quantity")} <span class="optional-label">optional</span>`;
   document.getElementById("listItemDetailLabel").innerHTML = `${escapeHTML(list.detailLabel || "Detail")} <span class="optional-label">optional</span>`;
   document.getElementById("listItemModalTitle").textContent = item ? "Edit item" : `Add to ${list.name}`;
@@ -2187,6 +2268,7 @@ function saveListItem() {
     title,
     quantity: document.getElementById("listItemQuantity").value.trim(),
     detail: document.getElementById("listItemDetail").value.trim(),
+    lane: list.columnMode ? (document.getElementById("listItemLane")?.value || old?.lane || "both") : "both",
     completed: old?.completed || false,
     createdAt: old?.createdAt || Date.now(),
     updatedAt: Date.now()
@@ -2225,9 +2307,10 @@ function quickAddListItems(listId) {
   if (!list || !input) return;
   const lines = parseLines(input.value);
   if (!lines.length) return showToast("Type at least one line first 🌸");
+  const quickLane = list.columnMode ? (document.getElementById(`quickListLane_${listId}`)?.value || "both") : "both";
   const created = lines.map(line => {
     const [titleRaw, quantityRaw = "", detailRaw = ""] = line.split("|").map(part => part.trim());
-    return { id: createId(), title: titleRaw, quantity: quantityRaw, detail: detailRaw, completed: false, createdAt: Date.now(), updatedAt: Date.now() };
+    return { id: createId(), title: titleRaw, quantity: quantityRaw, detail: detailRaw, lane: quickLane, completed: false, createdAt: Date.now(), updatedAt: Date.now() };
   }).filter(item => item.title);
   if (!created.length) return showToast("Nothing to add yet 🌸");
   list.items.push(...created);
@@ -2265,7 +2348,9 @@ function createListFromTemplate(templateId) {
     name: template.name,
     icon: template.icon,
     space: preferredSpace(),
-    items: template.items.map(title => ({ id: createId(), title, detail: "", completed: false })),
+    columnMode: templateId === "grocery",
+    columnLabels: { partner: hanaPartnerState.partnerName || "Partner", me: "Me", both: "Both" },
+    items: template.items.map(title => ({ id: createId(), title, detail: "", lane: "both", completed: false })),
     createdAt: Date.now(),
     updatedAt: Date.now()
   });
@@ -5005,7 +5090,7 @@ document.addEventListener("click", event => {
   const selectList=event.target.closest("[data-select-list]");if(selectList){state.activeListId=selectList.dataset.selectList;render();return;}
   if(event.target.closest("[data-open-list]")){openListModal();return;}
   const editList=event.target.closest("[data-edit-list]");if(editList){openListModal(editList.dataset.editList);return;}
-  const addListItem=event.target.closest("[data-add-list-item]");if(addListItem){openListItemModal(addListItem.dataset.addListItem);return;}
+  const addListItem=event.target.closest("[data-add-list-item]");if(addListItem){openListItemModal.defaultLane=addListItem.dataset.listLaneDefault||"";openListItemModal(addListItem.dataset.addListItem);return;}
   const quickAddList=event.target.closest("[data-quick-add-list]");if(quickAddList){quickAddListItems(quickAddList.dataset.quickAddList);return;}
   const editListItem=event.target.closest("[data-edit-list-item]");if(editListItem){openListItemModal(editListItem.dataset.listId,editListItem.dataset.editListItem);return;}
   const toggleList=event.target.closest("[data-toggle-list-item]");if(toggleList){toggleListItem(toggleList.dataset.listId,toggleList.dataset.toggleListItem);return;}
@@ -5070,7 +5155,7 @@ document.addEventListener("click",event=>{
 let taskSearchRenderTimer=null;
 document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;const pos=event.target.selectionStart;clearTimeout(taskSearchRenderTimer);taskSearchRenderTimer=setTimeout(()=>{if(state.currentPage!=="tasks")return;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(Math.min(pos,input.value.length),Math.min(pos,input.value.length));}},80);}});
 
-document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
+document.addEventListener("change",event=>{if(event.target.id==="listColumnMode")updateListColumnSettingsVisibility();if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
 let lastTableTap={tableId:"",rowId:"",time:0};
@@ -5290,6 +5375,7 @@ document.getElementById("copyBulkEditButton")?.addEventListener("click",copyBulk
 document.getElementById("saveListButton").addEventListener("click",saveList);
 document.getElementById("deleteListFromModal").addEventListener("click",()=>{const id=document.getElementById("listEditId").value;if(id)deleteList(id);});
 document.getElementById("saveListItemButton").addEventListener("click",saveListItem);
+document.getElementById("applyUpdateButton")?.addEventListener("click",applyHanaUpdate);
 document.getElementById("deleteListItemFromModal").addEventListener("click",()=>{const listId=document.getElementById("listItemListId").value,itemId=document.getElementById("listItemEditId").value;if(listId&&itemId)deleteListItem(listId,itemId);});
 document.getElementById("savePinButton").addEventListener("click",savePin);
 document.getElementById("saveSomedayButton").addEventListener("click",saveSomeday);
@@ -5326,6 +5412,25 @@ window.addEventListener("pagehide",()=>{
 });
 
 /* SERVICE WORKER */
+let hanaUpdateRegistration = null;
+function showHanaUpdateAvailable(registration) {
+  hanaUpdateRegistration = registration || hanaUpdateRegistration;
+  const banner = document.getElementById("updateAvailableBanner");
+  if (banner) banner.classList.remove("hidden");
+}
+function hideHanaUpdateAvailable() {
+  document.getElementById("updateAvailableBanner")?.classList.add("hidden");
+}
+function applyHanaUpdate() {
+  const waiting = hanaUpdateRegistration?.waiting;
+  if (waiting) {
+    const button = document.getElementById("applyUpdateButton");
+    if (button) { button.disabled = true; button.textContent = "Refreshing…"; }
+    waiting.postMessage({ type: "SKIP_WAITING" });
+  } else {
+    window.location.reload();
+  }
+}
 if("serviceWorker" in navigator){
   let hanaSWReloading=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{
@@ -5336,12 +5441,21 @@ if("serviceWorker" in navigator){
   window.addEventListener("load",async()=>{
     try{
       const registration=await navigator.serviceWorker.register("./service-worker.js",{updateViaCache:"none"});
+      hanaUpdateRegistration=registration;
+      if(registration.waiting&&navigator.serviceWorker.controller)showHanaUpdateAvailable(registration);
+      registration.addEventListener("updatefound",()=>{
+        const worker=registration.installing;
+        if(!worker)return;
+        worker.addEventListener("statechange",()=>{
+          if(worker.state==="installed"&&navigator.serviceWorker.controller)showHanaUpdateAvailable(registration);
+        });
+      });
       await registration.update();
     }catch(error){console.error("Service worker registration failed:",error);}
   });
   document.addEventListener("visibilitychange",()=>{
     if(document.visibilityState!=="visible")return;
-    navigator.serviceWorker.getRegistration().then(registration=>registration?.update()).catch(()=>{});
+    navigator.serviceWorker.getRegistration().then(registration=>{if(registration){hanaUpdateRegistration=registration;if(registration.waiting&&navigator.serviceWorker.controller)showHanaUpdateAvailable(registration);return registration.update();}}).catch(()=>{});
   });
 }
 

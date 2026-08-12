@@ -48,6 +48,11 @@
 
     <main id="pageContent" class="page-content"></main>
 
+    <div id="updateAvailableBanner" class="update-available-banner hidden" role="status" aria-live="polite">
+      <div class="update-available-copy"><strong>Update available</strong><small>Refresh to get the newest Hana.</small></div>
+      <button id="applyUpdateButton" class="update-refresh-button" type="button">Refresh</button>
+    </div>
+
     <button id="mainAddButton" class="floating-add" aria-label="Add">+</button>
 
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -516,6 +521,17 @@
         <div class="form-group"><label for="listDetailLabel">Extra field 2 label <span class="optional-label">optional</span></label><input id="listDetailLabel" type="text" placeholder="Detail" /></div>
       </div>
       <p class="field-help list-modal-help">Each checklist item is stored as its own entry, so you can check, edit, or remove items independently. You can also rename the extra fields to fit the list.</p>
+      <div class="list-column-settings">
+        <label class="partner-share-toggle list-column-toggle"><input id="listColumnMode" type="checkbox" /><span>👥 <strong>Organize into 3 columns</strong></span></label>
+        <small class="field-help">Great for groceries or shared shopping: separate items for your partner, you, and both.</small>
+        <div id="listColumnOptions" class="list-column-options hidden">
+          <div class="form-row">
+            <div class="form-group"><label for="listColumnPartnerLabel">Column 1</label><input id="listColumnPartnerLabel" type="text" placeholder="Partner" /></div>
+            <div class="form-group"><label for="listColumnMeLabel">Column 2</label><input id="listColumnMeLabel" type="text" placeholder="Me" /></div>
+          </div>
+          <div class="form-group"><label for="listColumnBothLabel">Column 3</label><input id="listColumnBothLabel" type="text" placeholder="Both" /></div>
+        </div>
+      </div>
       <div id="listShareWrap" class="partner-share-field"><label class="partner-share-toggle"><input id="listSharePartner" type="checkbox" /><span>💕 <strong data-partner-share-label>Share with Partner</strong></span></label><small id="listShareHelp" class="field-help">Private by default.</small></div>
 
       <div class="modal-actions task-modal-actions">
@@ -541,6 +557,7 @@
         <div class="form-group"><label for="listItemQuantity" id="listItemQuantityLabel">Quantity <span class="optional-label">optional</span></label><input id="listItemQuantity" type="text" placeholder="2 bottles" /></div>
         <div class="form-group"><label for="listItemDetail" id="listItemDetailLabel">Detail <span class="optional-label">optional</span></label><input id="listItemDetail" type="text" placeholder="size M, aisle 4..." /></div>
       </div>
+      <div id="listItemLaneWrap" class="form-group hidden"><label for="listItemLane">For</label><select id="listItemLane"><option value="partner">💗 Partner</option><option value="me">🌸 Me</option><option value="both">💕 Both</option></select></div>
       <div class="modal-actions task-modal-actions">
         <button id="deleteListItemFromModal" class="danger-button hidden" type="button">Delete item</button>
         <div class="modal-action-spacer"></div>
@@ -607,7 +624,7 @@
     <div class="modal-card partner-join-modal">
       <div class="modal-header"><div><p class="eyebrow">PARTNER LINK 💕</p><h2>Enter invite code</h2></div><button class="modal-close" data-close-modal="partnerJoinModal">×</button></div>
       <p class="partner-join-copy">Enter the code from the one person you want to connect with. Nothing in either Hana account is shared automatically.</p>
-      <div class="form-group"><label for="partnerJoinCode">Partner invite key</label><input id="partnerJoinCode" class="partner-code-input" type="text" maxlength="180" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="Paste the full Hana Partner invite" /></div>
+      <div class="form-group"><label for="partnerJoinCode">Invite code</label><input id="partnerJoinCode" class="partner-code-input" type="text" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="HANA8LOVE" /></div>
       <div class="privacy-note"><span>🔒</span><div><strong>Private by default</strong><small>After connecting, each entry still needs to be marked 💕 Shared before your partner can see it.</small></div></div>
       <div class="modal-actions"><button class="secondary-button" data-close-modal="partnerJoinModal">Cancel</button><button id="acceptPartnerInviteButton" class="primary-button">Connect Partner Link</button></div>
     </div>
@@ -809,7 +826,7 @@
   <div id="toast" class="toast hidden"></div>
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
-  <script src="firebase-bridge.js?v=2.0.7"></script>
-  <script src="app.js?v=2.0.7"></script>
+  <script src="firebase-bridge.js?v=2.0.8"></script>
+  <script src="app.js?v=2.0.8"></script>
 </body>
 </html>
