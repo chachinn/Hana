@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function activePartnerInvite(ownerUid, token) {
+      return get(/databases/$(database)/documents/users/$(ownerUid)/hanaPartnerInvites/$(token));
+    }
+
+    function isActivePartnerMember(ownerUid, token) {
+      let invite = activePartnerInvite(ownerUid, token);
+      return signedIn()
+        && invite.data.status == 'accepted'
+        && (request.auth.uid == ownerUid || invite.data.acceptedUid == request.auth.uid);
+    }
+
+    // Normal Hana account data remains private to its signed-in owner.
+    match /users/{uid}/hanaAccount/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    match /users/{uid}/hanaBackup/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    match /users/{uid}/hanaBackupChunks/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    match /users/{uid}/hanaPartner/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // Invite documents live inside the invite creator's user tree.
+    // Owners retain full control of their own invite. A signed-in recipient may
+    // retrieve only an exact invite path; listing another user's invites is denied.
+    match /users/{ownerUid}/hanaPartnerInvites/{token} {
+      allow get: if signedIn();
+      allow list: if isSelf(ownerUid);
+      allow create, delete: if isSelf(ownerUid);
+
+      // The owner can maintain/cancel their own invite.
+      allow update: if isSelf(ownerUid)
+        // A recipient holding the H2 invite may atomically claim an OPEN invite,
+        // but may change only the acceptance fields used by Hana.
+        || (signedIn()
+          && resource.data.ownerUid == ownerUid
+          && resource.data.token == token
+          && resource.data.status == 'open'
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.acceptedUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.token == resource.data.token
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'acceptedUid',
+            'acceptedName',
+            'acceptedEmail',
+            'acceptedAt',
+            'schemaVersion'
+          ]))
+        // The connected recipient may end their own active Partner Link, but may
+        // change only Hana's disconnect bookkeeping fields.
+        || (signedIn()
+          && resource.data.status == 'accepted'
+          && resource.data.acceptedUid == request.auth.uid
+          && request.resource.data.status == 'disconnected'
+          && request.resource.data.disconnectedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'disconnectedAt',
+            'disconnectedBy'
+          ]));
+    }
+
+    // Shared Hana content is accessible only while the invite is an ACTIVE,
+    // accepted Partner Link and only to its two members.
+    match /users/{ownerUid}/hanaShared/{token}/items/{itemId} {
+      allow read, write: if isActivePartnerMember(ownerUid, token);
+    }
+
+    // Everything not explicitly used by Hana is denied by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
