@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Firebase bridge v2.0 — Accounts, Cloud Backup & Partner Link
+   HANA 🌸 Firebase bridge v2.0.1 — Accounts, Cloud Backup & Partner Link
    Optional Authentication + Cloud Backup
    ===================================================== */
 
@@ -198,13 +198,21 @@
         const profileSnap = await firestoreSdk.getDoc(partnerProfileRef(uid));
         if (profileSnap.exists()) throw new Error("This Hana account already has a Partner Link.");
         const pointerSnap = await firestoreSdk.getDoc(partnerInviteStateRef(uid));
-        if(pointerSnap.exists()&&pointerSnap.data().code){const existingInvite=await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));if(existingInvite.exists()&&existingInvite.data().status==="open")return existingInvite.data();}
-        let code = generateInviteCode();
-        for (let tries = 0; tries < 4; tries++) {
-          const existing = await firestoreSdk.getDoc(partnerInviteRef(code));
-          if (!existing.exists()) break;
-          code = generateInviteCode();
+        if(pointerSnap.exists()&&pointerSnap.data().code){
+          const existingInvite=await firestoreSdk.getDoc(partnerInviteRef(pointerSnap.data().code));
+          if(existingInvite.exists()&&existingInvite.data().status==="open"){
+            const expiresAt=existingInvite.data().expiresAt?new Date(existingInvite.data().expiresAt).getTime():0;
+            if(!expiresAt||expiresAt>Date.now())return existingInvite.data();
+            await firestoreSdk.updateDoc(partnerInviteRef(pointerSnap.data().code),{status:"cancelled",cancelledAt:new Date().toISOString()}).catch(()=>{});
+          }
         }
+        let code = "";
+        for (let tries = 0; tries < 8; tries++) {
+          const candidate = generateInviteCode();
+          const existing = await firestoreSdk.getDoc(partnerInviteRef(candidate));
+          if (!existing.exists()) { code = candidate; break; }
+        }
+        if(!code)throw new Error("Hana couldn't create a unique invite code. Please try again.");
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
         const data = { code, ownerUid:uid, ownerName:displayName || user.displayName || user.email?.split("@")[0] || "Hana user", ownerEmail:user.email || "", status:"open", createdAt:createdAt.toISOString(), expiresAt:expiresAt.toISOString() };
@@ -262,9 +270,15 @@
         assertUser(uid);
         let profile=null, invitePointer=null, invite=null, link=null;
         let stopInvite=()=>{}, stopLink=()=>{};
+        const inviteUsable=()=>{
+          if(!invitePointer||invite?.status!=="open")return false;
+          if(!invite?.expiresAt)return true;
+          const expiresAt=new Date(invite.expiresAt).getTime();
+          return !Number.isFinite(expiresAt)||expiresAt>Date.now();
+        };
         const publish=()=>{
           if(profile&&link?.status==="active") return callback({connected:true,linkId:profile.linkId,partnerUid:profile.partnerUid,partnerName:profile.partnerName,partnerEmail:profile.partnerEmail});
-          if(invitePointer&&invite?.status==="open") return callback({connected:false,inviteCode:invitePointer.code,inviteExpiresAt:invite.expiresAt||""});
+          if(inviteUsable()) return callback({connected:false,inviteCode:invitePointer.code,inviteExpiresAt:invite.expiresAt||""});
           callback({connected:false});
         };
         const attachLink=linkId=>{
@@ -282,7 +296,17 @@
             publish();
           },()=>publish());
         };
-        const attachInvite=code=>{stopInvite();stopInvite=()=>{};invite=null;if(!code)return publish();stopInvite=firestoreSdk.onSnapshot(partnerInviteRef(code),async snap=>{invite=snap.exists()?snap.data():null;if(invite?.status==="accepted"&&invite.ownerUid===uid&&!profile){const now=new Date().toISOString();await firestoreSdk.setDoc(partnerProfileRef(uid),{linkId:invite.linkId||code,partnerUid:invite.acceptedUid,partnerName:invite.acceptedName||invite.acceptedEmail?.split("@")[0]||"Partner",partnerEmail:invite.acceptedEmail||"",connectedAt:now});}publish();},()=>publish());};
+        const attachInvite=code=>{stopInvite();stopInvite=()=>{};invite=null;if(!code)return publish();stopInvite=firestoreSdk.onSnapshot(partnerInviteRef(code),async snap=>{
+          invite=snap.exists()?snap.data():null;
+          if(invite?.status==="accepted"&&invite.ownerUid===uid&&!profile){const now=new Date().toISOString();await firestoreSdk.setDoc(partnerProfileRef(uid),{linkId:invite.linkId||code,partnerUid:invite.acceptedUid,partnerName:invite.acceptedName||invite.acceptedEmail?.split("@")[0]||"Partner",partnerEmail:invite.acceptedEmail||"",connectedAt:now});}
+          const expiresAt=invite?.expiresAt?new Date(invite.expiresAt).getTime():0;
+          if(invite?.status==="open"&&invite.ownerUid===uid&&expiresAt&&expiresAt<=Date.now()){
+            await firestoreSdk.updateDoc(partnerInviteRef(code),{status:"cancelled",cancelledAt:new Date().toISOString()}).catch(()=>{});
+            await firestoreSdk.deleteDoc(partnerInviteStateRef(uid)).catch(()=>{});
+            invite=null;
+          }
+          publish();
+        },()=>publish());};
         const stopProfile=firestoreSdk.onSnapshot(partnerProfileRef(uid),snap=>{profile=snap.exists()?snap.data():null;attachLink(profile?.linkId||"");publish();},()=>publish());
         const stopPointer=firestoreSdk.onSnapshot(partnerInviteStateRef(uid),snap=>{invitePointer=snap.exists()?snap.data():null;attachInvite(invitePointer?.code||"");publish();},()=>publish());
         return ()=>{stopProfile();stopPointer();stopInvite();stopLink();};
@@ -345,19 +369,43 @@
             const current=splitGranularData(change.type,change.data||{});
             const previous=change.previousData?splitGranularData(change.type,change.previousData):null;
             const base={type:change.type,itemId:change.itemId,data:current.data,ownerUid,ownerName,updatedByUid:change.updatedByUid||"",updatedByName:change.updatedByName||"",serverUpdatedAt:firestoreSdk.serverTimestamp(),structureVersion:2};
-            if(!current.granularField||!previous){
+            if(!previous){
               if(current.granularField)base[current.granularField]=current.children;
               batch.set(ref,base);
               return;
             }
-            const patch={...base};
-            const allKeys=new Set([...Object.keys(previous.children),...Object.keys(current.children)]);
-            allKeys.forEach(key=>{
-              const before=previous.children[key],after=current.children[key];
-              const field=`${current.granularField}.${key}`;
-              if(!after)patch[field]=firestoreSdk.deleteField();
-              else if(!before||JSON.stringify(before)!==JSON.stringify(after))patch[field]=after;
+
+            // Existing shared entries are patched field-by-field instead of
+            // replacing the whole data object. This lets two partners safely edit
+            // different fields at nearly the same time without needless last-write
+            // replacement of unrelated values.
+            const patch={
+              type:change.type,
+              itemId:change.itemId,
+              ownerUid,
+              ownerName,
+              updatedByUid:change.updatedByUid||"",
+              updatedByName:change.updatedByName||"",
+              serverUpdatedAt:firestoreSdk.serverTimestamp(),
+              structureVersion:2
+            };
+            const dataKeys=new Set([...Object.keys(previous.data||{}),...Object.keys(current.data||{})]);
+            dataKeys.forEach(key=>{
+              const before=previous.data?.[key],after=current.data?.[key];
+              if(JSON.stringify(before)===JSON.stringify(after))return;
+              const field=`data.${key}`;
+              if(!Object.prototype.hasOwnProperty.call(current.data||{},key))patch[field]=firestoreSdk.deleteField();
+              else patch[field]=after;
             });
+            if(current.granularField){
+              const allKeys=new Set([...Object.keys(previous.children),...Object.keys(current.children)]);
+              allKeys.forEach(key=>{
+                const before=previous.children[key],after=current.children[key];
+                const field=`${current.granularField}.${key}`;
+                if(!after)patch[field]=firestoreSdk.deleteField();
+                else if(!before||JSON.stringify(before)!==JSON.stringify(after))patch[field]=after;
+              });
+            }
             batch.update(ref,patch);
           });
           await batch.commit();

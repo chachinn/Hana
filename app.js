@@ -1,7 +1,7 @@
 /* =====================================================
-   HANA 🌸 v1.9
-   Optional accounts + Firebase cloud backup
-   Local-first PWA
+   HANA 🌸 v2.0.1
+   Partner Link stability + UI polish
+   Local-first PWA with optional Firebase sharing
    ===================================================== */
 
 const STORAGE_KEY = "hana_app_v1";
@@ -218,71 +218,16 @@ const defaultState = {
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false,
     accountPromptSeen: false,
-    lastSeenUpdateVersion: "1.9.4"
+    lastSeenUpdateVersion: "2.0.1"
   },
 
-  tasks: [
-    {
-      id: createId(),
-      title: "Review this week's priorities",
-      space: "work",
-      priority: "high",
-      status: "todo",
-      project: "",
-      tags: [],
-      dueDate: todayISO(),
-      dueTime: "",
-      durationMinutes: 30,
-      energy: "medium",
-      deadlineType: "soft",
-      notes: "",
-      link: "",
-      subtasks: [],
-      waitingOn: "",
-      followUpDate: "",
-      followUpAfterCompletion: false,
-      reminderEnabled: false,
-      reminderChain: false,
-      recurrence: { type: "none", interval: 1 },
-      completed: false,
-      createdAt: Date.now()
-    }
-  ],
+  tasks: [],
 
-  notes: [
-    {
-      id: createId(),
-      title: "Welcome to Hana 🌸",
-      type: "note",
-      content: "Hana keeps tasks, notes, reminders and little pieces of life together without showing you everything at once.",
-      space: "personal",
-      tags: ["hana"],
-      checklist: [],
-      resettable: false,
-      pinned: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-  ],
+  notes: [],
 
   reminders: [],
 
-  tables: [
-    {
-      id: createId(),
-      name: "Bills",
-      space: "personal",
-      columns: [
-        { id: "item", name: "Item", type: "text" },
-        { id: "amount", name: "Amount", type: "money" },
-        { id: "due", name: "Due", type: "date" },
-        { id: "status", name: "Status", type: "status" },
-        { id: "paid", name: "Paid", type: "checkbox" }
-      ],
-      rows: [],
-      createdAt: Date.now()
-    }
-  ],
+  tables: [],
 
   pins: [],
   someday: [],
@@ -308,6 +253,15 @@ function normalizeShareMeta(item = {}) {
     sharedOwnerName: String(item.sharedOwnerName || ""),
     sharedLinkId: String(item.sharedLinkId || "")
   };
+}
+
+function canDeleteSharedRoot(item,label="item") {
+  const currentUid=hanaAccountState?.user?.uid||"";
+  const received=Boolean(item?.sharedWithPartner&&item.sharedOwnerUid&&currentUid&&item.sharedOwnerUid!==currentUid);
+  if(!received)return true;
+  const owner=item.sharedOwnerName||hanaPartnerState?.partnerName||"your partner";
+  showToast(`Only ${owner} can delete this shared ${label}. You can still edit it together.`);
+  return false;
 }
 
 function shareMetaFromControl(prefix, old = null) {
@@ -725,18 +679,21 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.0";
+const HANA_APP_VERSION = "2.0.1";
 const HANA_RELEASE_NOTES = {
   version: HANA_APP_VERSION,
   date: "August 12, 2026",
-  title: "Partner Link 💕",
-  intro: "Hana can now connect to one partner while keeping everything private by default. Share only the things you choose and edit them together in real time.",
+  title: "Stability & polish 🌸",
+  intro: "A reliability pass for Partner Link and a cleanup pass across Hana so shared work feels calmer, safer and smoother.",
   items: [
-    { icon: "💕", title: "One-person Partner Link", text: "Connect one Hana account to one partner using a private invite code. Linking accounts does not reveal existing private data." },
-    { icon: "⚡", title: "Realtime shared entries", text: "Shared Lists, Tasks, Notes, Trackers, Events, Reminders and Projects update on both accounts through Firestore realtime listeners." },
-    { icon: "🔒", title: "Private by default", text: "Every entry stays Just me unless its owner explicitly turns on Share with Partner. Shared entries are clearly marked with a heart." },
-    { icon: "☑️", title: "Shared checklists", text: "Both partners can add, edit and tick list items. Changes appear on the other device as soon as Firebase delivers them." },
-    { icon: "📒", title: "Shared trackers", text: "Rows, columns, progress and statuses can be edited by either partner and stay synchronized." }
+    { icon: "⚡", title: "Safer realtime sync", text: "Partner writes now run in order, failed shared changes retry automatically, and the realtime listener reliably reconnects after account refreshes." },
+    { icon: "💕", title: "Better couple editing", text: "Independent changes from both partners are merged more carefully, and existing shared records update only the fields that actually changed." },
+    { icon: "📶", title: "Reconnect recovery", text: "Shared edits waiting on a connection resume automatically when Hana comes back online." },
+    { icon: "✍️", title: "Typing stays put", text: "Incoming partner updates no longer refresh the page out from under you while you are typing, and Task search is lighter while you type." },
+    { icon: "🔐", title: "Safer sign-out", text: "Hana waits for pending Partner Link edits before signing out, then removes shared entries from the local view until that account signs back in." },
+    { icon: "🌿", title: "Cleaner screens", text: "Page introductions, cards, Settings, Partner Link controls and helper text use tighter, more consistent mobile spacing." },
+    { icon: "🫧", title: "Fresh means fresh", text: "Brand-new Hana installs start with empty Tasks, Notes and Trackers instead of sample entries." },
+    { icon: "🛟", title: "Modal cleanup", text: "Tapping outside a modal now closes it through Hana's normal cleanup path, preventing stale form state from lingering." }
   ]
 };
 let hanaAccountState = {
@@ -762,6 +719,13 @@ let hanaPartnerState = {
 let partnerWatchStop = null;
 let sharedWatchStop = null;
 let partnerSyncTimer = null;
+let partnerRetryTimer = null;
+let partnerSyncInFlight = false;
+let partnerSyncQueued = false;
+let partnerSyncRetryCount = 0;
+let partnerSyncStatus = navigator.onLine ? "idle" : "offline";
+let partnerSyncErrorToastAt = 0;
+let pendingRemoteRender = false;
 let applyingRemoteShare = false;
 let partnerSharedInitialized = false;
 let lastSharedEntityMap = new Map();
@@ -816,6 +780,21 @@ function escapeHTML(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function safeExternalURL(value="") {
+  let raw=String(value||"").trim();
+  if(!raw)return "";
+  if(/^[\w.-]+\.[a-z]{2,}(?:[/:?#]|$)/i.test(raw))raw=`https://${raw}`;
+  try{
+    const url=new URL(raw,window.location.href);
+    if(!["http:","https:","mailto:","tel:"].includes(url.protocol))return "";
+    return url.href;
+  }catch{return "";}
+}
+
+function cssToken(value="") {
+  return String(value||"").toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"")||"custom";
 }
 
 function formatDate(dateString) {
@@ -1116,8 +1095,20 @@ function emptyTrash() {
   render();
 }
 
-function openModal(id) { document.getElementById(id)?.classList.remove("hidden"); refreshModalShareControl(id); }
-function closeModal(id) { document.getElementById(id)?.classList.add("hidden"); if(id==="tableRowModal")resetTableRowModal(); }
+function syncModalBodyLock() {
+  const anyOpen = Boolean(document.querySelector(".modal-overlay:not(.hidden)"));
+  document.body.classList.toggle("modal-open", anyOpen);
+}
+function openModal(id) {
+  document.getElementById(id)?.classList.remove("hidden");
+  refreshModalShareControl(id);
+  syncModalBodyLock();
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.add("hidden");
+  if(id==="tableRowModal")resetTableRowModal();
+  syncModalBodyLock();
+}
 
 function resetDailyFocusIfNeeded() {
   if (state.focusDate !== todayISO()) {
@@ -1856,6 +1847,7 @@ function cycleTaskStatus(id) {
 function deleteTask(id, options = {}) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
+  if(!canDeleteSharedRoot(task,"task"))return;
   const needsConfirm = options.confirm !== false;
   if (needsConfirm && !confirm("Move this task to Trash?")) return;
   const linkedReminders = state.reminders.filter(r => r.linkedTaskId === id);
@@ -1936,7 +1928,7 @@ function saveNote() {
   closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
 }
 
-function deleteNote(id) { const note=state.notes.find(n=>n.id===id); if(!note||!confirm("Move this note to Trash?"))return; moveToTrash("note",note); state.notes=state.notes.filter(n=>n.id!==id); closeModal("noteModal"); render(); }
+function deleteNote(id) { const note=state.notes.find(n=>n.id===id); if(!note||!canDeleteSharedRoot(note,"note")||!confirm("Move this note to Trash?"))return; moveToTrash("note",note); state.notes=state.notes.filter(n=>n.id!==id); closeModal("noteModal"); render(); }
 
 function toggleNoteCheck(noteId,itemId) { const n=state.notes.find(n=>n.id===noteId); const i=n?.checklist.find(i=>i.id===itemId); if(!i)return; i.completed=!i.completed; n.updatedAt=Date.now(); render(); }
 
@@ -1998,7 +1990,7 @@ function saveReminder() {
   if(old)state.reminders[state.reminders.findIndex(x=>x.id===id)]=r;else state.reminders.push(r);closeModal("reminderModal");showToast(old?"Reminder updated 🔔":"Reminder planted 🔔");render();
 }
 
-function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if(!reminder||!confirm("Move this reminder to Trash?"))return;moveToTrash("reminder",reminder);state.reminders=state.reminders.filter(r=>r.id!==id);closeModal("reminderModal");render();}
+function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if(!reminder||!canDeleteSharedRoot(reminder,"reminder")||!confirm("Move this reminder to Trash?"))return;moveToTrash("reminder",reminder);state.reminders=state.reminders.filter(r=>r.id!==id);closeModal("reminderModal");render();}
 
 function completeReminder(id){const r=state.reminders.find(r=>r.id===id);if(!r)return;if(r.linkedTaskId){const t=state.tasks.find(t=>t.id===r.linkedTaskId);if(t&&!t.completed)showToast("Reminder cleared; task is still open.");} if(r.repeatType!=="none"&&!r.linkedTaskId){advanceReminder(r);}else r.completed=true;render();}
 
@@ -2159,7 +2151,7 @@ function saveList() {
 
 function deleteList(id) {
   const list = state.lists.find(item => item.id === id);
-  if (!list || !confirm(`Move “${list.name}” to Trash?`)) return;
+  if (!list || !canDeleteSharedRoot(list,"list") || !confirm(`Move “${list.name}” to Trash?`)) return;
   moveToTrash("list", list);
   state.lists = state.lists.filter(item => item.id !== id);
   state.activeListId = state.lists[0]?.id || "";
@@ -2477,7 +2469,7 @@ function clearTableForm(){refreshSpaceSelects();document.getElementById("tableEd
 function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";document.getElementById("tableRowView").value=t.rowView||"compact";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
 function saveTable(){const id=document.getElementById("tableEditId").value;const old=id?state.tables.find(t=>t.id===id):null;const name=document.getElementById("tableName").value.trim();const parsed=getBuiltTableColumns();if(!name)return showToast("Give the table a name 🌸");if(!parsed.length)return showToast("Add at least one column.");let columns=parsed;if(old){columns=parsed.map(c=>{const match=old.columns.find(x=>x.name.toLowerCase()===c.name.toLowerCase()&&x.type===c.type);return match?{...match,name:c.name}:c;});}const table=normalizeTable({...(old||{}),id:id||createId(),name,space:document.getElementById("tableSpace").value,project:document.getElementById("tableProject").value.trim(),columns,statusOptions:parseStatusOptions(document.getElementById("tableStatusOptions").value),sortMode:document.getElementById("tableSortMode").value,sortColumnId:document.getElementById("tableSortColumn").value||columns[0]?.id||"",sortDirection:document.getElementById("tableSortDirection").value,rowView:document.getElementById("tableRowView").value||"compact",rows:old?.rows||[],...shareMetaFromControl("table",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.tables[state.tables.findIndex(t=>t.id===id)]=table;else{state.tables.push(table);state.activeTableId=table.id;}ensureProjectRecord(table.project,table.space);closeModal("tableModal");showToast(old?"Table updated 📋":"Table created 📋");changePage("tables");}
-function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
+function deleteTable(id){const table=state.tables.find(t=>t.id===id);if(!table||!canDeleteSharedRoot(table,"tracker")||!confirm("Move this table and all its rows to Trash?"))return;const linkedReminders=state.reminders.filter(r=>r.linkedTableId===id);moveToTrash("table",table,{linkedReminders});state.tables=state.tables.filter(t=>t.id!==id);state.reminders=state.reminders.filter(r=>r.linkedTableId!==id);state.activeTableId=state.tables[0]?.id||"";closeModal("tableModal");render();}
 
 let tableRowSaveLocked=false;
 function resetTableRowModal(){
@@ -2663,7 +2655,7 @@ function importGridIntoTracker(table,grid,headers=true){
     mapping.push(col);
   });
   dataRows.forEach(r=>{const values={};table.columns.forEach(c=>values[c.id]="");mapping.forEach((col,i)=>{values[col.id]=coerceImportedValue(col,r[i]??"");});table.rows.push({id:createId(),values,createdAt:Date.now(),updatedAt:Date.now()});});
-  closeModal("trackerImportModal");showToast(`${dataRows.length} row${dataRows.length===1?"":"s"} imported 📊`);render();
+  closeModal("trackerImportModal");showToast(`${dataRows.length} row${dataRows.length===1?"":"s"} imported 📒`);render();
 }
 async function applyTrackerImport(){
   const table=state.tables.find(t=>t.id===document.getElementById("trackerImportTableId").value);if(!table)return;
@@ -2682,7 +2674,7 @@ async function applyTrackerImport(){
   }catch(error){console.error("Tracker import failed",error);showToast("Couldn’t import that sheet. For Excel files, make sure you’re online the first time.");}
 }
 
-function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link")return value?`<a href="${escapeHTML(value)}" target="_blank" rel="noopener">Open</a>`:"—";if(col.type==="status")return `<span class="badge badge-${String(value||"upcoming").toLowerCase().replace(/\s+/g,"-")}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
+function renderTableCell(col,value,tableId,rowId){if(col.type==="checkbox")return `<input class="cell-checkbox" type="checkbox" ${value?"checked":""} data-table-check="${tableId}" data-row-id="${rowId}" data-col-id="${col.id}" />`;if(col.type==="money")return formatCurrency(value);if(col.type==="date")return value?formatDate(value):"—";if(col.type==="link"){const safe=safeExternalURL(value);return safe?`<a href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">Open</a>`:(value?"Invalid link":"—");}if(col.type==="status")return `<span class="badge badge-${cssToken(value||"upcoming")}">${escapeHTML(value||"upcoming")}</span>`;if(col.type==="progress"){const pct=Math.max(0,Math.min(100,Number(value||0)));return `<div class="table-progress"><div class="table-progress-bar"><span style="width:${pct}%"></span></div><strong>${pct}%</strong></div>`;}return escapeHTML(value??"")||"—";}
 
 
 /* ================= HANA v1.7 · CALENDAR / PROJECTS / GARDEN ================= */
@@ -2790,7 +2782,7 @@ function syncEventReminder(event){
   const r=normalizeReminder({...(existing||{}),id:existing?.id||createId(),title:event.title,space:event.space,date:event.date,time:event.startTime,repeatType:event.repeatType,completed:false,notified:false,linkedEventId:event.id,createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()});
   if(existing)state.reminders[state.reminders.findIndex(x=>x.id===existing.id)]=r;else state.reminders.push(r);
 }
-function deleteEvent(id){ const e=state.events.find(x=>x.id===id);if(!e||!confirm("Delete this event?"))return;state.events=state.events.filter(x=>x.id!==id);state.reminders=state.reminders.filter(r=>r.linkedEventId!==id);closeModal("eventModal");showToast("Event removed");render(); }
+function deleteEvent(id){ const e=state.events.find(x=>x.id===id);if(!e||!canDeleteSharedRoot(e,"event")||!confirm("Delete this event?"))return;state.events=state.events.filter(x=>x.id!==id);state.reminders=state.reminders.filter(r=>r.linkedEventId!==id);closeModal("eventModal");showToast("Event removed");render(); }
 
 function calendarCursorMove(direction){
   if(state.calendarView==="month")state.calendarCursor=addMonthsISO(state.calendarCursor,direction);
@@ -2851,14 +2843,14 @@ function saveProject(){
   if(old&&old.name!==name){state.tasks.forEach(t=>{if(t.project===old.name)t.project=name});state.notes.forEach(n=>{if(n.project===old.name)n.project=name});state.tables.forEach(t=>{if(t.project===old.name)t.project=name});}
   if(old)state.projects[state.projects.findIndex(x=>x.id===id)]=p;else state.projects.push(p);state.activeProjectId=p.id;closeModal("projectModal");showToast(old?"Project updated 🌷":"Project planted 🌱");render();
 }
-function deleteProject(id){const p=state.projects.find(p=>p.id===id);if(!p||!confirm(`Remove project “${p.name}”? Its tasks, notes and trackers will stay, but their Project field will be cleared.`))return;state.tasks.forEach(t=>{if(t.project===p.name){t.project="";t.milestoneId="";}});state.notes.forEach(n=>{if(n.project===p.name)n.project=""});state.tables.forEach(t=>{if(t.project===p.name)t.project=""});state.projects=state.projects.filter(x=>x.id!==id);state.activeProjectId=state.projects[0]?.id||"";closeModal("projectModal");render();}
+function deleteProject(id){const p=state.projects.find(p=>p.id===id);if(!p||!canDeleteSharedRoot(p,"project")||!confirm(`Remove project “${p.name}”? Its tasks, notes and trackers will stay, but their Project field will be cleared.`))return;state.tasks.forEach(t=>{if(t.project===p.name){t.project="";t.milestoneId="";}});state.notes.forEach(n=>{if(n.project===p.name)n.project=""});state.tables.forEach(t=>{if(t.project===p.name)t.project=""});state.projects=state.projects.filter(x=>x.id!==id);state.activeProjectId=state.projects[0]?.id||"";closeModal("projectModal");render();}
 function openMilestoneModal(projectId,milestoneId="") {const p=state.projects.find(p=>p.id===projectId);if(!p)return;const m=p.milestones.find(m=>m.id===milestoneId);document.getElementById("milestoneProjectId").value=p.id;document.getElementById("milestoneEditId").value=m?.id||"";document.getElementById("milestoneTitle").value=m?.title||"";document.getElementById("milestoneDue").value=m?.dueDate||"";document.getElementById("milestoneCompleted").checked=Boolean(m?.completed);document.getElementById("deleteMilestoneButton").classList.toggle("hidden",!m);openModal("milestoneModal");}
 function saveMilestone(){const p=state.projects.find(p=>p.id===document.getElementById("milestoneProjectId").value);if(!p)return;const id=document.getElementById("milestoneEditId").value,title=document.getElementById("milestoneTitle").value.trim();if(!title)return showToast("Give the milestone a name 🌷");const old=p.milestones.find(m=>m.id===id),m={id:id||createId(),title,dueDate:document.getElementById("milestoneDue").value,completed:document.getElementById("milestoneCompleted").checked};if(old)p.milestones[p.milestones.findIndex(x=>x.id===id)]=m;else p.milestones.push(m);p.updatedAt=Date.now();closeModal("milestoneModal");render();}
 function deleteMilestone(projectId,milestoneId){const p=state.projects.find(p=>p.id===projectId);if(!p||!confirm("Delete this milestone? Tasks will stay in the project."))return;p.milestones=p.milestones.filter(m=>m.id!==milestoneId);state.tasks.forEach(t=>{if(t.milestoneId===milestoneId)t.milestoneId=""});closeModal("milestoneModal");render();}
 
 function renderProjectDetail(p){
-  const ts=projectTasks(p),open=ts.filter(t=>!t.completed),waiting=open.filter(t=>t.status==="waiting"),notes=state.notes.filter(n=>n.project===p.name),tables=state.tables.filter(t=>t.project===p.name),progress=projectProgress(p),links=ts.filter(t=>t.link),activity=[...ts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)).slice(0,8);
-  return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📒</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(t.link)}" target="_blank" rel="noopener"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
+  const ts=projectTasks(p),open=ts.filter(t=>!t.completed),waiting=open.filter(t=>t.status==="waiting"),notes=state.notes.filter(n=>n.project===p.name),tables=state.tables.filter(t=>t.project===p.name),progress=projectProgress(p),links=ts.filter(t=>safeExternalURL(t.link)),activity=[...ts].sort((a,b)=>(b.updatedAt||b.createdAt)-(a.updatedAt||a.createdAt)).slice(0,8);
+  return `<article class="project-detail"><div class="project-hero"><div><span class="project-emoji">${escapeHTML(p.emoji)}</span><span class="badge ${modeBadge(p.space)}">${modeLabel(p.space)}</span><h2>${escapeHTML(p.name)}</h2><p>${escapeHTML(p.description||"A place for everything this project is carrying.")}</p>${p.dueDate?`<small>📅 ${formatFullDate(p.dueDate)}</small>`:""}</div><button class="secondary-button" data-edit-project="${p.id}">Edit</button></div><div class="project-progress"><div><strong>${progress}%</strong><span>${ts.filter(t=>t.completed).length}/${ts.length} tasks complete</span></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div></div><section class="project-section"><div class="section-header"><h3>Milestones</h3><button data-new-milestone="${p.id}">+ Add</button></div>${p.milestones.length?p.milestones.map(m=>{const pct=milestoneProgress(p,m);return `<button class="milestone-card" data-edit-milestone="${m.id}" data-project-id="${p.id}"><span>${pct===100?"🌸":"🌷"}</span><span><strong>${escapeHTML(m.title)}</strong><small>${m.dueDate?formatDate(m.dueDate)+" · ":""}${pct}% complete</small><i><b style="width:${pct}%"></b></i></span></button>`}).join(""):`<div class="project-empty">Add milestones when the project has meaningful stages.</div>`}</section><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Next</h3><button data-new-project-task="${escapeHTML(p.name)}">+ Task</button></div>${open.filter(t=>t.status!=="waiting").slice(0,6).map(taskCard).join("")||`<div class="project-empty">Nothing next 🌿</div>`}</section><section class="project-section"><div class="section-header"><h3>Waiting</h3><span>${waiting.length}</span></div>${waiting.slice(0,5).map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>⏳</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.waitingOn||"Waiting")}</small></span></button>`).join("")||`<div class="project-empty">Nothing waiting.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Notes</h3><button data-new-project-note="${escapeHTML(p.name)}">+ Note</button></div>${notes.slice(0,5).map(n=>`<button class="project-link-row" data-edit-note="${n.id}"><span>📝</span><span><strong>${escapeHTML(n.title)}</strong><small>${escapeHTML(n.content).slice(0,80)}</small></span></button>`).join("")||`<div class="project-empty">No linked notes.</div>`}</section><section class="project-section"><div class="section-header"><h3>Trackers</h3><button data-new-project-table="${escapeHTML(p.name)}">+ Tracker</button></div>${tables.map(t=>`<button class="project-link-row" data-open-project-table="${t.id}"><span>📒</span><span><strong>${escapeHTML(t.name)}</strong><small>${t.rows.length} rows</small></span></button>`).join("")||`<div class="project-empty">No linked trackers.</div>`}</section></div><div class="project-columns"><section class="project-section"><div class="section-header"><h3>Links</h3><span>${links.length}</span></div>${links.slice(0,6).map(t=>`<a class="project-link-row project-external-link" href="${escapeHTML(safeExternalURL(t.link))}" target="_blank" rel="noopener noreferrer"><span>🔗</span><span><strong>${escapeHTML(t.title)}</strong><small>${escapeHTML(t.link).slice(0,55)}</small></span></a>`).join("")||`<div class="project-empty">Task links will collect here.</div>`}</section><section class="project-section"><div class="section-header"><h3>Recent activity</h3><span>${activity.length}</span></div>${activity.map(t=>`<button class="project-link-row" data-edit-task="${t.id}"><span>${t.completed?"🌸":t.status==="waiting"?"⏳":"🌱"}</span><span><strong>${escapeHTML(t.title)}</strong><small>${t.completed?`Completed ${formatDate(t.completedDate)}`:t.status==="waiting"?`Waiting · ${escapeHTML(t.waitingOn||"dependency")}`:`Updated ${new Date(t.updatedAt||t.createdAt).toLocaleDateString()}`}</small></span></button>`).join("")||`<div class="project-empty">Project activity will gather here.</div>`}</section></div></article>`;
 }
 function renderProjects(){const c=document.getElementById("pageContent");const projects=filterByMode(state.projects,{respectFirewall:false});if(!projects.some(p=>p.id===state.activeProjectId))state.activeProjectId=projects[0]?.id||"";const active=projects.find(p=>p.id===state.activeProjectId);c.innerHTML=`<div class="page-heading projects-heading"><div><p class="eyebrow">FROM TASK LIST TO REAL PROJECT</p><h1>Projects</h1><p>Milestones, tasks, waiting items, notes and trackers stay together.</p></div><button class="primary-button" data-new-project>+ Project</button></div>${projects.length?`<div class="project-tabs">${projects.map(p=>`<button class="${p.id===state.activeProjectId?"active":""}" data-select-project="${p.id}">${escapeHTML(p.emoji)} ${escapeHTML(p.name)}${p.sharedWithPartner?" 💕":""}</button>`).join("")}</div>${active?renderProjectDetail(active):""}`:emptyState("🌷","No projects yet","Create a project when a goal needs more than a single task.","Create project","open-project")}`;}
 
@@ -3682,6 +3674,8 @@ function refreshShareControl(prefix, item = null){
   const user=hanaAccountState.user;
   const connected=Boolean(user&&hanaPartnerState.connected);
   const received=Boolean(item?.sharedWithPartner&&item.sharedOwnerUid&&user?.uid&&item.sharedOwnerUid!==user.uid);
+  // Keep forms uncluttered until Partner Link is actually in use.
+  wrap.classList.toggle("hidden",!connected&&!item?.sharedWithPartner);
   input.checked=Boolean(item?.sharedWithPartner);
   input.disabled=!connected||received;
   wrap.classList.toggle("partner-share-disabled",!connected);
@@ -3690,11 +3684,14 @@ function refreshShareControl(prefix, item = null){
   const label=wrap.querySelector("[data-partner-share-label]");
   if(label)label.textContent=connected?`Share with ${partner}`:"Share with Partner";
   if(help){
-    if(received)help.textContent=`Shared by ${item.sharedOwnerName||partner}. You can edit it together; only the owner can make it private.`;
-    else if(connected)help.textContent=`Private by default. Turn this on to make this entry appear in ${partner}'s Hana in real time.`;
-    else if(user)help.textContent="Connect one person in Settings → Partner Link to share this entry.";
-    else help.textContent="Sign in to Hana first, then connect a partner in Settings.";
+    if(received)help.textContent=`Shared by ${item.sharedOwnerName||partner}. You can both edit it; only the owner can make it private or delete the whole item.`;
+    else if(connected)help.textContent=`Private unless shared · changes sync with ${partner}.`;
+    else if(user)help.textContent="Connect a partner in Settings to share.";
+    else help.textContent="Sign in to use Partner Link.";
   }
+  const deleteButtons={task:"deleteTaskFromModal",note:"deleteNoteFromModal",reminder:"deleteReminderFromModal",table:"deleteTableFromModal",list:"deleteListFromModal",event:"deleteEventButton",project:"deleteProjectButton"};
+  const deleteButton=document.getElementById(deleteButtons[prefix]||"");
+  if(deleteButton)deleteButton.classList.toggle("hidden",received);
 }
 
 function refreshModalShareControl(modalId){
@@ -3736,6 +3733,75 @@ function normalizeSharedEntity(type,data){
   return null;
 }
 
+function sharedJSONEqual(a,b){
+  if(a===b)return true;
+  try{return JSON.stringify(a)===JSON.stringify(b);}catch{return false;}
+}
+
+function sharedPlainObject(value){
+  return Boolean(value)&&typeof value==="object"&&!Array.isArray(value);
+}
+
+function mergeSharedArrayById(base=[],local=[],remote=[]){
+  const all=[base,local,remote];
+  if(!all.every(array=>Array.isArray(array)))return local;
+  const objects=all.flat().filter(value=>value!=null);
+  if(objects.some(value=>!sharedPlainObject(value)||!value.id))return local;
+  const baseMap=new Map(base.map(value=>[String(value.id),value]));
+  const localMap=new Map(local.map(value=>[String(value.id),value]));
+  const remoteMap=new Map(remote.map(value=>[String(value.id),value]));
+  const order=[...remote.map(value=>String(value.id)),...local.map(value=>String(value.id)).filter(id=>!remoteMap.has(id))];
+  const seen=new Set(),merged=[];
+  order.forEach(id=>{
+    if(seen.has(id))return;seen.add(id);
+    const hadBase=baseMap.has(id),hasLocal=localMap.has(id),hasRemote=remoteMap.has(id);
+    // If an existing shared child was deleted by either partner, deletion wins.
+    // This prevents a stale edit from silently resurrecting a removed row/item.
+    if(hadBase&&(!hasLocal||!hasRemote))return;
+    if(!hasLocal&&!hasRemote)return;
+    if(!hasLocal){merged.push(remoteMap.get(id));return;}
+    if(!hasRemote){merged.push(localMap.get(id));return;}
+    merged.push(mergeSharedValue(hadBase?baseMap.get(id):undefined,localMap.get(id),remoteMap.get(id)));
+  });
+  return merged;
+}
+
+function mergeSharedValue(base,local,remote){
+  if(sharedJSONEqual(local,base))return clone(remote);
+  if(sharedJSONEqual(remote,base))return clone(local);
+  if(sharedJSONEqual(local,remote))return clone(local);
+
+  if(Array.isArray(local)&&Array.isArray(remote)){
+    const baseArray=Array.isArray(base)?base:[];
+    const canMergeById=[...baseArray,...local,...remote].filter(value=>value!=null).every(value=>sharedPlainObject(value)&&value.id);
+    return canMergeById?mergeSharedArrayById(baseArray,local,remote):clone(local);
+  }
+
+  if(sharedPlainObject(local)&&sharedPlainObject(remote)){
+    const baseObject=sharedPlainObject(base)?base:{};
+    const result={};
+    const keys=new Set([...Object.keys(baseObject),...Object.keys(local),...Object.keys(remote)]);
+    keys.forEach(key=>{
+      const baseHas=Object.prototype.hasOwnProperty.call(baseObject,key);
+      const localHas=Object.prototype.hasOwnProperty.call(local,key);
+      const remoteHas=Object.prototype.hasOwnProperty.call(remote,key);
+      if(baseHas&&(!localHas||!remoteHas)){
+        // Explicit deletion on either side wins over a stale value.
+        return;
+      }
+      if(!localHas&&!remoteHas)return;
+      if(!localHas){result[key]=clone(remote[key]);return;}
+      if(!remoteHas){result[key]=clone(local[key]);return;}
+      result[key]=mergeSharedValue(baseHas?baseObject[key]:undefined,local[key],remote[key]);
+    });
+    return result;
+  }
+
+  // Same-field conflicts are intentionally local-wins; disjoint fields are
+  // merged above and then synced back to Firestore.
+  return clone(local);
+}
+
 function captureLiveSharedEntities(){
   if(!hanaPartnerState.connected||!hanaPartnerState.linkId)return null;
   const preserved={};
@@ -3771,6 +3837,25 @@ function removeSharedLocalEntity(type,itemId){
   return before!==state[collection].length;
 }
 
+function isEditingPageField(){
+  const active=document.activeElement;
+  const page=document.getElementById("pageContent");
+  if(!active||!page?.contains(active))return false;
+  return ["INPUT","TEXTAREA","SELECT"].includes(active.tagName)||Boolean(active.isContentEditable);
+}
+
+function renderRemoteSharedChange(){
+  if(isEditingPageField()){pendingRemoteRender=true;return;}
+  pendingRemoteRender=false;
+  render();
+}
+
+function flushDeferredRemoteRender(){
+  if(!pendingRemoteRender||isEditingPageField())return;
+  pendingRemoteRender=false;
+  render();
+}
+
 function applyRemoteSharedSnapshot(payload={docs:[],initial:false}){
   if(!hanaPartnerState.connected)return;
   const docs=Array.isArray(payload)?payload:(payload.docs||[]);
@@ -3787,10 +3872,22 @@ function applyRemoteSharedSnapshot(payload={docs:[],initial:false}){
       const index=state[collection].findIndex(item=>item.id===entry.itemId);
       if(index<0){state[collection].push(normalized);changed=true;}
       else{
-        const before=JSON.stringify(state[collection][index]);
-        const after=JSON.stringify(normalized);
-        if(before!==after){state[collection][index]=normalized;changed=true;}
+        const local=state[collection][index];
+        let merged=normalized;
+        const baselineSerialized=lastSharedEntityMap.get(entry.key);
+        if(baselineSerialized){
+          try{
+            const baseline=JSON.parse(baselineSerialized);
+            if(!sharedJSONEqual(local,baseline))merged=mergeSharedValue(baseline,local,normalized);
+          }catch{}
+        }
+        const before=JSON.stringify(local);
+        const after=JSON.stringify(merged);
+        if(before!==after){state[collection][index]=merged;changed=true;}
       }
+      // Keep the latest server copy as the merge baseline. If local edits were
+      // preserved above, sharedEntitySnapshot still sees them as dirty and sends
+      // only those changes back out.
       lastSharedEntityMap.set(entry.key,JSON.stringify(normalized));
     });
     Object.entries(SHARE_COLLECTIONS).forEach(([type,collection])=>{
@@ -3802,7 +3899,7 @@ function applyRemoteSharedSnapshot(payload={docs:[],initial:false}){
         if(removeSharedLocalEntity(type,item.id)){lastSharedEntityMap.delete(key);changed=true;}
       });
     });
-    if(changed){lastSavedStateJSON="";saveState({snapshot:false});render();}
+    if(changed){lastSavedStateJSON="";saveState({snapshot:false});renderRemoteSharedChange();}
   } finally {applyingRemoteShare=false;}
   partnerSharedInitialized=true;
   schedulePartnerEntitySync();
@@ -3810,8 +3907,15 @@ function applyRemoteSharedSnapshot(payload={docs:[],initial:false}){
 
 function stopSharedRealtime(){
   try{sharedWatchStop?.();}catch{}
-  sharedWatchStop=null;lastSharedEntityMap=new Map();partnerSharedInitialized=false;
+  sharedWatchStop=null;
+  lastSharedEntityMap=new Map();
+  partnerSharedInitialized=false;
+  partnerSyncQueued=false;
+  partnerSyncRetryCount=0;
+  partnerSyncStatus=navigator.onLine?"idle":"offline";
   if(partnerSyncTimer){clearTimeout(partnerSyncTimer);partnerSyncTimer=null;}
+  if(partnerRetryTimer){clearTimeout(partnerRetryTimer);partnerRetryTimer=null;}
+  refreshPartnerSyncBadge();
 }
 
 async function cleanupLocalAfterPartnerDisconnect(linkId,userUid){
@@ -3842,6 +3946,25 @@ async function cleanupLocalAfterPartnerDisconnect(linkId,userUid){
   return changed;
 }
 
+async function cleanupSharedLocalForSignedOut(){
+  const hasShared=Object.values(SHARE_COLLECTIONS).some(collection=>(state[collection]||[]).some(item=>item?.sharedWithPartner));
+  if(!hasShared){if(state.currentMode==="shared")state.currentMode="all";return false;}
+  await createSafetySnapshot("pre-account-signout",JSON.stringify(state),{force:true});
+  applyingRemoteShare=true;
+  try{
+    Object.values(SHARE_COLLECTIONS).forEach(collection=>{
+      state[collection]=(state[collection]||[]).filter(item=>!item?.sharedWithPartner);
+    });
+    if(state.activeListId&&!state.lists.some(item=>item.id===state.activeListId))state.activeListId=state.lists[0]?.id||"";
+    if(state.activeTableId&&!state.tables.some(item=>item.id===state.activeTableId))state.activeTableId=state.tables[0]?.id||"";
+    if(state.activeProjectId&&!state.projects.some(item=>item.id===state.activeProjectId))state.activeProjectId=state.projects[0]?.id||"";
+    if(state.currentMode==="shared")state.currentMode="all";
+    lastSavedStateJSON="";
+    saveState({snapshot:false});
+  }finally{applyingRemoteShare=false;}
+  return true;
+}
+
 async function startSharedRealtime(){
   stopSharedRealtime();
   if(!hanaPartnerState.connected||!hanaPartnerState.linkId||!hanaAccountState.user)return;
@@ -3851,14 +3974,56 @@ async function startSharedRealtime(){
   }catch(error){console.error("Unable to start Partner Link sharing:",error);}
 }
 
-function schedulePartnerEntitySync(){
+function setPartnerSyncStatus(status){
+  partnerSyncStatus=status;
+  refreshPartnerSyncBadge();
+}
+
+function partnerSyncBadgeConfig(){
+  if(!navigator.onLine||partnerSyncStatus==="offline")return {label:"Offline",className:"sync-offline"};
+  if(partnerSyncStatus==="syncing")return {label:"Syncing…",className:"sync-syncing"};
+  if(partnerSyncStatus==="retrying")return {label:"Retrying…",className:"sync-retrying"};
+  return {label:"Realtime",className:"sync-live"};
+}
+
+function partnerSyncBadgeHTML(){
+  const meta=partnerSyncBadgeConfig();
+  return `<span class="realtime-badge ${meta.className}" data-partner-sync-badge><i></i>${meta.label}</span>`;
+}
+
+function refreshPartnerSyncBadge(){
+  const badge=document.querySelector("[data-partner-sync-badge]");
+  if(!badge)return;
+  const meta=partnerSyncBadgeConfig();
+  badge.className=`realtime-badge ${meta.className}`;
+  badge.innerHTML=`<i></i>${meta.label}`;
+}
+
+function schedulePartnerEntitySync(delay=90){
   if(applyingRemoteShare||!hanaPartnerState.connected||!hanaAccountState.user||!hanaPartnerState.linkId)return;
+  partnerSyncQueued=true;
+  if(!partnerSharedInitialized)return;
+  if(partnerSyncInFlight)return;
+  if(!navigator.onLine){setPartnerSyncStatus("offline");return;}
   clearTimeout(partnerSyncTimer);
-  partnerSyncTimer=setTimeout(syncPartnerEntitiesNow,140);
+  partnerSyncTimer=setTimeout(()=>{partnerSyncTimer=null;syncPartnerEntitiesNow();},Math.max(0,Number(delay)||0));
+}
+
+function schedulePartnerRetry(){
+  if(partnerRetryTimer||!hanaPartnerState.connected)return;
+  if(!navigator.onLine){setPartnerSyncStatus("offline");return;}
+  const delay=Math.min(30000,1000*Math.pow(2,Math.min(partnerSyncRetryCount,5)));
+  partnerRetryTimer=setTimeout(()=>{partnerRetryTimer=null;syncPartnerEntitiesNow();},delay);
 }
 
 async function syncPartnerEntitiesNow(){
-  if(applyingRemoteShare||!hanaPartnerState.connected||!hanaAccountState.user)return;
+  if(applyingRemoteShare||!hanaPartnerState.connected||!hanaAccountState.user||!hanaPartnerState.linkId)return;
+  if(!partnerSharedInitialized){partnerSyncQueued=true;return;}
+  if(partnerSyncInFlight){partnerSyncQueued=true;return;}
+  if(!navigator.onLine){partnerSyncQueued=true;setPartnerSyncStatus("offline");return;}
+
+  partnerSyncInFlight=true;
+  partnerSyncQueued=false;
   const current=sharedEntitySnapshot();
   const changes=[];
   current.forEach((entry,key)=>{
@@ -3870,13 +4035,40 @@ async function syncPartnerEntitiesNow(){
     }
   });
   lastSharedEntityMap.forEach((serialized,key)=>{if(!current.has(key))changes.push({action:"delete",key});});
-  if(!changes.length)return;
+
+  if(!changes.length){
+    partnerSyncInFlight=false;
+    partnerSyncRetryCount=0;
+    setPartnerSyncStatus("synced");
+    return;
+  }
+
+  setPartnerSyncStatus("syncing");
+  let retryNeeded=false;
   try{
     const fb=await firebaseReady();
     await fb.syncSharedChanges(hanaPartnerState.linkId,changes.map(change=>change.action==="delete"?change:{...change,ownerUid:change.data.sharedOwnerUid||hanaAccountState.user.uid,ownerName:change.data.sharedOwnerName||accountDisplayName(hanaAccountState.user),updatedByUid:hanaAccountState.user.uid,updatedByName:accountDisplayName(hanaAccountState.user)}));
     current.forEach((entry,key)=>lastSharedEntityMap.set(key,entry.serialized));
     changes.filter(change=>change.action==="delete").forEach(change=>lastSharedEntityMap.delete(change.key));
-  }catch(error){console.warn("Partner Link sync will retry:",error);}
+    partnerSyncRetryCount=0;
+    if(partnerRetryTimer){clearTimeout(partnerRetryTimer);partnerRetryTimer=null;}
+    setPartnerSyncStatus("synced");
+  }catch(error){
+    console.warn("Partner Link sync will retry:",error);
+    partnerSyncQueued=true;
+    partnerSyncRetryCount+=1;
+    retryNeeded=true;
+    setPartnerSyncStatus(navigator.onLine?"retrying":"offline");
+    const now=Date.now();
+    if(now-partnerSyncErrorToastAt>15000){
+      partnerSyncErrorToastAt=now;
+      showToast(navigator.onLine?"Shared changes are saved here and will retry automatically.":"Offline — shared changes will sync when you reconnect.");
+    }
+  }finally{
+    partnerSyncInFlight=false;
+    if(retryNeeded)schedulePartnerRetry();
+    else if(partnerSyncQueued)schedulePartnerEntitySync(30);
+  }
 }
 
 function partnerStatusText(){
@@ -3889,7 +4081,7 @@ function renderPartnerSettingsCard(){
   const user=hanaAccountState.user;
   if(!user)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Share only what you choose</h3><p>Sign in to Hana first. Partner Link connects one person and keeps everything private by default.</p></div></div><button class="secondary-button" type="button" data-auth-email-mode="signin">Sign in to use Partner Link</button></div></section>`;
   if(hanaPartnerState.status==="loading")return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><h3>Checking your Partner Link…</h3><p>Your private Hana data stays local while this loads.</p></div></section>`;
-  if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2><span class="realtime-badge"><i></i>Realtime</span></div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
+  if(hanaPartnerState.connected)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2>${partnerSyncBadgeHTML()}</div><div class="settings-card partner-link-card connected"><div class="partner-link-hero"><div class="partner-avatar">💕</div><div><h3>${escapeHTML(hanaPartnerState.partnerName||"Partner")}</h3><p>${escapeHTML(hanaPartnerState.partnerEmail||partnerStatusText())}</p></div></div><div class="partner-link-summary"><div><strong>🔒 Private by default</strong><small>Nothing is shared unless you turn sharing on for that entry.</small></div><div><strong>⚡ Realtime editing</strong><small>Shared entries listen for Firestore changes on both accounts.</small></div></div><button class="text-button danger-text" type="button" data-disconnect-partner>Disconnect Partner Link</button></div></section>`;
   if(hanaPartnerState.inviteCode)return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💌</span><div><h3>Invite ${escapeHTML("your partner")}</h3><p>Send this one-time code. Hana will connect automatically when they accept it.</p></div></div><button class="partner-invite-code" type="button" data-copy-partner-code title="Copy invite code"><strong>${escapeHTML(hanaPartnerState.inviteCode)}</strong><small>Tap to copy</small></button><p class="field-help">Invite codes expire after 7 days. Only one partner can be connected.</p><button class="text-button danger-text" type="button" data-cancel-partner-invite>Cancel invite</button></div></section>`;
   return `<section id="partnerLinkSection" class="section settings-section"><div class="section-header"><h2>Partner Link 💕</h2></div><div class="settings-card partner-link-card"><div class="partner-link-hero"><span>💕</span><div><h3>Connect one person</h3><p>Perfect for a partner. Your existing lists, notes, tasks and trackers stay private until you explicitly share them.</p></div></div><div class="partner-connect-actions"><button class="primary-button" type="button" data-create-partner-invite>Create invite code</button><button class="secondary-button" type="button" data-open-partner-join>I have a code</button></div><small class="field-help">One Hana account can have one Partner Link at a time.</small></div></section>`;
 }
@@ -3905,7 +4097,7 @@ async function startPartnerForUser(user){
       const endedLink=next?.disconnected?(next.linkId||previousLink):"";
       if(endedLink)await cleanupLocalAfterPartnerDisconnect(endedLink,user.uid);
       hanaPartnerState={status:"ready",connected:Boolean(next?.connected),linkId:next?.connected?(next?.linkId||""):"",partnerUid:next?.partnerUid||"",partnerName:next?.partnerName||"",partnerEmail:next?.partnerEmail||"",inviteCode:next?.inviteCode||"",inviteExpiresAt:next?.inviteExpiresAt||"",error:""};
-      if(hanaPartnerState.connected&&hanaPartnerState.linkId!==previousLink)await startSharedRealtime();
+      if(hanaPartnerState.connected&&(!sharedWatchStop||hanaPartnerState.linkId!==previousLink))await startSharedRealtime();
       else if(!hanaPartnerState.connected)stopSharedRealtime();
       if(state.currentMode==="shared"&&!hanaPartnerState.connected)state.currentMode="all";
       renderModeBar();
@@ -4146,7 +4338,12 @@ async function handleAuthChanged(user){
     await startPartnerForUser(user);
     let pending=authActionPending;try{pending=pending||sessionStorage.getItem("hana_auth_flow_pending")==="1";}catch{}
     if(pending){authActionPending=false;try{sessionStorage.removeItem("hana_auth_flow_pending");}catch{};setTimeout(openCloudChoiceForUser,100);}
-  }else{hanaAccountState.meta=null;await startPartnerForUser(null);}
+  }else{
+    hanaAccountState.meta=null;
+    await startPartnerForUser(null);
+    const removedShared=await cleanupSharedLocalForSignedOut();
+    if(removedShared&&state.currentPage!=="settings")render();
+  }
   if(state.currentPage==="settings")renderSettings();
 }
 
@@ -4166,8 +4363,22 @@ function continueWithoutAccount(){
 }
 
 async function signOutHanaAccount(){
-  try{const fb=await firebaseReady();await fb.signOut();hanaAccountState.user=null;hanaAccountState.meta=null;showToast("Signed out. Your local Hana data stays on this device.");if(state.currentPage==="settings")renderSettings();}
-  catch(error){showToast(firebaseFriendlyError(error));}
+  try{
+    const fb=await firebaseReady();
+    if(hanaPartnerState.connected&&partnerSharedInitialized){
+      if(!navigator.onLine){
+        showToast("Reconnect before signing out so shared changes can finish syncing.");
+        return;
+      }
+      await syncPartnerEntitiesNow();
+      if(partnerSyncInFlight||partnerSyncQueued||["retrying","offline"].includes(partnerSyncStatus)){
+        showToast("Shared changes are still syncing. Try Sign out again in a moment.");
+        return;
+      }
+    }
+    await fb.signOut();
+    showToast("Signed out. Private local data stays here; shared Partner Link items return when you sign in again.");
+  }catch(error){showToast(firebaseFriendlyError(error));}
 }
 
 async function startAccountOnboarding(){
@@ -4826,7 +5037,8 @@ document.addEventListener("click",event=>{
   if(event.target.closest("[data-disconnect-partner]")){disconnectPartner();return;}
 });
 
-document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;saveState();const pos=event.target.selectionStart;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(pos,pos);}}});
+let taskSearchRenderTimer=null;
+document.addEventListener("input",event=>{if(event.target.id==="taskProject")refreshTaskMilestoneOptions(event.target.value);if(event.target.id==="quickCaptureInput")updateCapturePrediction();if(event.target.id==="noteSearch")searchNotes(event.target.value);if(event.target.id==="globalSearchInput")renderGlobalSearchResults(event.target.value);if(event.target.id==="taskSearch"){state.taskSearch=event.target.value;const pos=event.target.selectionStart;clearTimeout(taskSearchRenderTimer);taskSearchRenderTimer=setTimeout(()=>{if(state.currentPage!=="tasks")return;renderTasks();const input=document.getElementById("taskSearch");if(input){input.focus();input.setSelectionRange(Math.min(pos,input.value.length),Math.min(pos,input.value.length));}},80);}});
 
 document.addEventListener("change",event=>{if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
@@ -5060,10 +5272,28 @@ document.getElementById("saveThreadLinkButton").addEventListener("click",saveThr
 document.getElementById("importBackupInput").addEventListener("change",event=>importData(event.target.files?.[0]));
 document.getElementById("wallpaperInput").addEventListener("change",event=>chooseWallpaper(event.target.files?.[0]));
 
-document.querySelectorAll(".modal-overlay").forEach(overlay=>overlay.addEventListener("click",event=>{if(event.target===overlay)overlay.classList.add("hidden");}));
+document.querySelectorAll(".modal-overlay").forEach(overlay=>overlay.addEventListener("click",event=>{if(event.target===overlay)closeModal(overlay.id);}));
 
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"&&lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("background",lastSavedStateJSON);});
-window.addEventListener("pagehide",()=>{if(lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("pagehide",lastSavedStateJSON);});
+document.addEventListener("focusout",()=>{if(pendingRemoteRender)setTimeout(flushDeferredRemoteRender,0);});
+window.addEventListener("online",()=>{
+  setPartnerSyncStatus("idle");
+  if(partnerRetryTimer){clearTimeout(partnerRetryTimer);partnerRetryTimer=null;}
+  if(hanaPartnerState.connected)schedulePartnerEntitySync(0);
+});
+window.addEventListener("offline",()=>{if(hanaPartnerState.connected)setPartnerSyncStatus("offline");});
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden"){
+    if(lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("background",lastSavedStateJSON);
+    if(hanaPartnerState.connected&&partnerSharedInitialized)syncPartnerEntitiesNow();
+  }else if(pendingRemoteRender){
+    flushDeferredRemoteRender();
+  }
+});
+window.addEventListener("pagehide",()=>{
+  if(lastSavedStateJSON&&!safetyRecoveryPending)createSafetySnapshot("pagehide",lastSavedStateJSON);
+  if(hanaPartnerState.connected&&partnerSharedInitialized)syncPartnerEntitiesNow();
+});
 
 /* SERVICE WORKER */
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(error=>console.error("Service worker registration failed:",error)));}
