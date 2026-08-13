@@ -840,18 +840,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.28";
+const HANA_APP_VERSION = "2.0.29";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Cleaner skincare tables & swipeable notes 🌸",
-  intro: "Hana Version 2 makes weekly skincare editing feel like a real table and adds a faster mobile gesture for clearing notes.",
+  title: "Cleaner tracker cleanup 🌸",
+  intro: "Hana Version 2 makes large trackers easier to clean without mistaking default values for real row content.",
   items: [
-    { icon:"🧴", title:"Skincare stays in rows", text:"Product Type, Product and Notes now stay on one compact table row instead of stacking Notes underneath every product on phones." },
-    { icon:"↔️", title:"Table-friendly mobile editing", text:"Skincare routine tables can scroll sideways when needed, preserving readable columns without turning each entry into a tall card." },
-    { icon:"👈", title:"Swipe notes to delete", text:"Swipe a note card left to use Hana’s normal Trash confirmation. Tapping the card still opens it." },
-    { icon:"🛡️", title:"Safe delete path", text:"Swipe delete uses the existing Trash and Partner Link ownership safeguards rather than bypassing them." }
+    { icon:"☑️", title:"Select and delete many rows", text:"Use More → Select / edit rows, tick any rows you want, then delete the whole selection together." },
+    { icon:"🧹", title:"Delete empty rows", text:"One cleanup action removes rows that contain only blanks and default-looking values such as 0% progress, the default status, and unchecked boxes." },
+    { icon:"🛡️", title:"Real zeroes stay safe", text:"A deliberate 0 in a normal Number or Money column still counts as data and will not be treated as an empty row." },
+    { icon:"🗑️", title:"Cleanup still uses Trash", text:"Bulk and empty-row cleanup create a safety snapshot and move rows to Trash instead of permanently erasing them." }
   ]
 };
 
@@ -3095,6 +3095,47 @@ function deleteSelectedTableRows(tableId){
   showToast(`${rows.length} row${rows.length===1?"":"s"} moved to Trash 🗑️`);
   render();
 }
+function tableCellIsEffectivelyEmpty(table,col,value){
+  const text=String(value??"").trim();
+  if(col.type==="checkbox"){
+    if(value===false||value===0||value==null||text==="")return true;
+    return ["false","0","no","unchecked","off"].includes(text.toLowerCase());
+  }
+  if(col.type==="progress")return text===""||Number(value||0)===0;
+  if(col.type==="status"){
+    const defaultStatus=String((table.statusOptions||DEFAULT_TABLE_STATUSES)[0]||"upcoming").trim().toLowerCase();
+    const normalized=text.toLowerCase();
+    return !normalized||normalized===defaultStatus;
+  }
+  // Keep numeric/money zeroes as real data. Only an actually blank cell is empty.
+  return text==="";
+}
+function tableRowIsEffectivelyEmpty(table,row){
+  if(!table?.columns?.length)return true;
+  return table.columns.every(col=>tableCellIsEffectivelyEmpty(table,col,row?.values?.[col.id]));
+}
+function tableEmptyRows(table){
+  return (table?.rows||[]).filter(row=>tableRowIsEffectivelyEmpty(table,row));
+}
+function deleteEmptyTableRows(tableId){
+  const table=state.tables.find(item=>item.id===tableId);if(!table)return;
+  const rows=tableEmptyRows(table);
+  if(!rows.length)return showToast("No empty rows to clean up 🌿");
+  const message=`Move ${rows.length} empty row${rows.length===1?"":"s"} to Trash? Hana treats blank cells, 0% progress, the default status, and unchecked boxes as empty.`;
+  if(!confirm(message))return;
+  createSafetySnapshot("pre-empty-row-delete",JSON.stringify(state),{force:true});
+  const rowIds=new Set(rows.map(row=>row.id));
+  rows.forEach(row=>{
+    const linkedReminders=state.reminders.filter(reminder=>reminder.linkedTableId===tableId&&reminder.linkedRowId===row.id);
+    moveToTrash("tableRow",row,{tableId,tableName:table.name,linkedReminders});
+  });
+  table.rows=table.rows.filter(row=>!rowIds.has(row.id));
+  table.updatedAt=Date.now();
+  state.reminders=state.reminders.filter(reminder=>!(reminder.linkedTableId===tableId&&rowIds.has(reminder.linkedRowId)));
+  if(tableBulkState.tableId===tableId)tableBulkState.selectedRows=new Set([...tableBulkState.selectedRows].filter(id=>!rowIds.has(id)));
+  showToast(`${rows.length} empty row${rows.length===1?"":"s"} moved to Trash 🧹`);
+  render();
+}
 function refreshBulkControls(tableId){
   const table=state.tables.find(item=>item.id===tableId);if(!table||!isTableBulkActive(tableId))return;
   const rows=selectedBulkRows(table),cols=selectedBulkCols(table),allRows=getSortedTableRows(table);
@@ -3340,10 +3381,10 @@ function renderBulkPreviewCell(col,value,tableId,rowId){
   return renderTableCell(col,value,tableId,rowId);
 }
 function renderSingleTable(table){
-  const rows=getSortedTableRows(table),bulk=ensureTableBulkState(table),bulkActive=bulk.active;
+  const rows=getSortedTableRows(table),emptyRows=tableEmptyRows(table),bulk=ensureTableBulkState(table),bulkActive=bulk.active;
   const selectedRows=selectedBulkRows(table),selectedCols=selectedBulkCols(table);
   const rowView=table.rowView||"compact";
-  const normalActions=`<div class="tracker-toolbar"><div class="tracker-primary-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add</button></div><details class="tracker-more-actions"><summary>More</summary><div class="tracker-more-menu"><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Bulk edit</button><button class="secondary-button" data-import-table="${table.id}">⇩ Import sheet</button><button class="secondary-button" data-cycle-row-view="${table.id}">Rows: ${rowView[0].toUpperCase()+rowView.slice(1)}</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div></details></div>`;
+  const normalActions=`<div class="tracker-toolbar"><div class="tracker-primary-actions"><button class="primary-button" data-add-row="${table.id}">+ Add row</button><button class="secondary-button" data-toggle-quick-row="${table.id}">⚡ Quick add</button></div><details class="tracker-more-actions"><summary>More</summary><div class="tracker-more-menu"><button class="secondary-button" data-toggle-bulk-table="${table.id}">☑ Select / edit rows</button><button class="secondary-button" data-import-table="${table.id}">⇩ Import sheet</button><button class="secondary-button" data-cycle-row-view="${table.id}">Rows: ${rowView[0].toUpperCase()+rowView.slice(1)}</button><button class="secondary-button" data-edit-table="${table.id}">Edit tracker</button><button class="danger-button" data-delete-empty-table-rows="${table.id}" ${emptyRows.length?"":"disabled"}>🧹 Delete empty rows${emptyRows.length?` (${emptyRows.length})`:""}</button><button class="danger-button tracker-delete-button" data-delete-table="${table.id}">Delete tracker</button></div></details></div>`;
   const bulkActions=`<div class="table-bulk-bar"><div><strong data-bulk-summary="${table.id}">${selectedRows.length} row${selectedRows.length===1?"":"s"} · ${selectedCols.length} column${selectedCols.length===1?"":"s"}</strong><small>Select rows and columns, then edit or copy them together.</small></div><div class="table-bulk-actions"><button class="primary-button" data-bulk-edit="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>✎ Edit selected</button><button class="secondary-button" data-bulk-copy="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Copy cells</button><button class="secondary-button" data-bulk-paste="${table.id}" data-bulk-action-for="${table.id}" ${!selectedRows.length||!selectedCols.length?"disabled":""}>Paste cells</button><button class="danger-button" data-bulk-delete-rows="${table.id}" data-bulk-action-for="${table.id}" data-bulk-requires="rows" ${!selectedRows.length?"disabled":""}>Delete selected</button><button class="secondary-button" data-toggle-bulk-table="${table.id}">Done</button></div></div>`;
   const head=bulkActive?`<tr><th class="bulk-select-head"><label class="bulk-check-label" title="Select all rows"><input type="checkbox" data-bulk-select-all-rows="${table.id}" ${rows.length&&selectedRows.length===rows.length?"checked":""}/><span>Rows</span></label></th>${table.columns.map(c=>`<th class="bulk-column-head ${bulk.selectedCols.has(c.id)?"bulk-selected":""}" data-bulk-col-head="${table.id}" data-col-id="${c.id}"><label class="bulk-check-label"><input type="checkbox" data-bulk-col-toggle="${c.id}" data-table-id="${table.id}" ${bulk.selectedCols.has(c.id)?"checked":""}/><span>${escapeHTML(c.name)}</span></label></th>`).join("")}<th class="row-actions-head"></th></tr>`:`<tr>${table.columns.map(c=>`<th>${escapeHTML(c.name)}</th>`).join("")}<th class="row-actions-head"></th></tr>`;
   const body=rows.length?rows.map(row=>bulkActive?`<tr class="bulk-table-row ${bulk.selectedRows.has(row.id)?"bulk-selected":""}" data-bulk-row="${table.id}" data-row-id="${row.id}"><td class="bulk-row-check"><input type="checkbox" data-bulk-row-toggle="${row.id}" data-table-id="${table.id}" ${bulk.selectedRows.has(row.id)?"checked":""} aria-label="Select row" /></td>${table.columns.map(c=>`<td>${renderBulkPreviewCell(c,row.values[c.id],table.id,row.id)}</td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`:`<tr class="gesture-table-row tracker-row-${rowView}" data-gesture-row="${row.id}" data-table-id="${table.id}">${table.columns.map(c=>`<td><div class="tracker-cell-content">${renderTableCell(c,row.values[c.id],table.id,row.id)}</div></td>`).join("")}<td class="row-more-cell"><button data-row-more="${row.id}" data-table-id="${table.id}" aria-label="Row actions">•••</button></td></tr>`).join(""):`<tr><td colspan="${table.columns.length+(bulkActive?2:1)}">No rows yet.</td></tr>`;
@@ -5840,6 +5881,7 @@ document.addEventListener("click", event => {
   const bulkCopy=event.target.closest("[data-bulk-copy]");if(bulkCopy){copyBulkTableCells(bulkCopy.dataset.bulkCopy);return;}
   const bulkPaste=event.target.closest("[data-bulk-paste]");if(bulkPaste){openBulkPasteModal(bulkPaste.dataset.bulkPaste);return;}
   const bulkDeleteRows=event.target.closest("[data-bulk-delete-rows]");if(bulkDeleteRows){deleteSelectedTableRows(bulkDeleteRows.dataset.bulkDeleteRows);return;}
+  const deleteEmptyRows=event.target.closest("[data-delete-empty-table-rows]");if(deleteEmptyRows){deleteEmptyTableRows(deleteEmptyRows.dataset.deleteEmptyTableRows);return;}
   const bulkRowTap=event.target.closest("[data-bulk-row]");if(bulkRowTap&&!event.target.closest("input,select,textarea,button,a,label")){const tableId=bulkRowTap.dataset.bulkRow,rowId=bulkRowTap.dataset.rowId,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);const checkbox=bulkRowTap.querySelector(`[data-bulk-row-toggle="${rowId}"]`);const next=!tableBulkState.selectedRows.has(rowId);if(next)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);if(checkbox)checkbox.checked=next;refreshBulkControls(tableId);}return;}
   const removeTableCol=event.target.closest("[data-remove-table-col]");if(removeTableCol){removeTableColumnBuilder(removeTableCol.dataset.removeTableCol);return;}
   const shiftTableCol=event.target.closest("[data-shift-table-col]");if(shiftTableCol){moveTableColumn(shiftTableCol.dataset.colId, shiftTableCol.dataset.shiftTableCol);return;}
