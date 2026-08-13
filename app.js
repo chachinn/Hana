@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.23
+   HANA 🌸 Version 2 · internal build 2.0.24
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -803,7 +803,7 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.23";
+const HANA_APP_VERSION = "2.0.24";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
@@ -815,7 +815,7 @@ const HANA_RELEASE_NOTES = {
     { icon:"✏️", title:"Real customizable fields", text:"Bionote, Strategy Plan and Measurement Profile now use separate fields you can rename, remove or extend." },
     { icon:"🫧", title:"No example entries to delete", text:"Meeting, skincare, grocery and packing previews open blank; tracker templates provide editable columns only." },
     { icon:"🌷", title:"Cleaner Focus Bouquet", text:"Today now opens with a compact focus summary and a single clean task list instead of duplicated flower cards and rows." },
-    { icon:"🛡️", title:"New-item delete bug fixed", text:"Delete buttons stay hidden on unsaved forms and template previews until a real saved item exists." }
+    { icon:"🛡️", title:"Customization safeguards", text:"Delete stays hidden on unsaved forms, intentionally removed custom fields stay removed, and tracker templates no longer force a name." }
   ]
 };
 
@@ -2220,8 +2220,9 @@ function renderStructuredNoteFields(fields=structuredNoteDraftFields){
 }
 function populateStructuredNoteFields(noteOrType){
   const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType||"";
-  const existing=typeof noteOrType==="object"?normalizeStructuredNoteFields(noteOrType?.structuredFields||[]):[];
-  structuredNoteDraftFields=existing.length?existing:structuredSchemaFields(type);
+  const hasSavedFields=typeof noteOrType==="object"&&Array.isArray(noteOrType?.structuredFields);
+  const existing=hasSavedFields?normalizeStructuredNoteFields(noteOrType.structuredFields):[];
+  structuredNoteDraftFields=hasSavedFields?existing:structuredSchemaFields(type);
   const schema=structuredNoteSchema(type);const title=document.getElementById("structuredNoteFieldsTitle");if(title)title.textContent=schema?.title||"Custom fields";
   renderStructuredNoteFields(structuredNoteDraftFields);
 }
@@ -2288,7 +2289,6 @@ function updateNoteConditionalFields() {
   const checklistLabel=document.getElementById("noteChecklistLabel");if(checklistLabel)checklistLabel.textContent=meeting?"Action items / next steps":"Checklist / action items";
   const checklistHelp=document.getElementById("noteChecklistHelp");if(checklistHelp)checklistHelp.textContent=meeting?"One action per line. Hana can turn these into tasks.":"Checklist items can be managed here.";
   if(meeting){if(!document.querySelector("#meetingAgendaItems [data-meeting-agenda-row]"))renderMeetingAgendaItems([]);updateMeetingKindFields();}
-  if(structured&&!structuredNoteDraftFields.length)populateStructuredNoteFields(structuredType);
 }
 
 function meetingHasMeaningfulData(data) {
@@ -3132,7 +3132,7 @@ const TABLE_TEMPLATES={
   expenses:{name:"Expense Tracker",columns:[{name:"Item",type:"text"},{name:"Amount",type:"money"},{name:"Date",type:"date"},{name:"Status",type:"status"},{name:"Remarks",type:"text"}],statusOptions:["pending","completed","reimbursed"]},
   blank:{name:"",columns:[{name:"Item",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()}
 };
-function applyTableTemplate(templateId,force=false){const template=getTemplateDefinition(templateId);const name=document.getElementById("tableName");if(force||!name.value.trim())name.value=template.name;setTableBuilderColumns(template.columns);document.getElementById("tableStatusOptions").value=(template.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");}
+function applyTableTemplate(templateId,force=false){const template=getTemplateDefinition(templateId);const name=document.getElementById("tableName");if(name){if(!name.value.trim())name.placeholder=template.name||"Tracker name";}setTableBuilderColumns(template.columns);document.getElementById("tableStatusOptions").value=(template.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");}
 function clearTableForm(){clearTemplateDraftBanner("tableModal");refreshSpaceSelects();document.getElementById("tableEditId").value="";document.getElementById("tableTemplate").value="progress";document.getElementById("tableName").value="";document.getElementById("tableSpace").value=preferredSpace();document.getElementById("tableProject").value="";refreshProjectDatalist();applyTableTemplate("progress",true);document.getElementById("tableSortMode").value="manual";document.getElementById("tableSortDirection").value="asc";document.getElementById("tableRowView").value="compact";refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();document.getElementById("tableModalEyebrow").textContent="TRACKER / TABLE";document.getElementById("tableModalTitle").textContent="Create tracker";document.getElementById("saveTableButton").textContent="Create tracker";document.getElementById("deleteTableFromModal").classList.add("hidden");}
 function openTableModal(id=""){clearTableForm();const t=state.tables.find(t=>t.id===id);if(t){document.getElementById("tableEditId").value=t.id;document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value=t.name;document.getElementById("tableSpace").value=t.space;document.getElementById("tableProject").value=t.project||"";setTableBuilderColumns(t.columns);document.getElementById("tableStatusOptions").value=(t.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");document.getElementById("tableSortMode").value=t.sortMode||"manual";refreshTableSortColumnOptions(t.sortColumnId||t.columns[0]?.id||"");document.getElementById("tableSortDirection").value=t.sortDirection||"asc";document.getElementById("tableRowView").value=t.rowView||"compact";updateTableSortFields();document.getElementById("tableModalTitle").textContent="Edit tracker";document.getElementById("saveTableButton").textContent="Save tracker";document.getElementById("deleteTableFromModal").classList.remove("hidden");}openModal("tableModal");}
 
