@@ -1,0 +1,47 @@
+name: Hana structured category manager
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-hana:
+    if: github.event.head_commit.message == 'Run Hana structured category manager release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply structured category manager
+        run: python scripts/hana-structured-categories-patch.py
+
+      - name: JavaScript syntax check
+        run: node --check app.js
+
+      - name: Run structured category QA
+        run: python scripts/hana-structured-categories-qa.py
+
+      - name: Repository consistency checks
+        shell: bash
+        run: |
+          grep -q 'hana-app-version" content="2.0.25"' index.html
+          grep -q 'data-hana-version>2</span>' index.html
+          grep -q 'hana-shell-v58' service-worker.js
+          git diff --check
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "hana-release-bot@users.noreply.github.com"
+          git rm .github/workflows/hana-structured-categories.yml scripts/hana-structured-categories-patch.py scripts/hana-structured-categories-qa.py
+          git add app.js index.html style.css service-worker.js
+          git diff --cached --check
+          git commit -m "Make structured note categories fully customizable"
+          git push origin HEAD:main
