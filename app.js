@@ -840,18 +840,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.27";
+const HANA_APP_VERSION = "2.0.28";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Cleaner, safer template forms 🌸",
-  intro: "Hana Version 2 keeps long forms safely below the iPhone status area and treats optional list fields as suggestions instead of forced content.",
+  title: "Cleaner skincare tables & swipeable notes 🌸",
+  intro: "Hana Version 2 makes weekly skincare editing feel like a real table and adds a faster mobile gesture for clearing notes.",
   items: [
-    { icon:"📱", title:"Close button stays reachable", text:"Long template and form modals now respect the iPhone safe area, with headers that stay available while you scroll." },
-    { icon:"🫧", title:"Optional means optional", text:"New lists no longer pre-fill Quantity or Detail. Those names are suggestions only until you choose to use them." },
-    { icon:"☑️", title:"Cleaner list items", text:"If an extra list field has no label, Hana hides that field when you add or edit list items instead of showing a meaningless input." },
-    { icon:"🛡️", title:"Existing lists preserved", text:"Lists that already use Quantity, Detail or custom extra labels keep them exactly as saved." }
+    { icon:"🧴", title:"Skincare stays in rows", text:"Product Type, Product and Notes now stay on one compact table row instead of stacking Notes underneath every product on phones." },
+    { icon:"↔️", title:"Table-friendly mobile editing", text:"Skincare routine tables can scroll sideways when needed, preserving readable columns without turning each entry into a tall card." },
+    { icon:"👈", title:"Swipe notes to delete", text:"Swipe a note card left to use Hana’s normal Trash confirmation. Tapping the card still opens it." },
+    { icon:"🛡️", title:"Safe delete path", text:"Swipe delete uses the existing Trash and Partner Link ownership safeguards rather than bypassing them." }
   ]
 };
 
@@ -5629,6 +5629,48 @@ function openNoteCardElement(card) {
   return false;
 }
 
+let noteSwipeGesture={card:null,noteId:"",startX:0,startY:0};
+let noteGestureSuppressUntil=0;
+function resetNoteSwipeGesture(){
+  const card=noteSwipeGesture.card;
+  if(card){card.style.transform="";card.style.transition="";card.classList.remove("note-swipe-active");}
+  noteSwipeGesture={card:null,noteId:"",startX:0,startY:0};
+}
+function noteCardId(card){return card?.dataset?.openNoteCard||card?.dataset?.openSkincareCard||"";}
+
+document.addEventListener("touchstart",event=>{
+  const card=event.target.closest?.("[data-open-note-card],[data-open-skincare-card]");
+  if(!card||noteCardTapIsInteractive(event.target))return;
+  const touch=event.touches?.[0];if(!touch)return;
+  resetNoteSwipeGesture();
+  noteSwipeGesture={card,noteId:noteCardId(card),startX:touch.clientX,startY:touch.clientY};
+},{passive:true});
+
+document.addEventListener("touchmove",event=>{
+  const {card,startX,startY}=noteSwipeGesture;if(!card)return;
+  const touch=event.touches?.[0];if(!touch)return;
+  const dx=touch.clientX-startX,dy=touch.clientY-startY;
+  if(dx>=0||Math.abs(dx)<=Math.abs(dy)*1.15)return;
+  const limited=Math.max(-92,dx);
+  card.classList.add("note-swipe-active");
+  card.style.transition="none";
+  card.style.transform=`translateX(${limited}px)`;
+},{passive:true});
+
+document.addEventListener("touchend",event=>{
+  const {card,noteId,startX,startY}=noteSwipeGesture;if(!card)return;
+  const touch=event.changedTouches?.[0];
+  const dx=touch?touch.clientX-startX:0,dy=touch?touch.clientY-startY:0;
+  const shouldDelete=Boolean(noteId&&dx<=-72&&Math.abs(dx)>Math.abs(dy)*1.25);
+  resetNoteSwipeGesture();
+  if(!shouldDelete)return;
+  noteGestureSuppressUntil=Date.now()+700;
+  event.preventDefault();
+  setTimeout(()=>deleteNote(noteId),0);
+},{passive:false});
+
+document.addEventListener("touchcancel",resetNoteSwipeGesture,{passive:true});
+
 installNoZoomGuards();
 
 document.addEventListener("keydown", event => {
@@ -5650,7 +5692,10 @@ document.addEventListener("change", event => {
 
 document.addEventListener("click", event => {
   const tappedNoteCard=event.target.closest?.("[data-open-note-card],[data-open-skincare-card]");
-  if(tappedNoteCard&&!noteCardTapIsInteractive(event.target)){openNoteCardElement(tappedNoteCard);return;}
+  if(tappedNoteCard&&!noteCardTapIsInteractive(event.target)){
+    if(Date.now()<noteGestureSuppressUntil){event.preventDefault();return;}
+    openNoteCardElement(tappedNoteCard);return;
+  }
   if(event.target.closest("[data-open-whats-new]")){openWhatsNew({markSeen:true});return;}
   if(event.target.closest("[data-tutorial-next]")){tutorialNext();return;}
   if(event.target.closest("[data-tutorial-back]")){tutorialBack();return;}

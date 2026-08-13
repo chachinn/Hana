@@ -4793,3 +4793,72 @@ body.modal-open{overflow:hidden}
     max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
   }
 }
+
+
+/* HANA COMPACT SKINCARE TABLE + NOTE SWIPE 2.0.28 */
+.skincare-routine-table {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.skincare-routine-table-head,
+.skincare-table-row {
+  grid-template-columns: 118px 170px minmax(190px, 1fr) 34px;
+  min-width: 560px;
+  align-items: center;
+}
+.skincare-routine-table-head {
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.skincare-table-row {
+  padding: 7px 8px;
+}
+.skincare-table-cell-label {
+  display: none !important;
+}
+.skincare-table-cell input,
+.skincare-table-cell select {
+  height: 38px;
+  min-height: 38px;
+  padding: 7px 9px;
+}
+.skincare-notes-cell,
+.skincare-type-cell,
+.skincare-product-cell {
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+.skincare-table-remove {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  margin-top: 0 !important;
+}
+.note-card-openable.note-swipe-active {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  box-shadow: 8px 0 0 color-mix(in srgb, var(--danger) 12%, transparent);
+}
+@media (max-width: 390px) {
+  .skincare-routine-table-head { display:grid !important; }
+  .skincare-table-row {
+    grid-template-columns: 110px 155px 180px 32px !important;
+    min-width: 515px;
+    align-items:center !important;
+    padding:7px 8px !important;
+  }
+  .skincare-routine-table-head {
+    grid-template-columns:110px 155px 180px 32px !important;
+    min-width:515px;
+  }
+  .skincare-table-cell-label { display:none !important; }
+  .skincare-notes-cell,
+  .skincare-type-cell,
+  .skincare-product-cell,
+  .skincare-table-remove {
+    grid-column:auto !important;
+    grid-row:auto !important;
+  }
+}
