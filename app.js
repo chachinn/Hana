@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.25
+   HANA 🌸 Version 2 · internal build 2.0.26
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -70,6 +70,8 @@ const THEME_LABELS = {
 
 
 const STARTER_TEMPLATES = [
+  { id:"smart-template", icon:"✨", title:"Smart Template", description:"Tell Hana what you need and get guided to the closest useful template or structure.", kind:"guide", category:"Build your own" },
+  { id:"blank-template", icon:"⬜", title:"Blank Template", description:"A genuinely empty custom form: no categories, fields, rows or suggested labels until you add them.", kind:"blank", category:"Build your own" },
   { id:"meeting-agenda", icon:"📋", title:"Meeting Agenda", description:"Plan meeting details, purpose, attendees, topics, owners, time boxes and preparation.", kind:"note", category:"Meetings" },
   { id:"meeting-minutes", icon:"📝", title:"Minutes of the Meeting", description:"Record attendance, discussion, decisions, actions and next-meeting details.", kind:"note", category:"Meetings" },
   { id:"skincare-routine-note", icon:"🧴", title:"Weekly Skincare Planner", description:"Build main and optional alternate AM/PM routines for each day of the week.", kind:"note", category:"Personal & routines" },
@@ -380,8 +382,9 @@ function normalizeMeetingData(data = {}) {
   };
 }
 
-const CUSTOM_STRUCTURED_NOTE_TYPES = ["professional-bionote", "strategy-plan", "measurement-profile"];
+const CUSTOM_STRUCTURED_NOTE_TYPES = ["professional-bionote", "strategy-plan", "measurement-profile", "custom-form"];
 const STRUCTURED_NOTE_SCHEMAS = {
+  "custom-form": { title:"Blank Template", icon:"⬜", fields:[] },
   "professional-bionote": {
     title:"Professional Bionote", icon:"👤",
     fields:[
@@ -835,18 +838,19 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.25";
+const HANA_APP_VERSION = "2.0.26";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Structured categories that actually work 🗂️",
-  intro: "Hana Version 2 now lets structured notes manage categories and fields as real customizable parts instead of fixed section labels.",
+  title: "Build templates your way ✨",
+  intro: "Hana Version 2 now separates a guided Smart Template from a truly empty Blank Template, while structured categories and fields stay fully customizable.",
   items: [
-    { icon:"🗂️", title:"Editable categories", text:"Add, rename or delete categories in Bionote, Strategy Plan and Measurement Profile." },
-    { icon:"＋", title:"Fields add where you want them", text:"Each category has its own Add field button, and new blank fields no longer disappear before you can name them." },
-    { icon:"↔️", title:"Move and change fields", text:"Change a field between Short text, Long text, Date or Number, and move it to another category anytime." },
-    { icon:"🛡️", title:"Safe compatibility", text:"Existing structured notes migrate their old section names into editable categories without losing entered values." }
+    { icon:"✨", title:"Smart Template", text:"Answer “What do you need?” and Hana points you to the closest meeting, routine, reference, checklist, tracker or plain-note structure." },
+    { icon:"⬜", title:"Actually blank", text:"Blank Template starts with zero categories and zero fields. You decide the first category and every field yourself." },
+    { icon:"🗂️", title:"Real category controls", text:"Add, rename and delete categories; add fields inside any category and move fields between categories." },
+    { icon:"↔️", title:"Flexible field types", text:"Each custom field can switch between Short text, Long text, Date and Number without rebuilding the whole form." },
+    { icon:"🛡️", title:"Safe migration", text:"Existing Bionote, Strategy and Measurement entries keep their values while old section names become editable categories." }
   ]
 };
 
@@ -4239,8 +4243,8 @@ function reopenReminder(id) {
 
 function renderTemplates() {
   const c=document.getElementById("pageContent");
-  const categories=["Meetings","Personal & routines","Work & reference","Trackers"];
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">REUSABLE, BUT NEVER FORCED</p><h1>Templates</h1><p>Preview a blank structure, customize it, and save only when it actually fits what you need.</p></div><div class="template-customization-note"><span>✨</span><div><strong>Templates are starting structures, not pre-filled content.</strong><small>Structured-note field labels can be renamed or removed, and you can add your own. List and tracker structures remain editable too.</small></div></div>${categories.map(category=>{const items=STARTER_TEMPLATES.filter(template=>template.category===category);return items.length?`<section class="template-category"><div class="template-category-head"><h2>${escapeHTML(category)}</h2><span>${items.length}</span></div><div class="template-grid">${items.map(template=>`<article class="template-card"><div class="template-icon">${template.icon}</div><div><h3>${escapeHTML(template.title)}</h3><p>${escapeHTML(template.description)}</p><span class="badge badge-personal">${escapeHTML(template.kind)}</span></div><button class="secondary-button" data-use-template="${template.id}">Preview</button></article>`).join("")}</div></section>`:"";}).join("")}`;
+  const categories=["Build your own","Meetings","Personal & routines","Work & reference","Trackers"];
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">REUSABLE, BUT NEVER FORCED</p><h1>Templates</h1><p>Choose a ready-made structure, let Smart Template guide you, or start from a completely empty canvas.</p></div><div class="template-customization-note"><span>✨</span><div><strong>Smart guides you. Blank assumes nothing.</strong><small>Smart Template helps match your need to a Hana structure. Blank Template has no categories, fields or rows until you create them yourself.</small></div></div>${categories.map(category=>{const items=STARTER_TEMPLATES.filter(template=>template.category===category);return items.length?`<section class="template-category"><div class="template-category-head"><h2>${escapeHTML(category)}</h2><span>${items.length}</span></div><div class="template-grid">${items.map(template=>`<article class="template-card"><div class="template-icon">${template.icon}</div><div><h3>${escapeHTML(template.title)}</h3><p>${escapeHTML(template.description)}</p><span class="badge badge-personal">${escapeHTML(template.kind)}</span></div><button class="secondary-button" data-use-template="${template.id}">Preview</button></article>`).join("")}</div></section>`:"";}).join("")}`;
 }
 
 function clearTemplateDraftBanner(modalId) {
@@ -4308,8 +4312,22 @@ function openTableTemplateDraft(definition={}) {
   showTemplateDraftBanner("tableModal","Only the editable column structure is provided. No rows or values are pre-filled.",(definition.columns||[]).map(column=>column.name));
 }
 
+function openSmartTemplate(){
+  openModal("smartTemplateModal");
+}
+function chooseSmartTemplate(target){
+  closeModal("smartTemplateModal");
+  if(target==="generic-list")return openListTemplateDraft("simple");
+  if(target==="generic-tracker")return openTableTemplateDraft({name:"Tracker",space:preferredSpace(),columns:[{name:"Item",type:"text"},{name:"Status",type:"status"},{name:"Notes",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()});
+  if(target==="plain-note")return openNoteTemplateDraft({title:"Note",type:"note",space:preferredSpace()});
+  if(target==="blank-template")return openNoteTemplateDraft({title:"Blank Template",type:"note",structuredType:"custom-form",space:preferredSpace()});
+  return useTemplate(target);
+}
+
 function useTemplate(templateId) {
   const space=preferredSpace();
+  if(templateId==="smart-template")return openSmartTemplate();
+  if(templateId==="blank-template")return openNoteTemplateDraft({title:"Blank Template",type:"note",structuredType:"custom-form",space});
   if(["meeting-agenda","meeting-minutes"].includes(templateId)){
     const isMinutes=templateId==="meeting-minutes";
     return openNoteTemplateDraft({title:isMinutes?"Minutes of the Meeting":"Meeting Agenda",type:"meeting",structuredType:isMinutes?"meeting-minutes":"meeting-agenda",space});
@@ -5810,6 +5828,7 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-add-tiny-win]")){addTinyWin();return;}
   const deleteWin=event.target.closest("[data-delete-tiny-win]");if(deleteWin){deleteTinyWin(deleteWin.dataset.deleteTinyWin);return;}
 
+  const smartTemplateChoice=event.target.closest("[data-smart-template-target]");if(smartTemplateChoice){chooseSmartTemplate(smartTemplateChoice.dataset.smartTemplateTarget);return;}
   const template=event.target.closest("[data-use-template]");if(template){useTemplate(template.dataset.useTemplate);saveState();return;}
   const reopenTaskButton=event.target.closest("[data-reopen-task]");if(reopenTaskButton){reopenTask(reopenTaskButton.dataset.reopenTask);return;}
   const reopenReminderButton=event.target.closest("[data-reopen-reminder]");if(reopenReminderButton){reopenReminder(reopenReminderButton.dataset.reopenReminder);return;}

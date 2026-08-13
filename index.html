@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
-  <meta name="hana-app-version" content="2.0.25" />
+  <meta name="hana-app-version" content="2.0.26" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.25" />
+  <link rel="stylesheet" href="style.css?v=2.0.26" />
 </head>
 <body>
   <div id="app">
@@ -897,6 +897,26 @@
     </div>
   </div>
 
+  <!-- SMART TEMPLATE GUIDE -->
+  <div id="smartTemplateModal" class="modal-overlay hidden">
+    <div class="modal-card modal-large smart-template-card">
+      <div class="modal-header"><div><p class="eyebrow">✨ SMART TEMPLATE</p><h2>What do you need?</h2><p class="smart-template-subtitle">Pick the closest goal. Hana will open the matching structure as an unsaved preview.</p></div><button class="modal-close" type="button" data-close-modal="smartTemplateModal" aria-label="Close Smart Template">×</button></div>
+      <div class="smart-template-choice-grid">
+        <button type="button" data-smart-template-target="meeting-agenda"><span>📋</span><strong>Prepare for a meeting</strong><small>Agenda, objective, people, topics and prep</small></button>
+        <button type="button" data-smart-template-target="meeting-minutes"><span>📝</span><strong>Record a meeting</strong><small>Discussion, decisions, actions and next meeting</small></button>
+        <button type="button" data-smart-template-target="skincare-routine-note"><span>🧴</span><strong>Plan a weekly routine</strong><small>Use the existing skincare AM/PM routine planner</small></button>
+        <button type="button" data-smart-template-target="measurement-profile-note"><span>📏</span><strong>Keep measurements</strong><small>Editable measurement categories and fields</small></button>
+        <button type="button" data-smart-template-target="professional-bionote"><span>👤</span><strong>Build a professional profile</strong><small>Role, experience, background and bionote</small></button>
+        <button type="button" data-smart-template-target="strategy-outline-note"><span>🧭</span><strong>Structure a plan or strategy</strong><small>Objectives, evidence, risks, actions and ways forward</small></button>
+        <button type="button" data-smart-template-target="generic-list"><span>☑️</span><strong>I need repeatable rows</strong><small>Start a blank checklist/list and add your own items or columns</small></button>
+        <button type="button" data-smart-template-target="generic-tracker"><span>📒</span><strong>I need to track changing data</strong><small>Start a customizable rows-and-columns tracker</small></button>
+        <button type="button" data-smart-template-target="plain-note"><span>📝</span><strong>I just need to write</strong><small>Open a completely normal blank note</small></button>
+        <button type="button" class="smart-template-blank-choice" data-smart-template-target="blank-template"><span>⬜</span><strong>None of these fit</strong><small>Open the truly blank custom template</small></button>
+      </div>
+      <button class="secondary-button full-width" type="button" data-close-modal="smartTemplateModal">Cancel</button>
+    </div>
+  </div>
+
   <!-- WHAT'S NEW / UPDATE NOTE -->
   <div id="whatsNewModal" class="modal-overlay hidden whats-new-overlay">
     <div class="modal-card whats-new-card">
@@ -971,6 +991,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.25"></script>
+  <script src="app.js?v=2.0.26"></script>
 </body>
 </html>
