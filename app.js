@@ -557,6 +557,8 @@ function normalizeList(list = {}) {
   const hasColumnMode = Object.prototype.hasOwnProperty.call(list, "columnMode");
   const inferredGroceryColumns = /\bgrocer(?:y|ies)\b/i.test(String(list.name || "")) || String(list.icon || "") === "🛒";
   const labels = list.columnLabels && typeof list.columnLabels === "object" ? list.columnLabels : {};
+  const hasQuantityLabel = Object.prototype.hasOwnProperty.call(list, "quantityLabel");
+  const hasDetailLabel = Object.prototype.hasOwnProperty.call(list, "detailLabel");
   const rawCount = Number(list.columnCount || 3);
   const columnCount = Math.max(1, Math.min(5, Number.isFinite(rawCount) ? Math.round(rawCount) : 3));
   const laneIds = ["partner", "me", "both", "column4", "column5"];
@@ -565,8 +567,8 @@ function normalizeList(list = {}) {
     name: String(list.name || "Checklist"),
     icon: String(list.icon || "☑️").slice(0, 4),
     space: String(list.space || "personal"),
-    quantityLabel: String(list.quantityLabel || "Quantity"),
-    detailLabel: String(list.detailLabel || "Detail"),
+    quantityLabel: hasQuantityLabel ? String(list.quantityLabel || "") : "Quantity",
+    detailLabel: hasDetailLabel ? String(list.detailLabel || "") : "Detail",
     columnMode: hasColumnMode ? Boolean(list.columnMode) : inferredGroceryColumns,
     columnCount,
     columnLabels: {
@@ -838,19 +840,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.26";
+const HANA_APP_VERSION = "2.0.27";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Build templates your way ✨",
-  intro: "Hana Version 2 now separates a guided Smart Template from a truly empty Blank Template, while structured categories and fields stay fully customizable.",
+  title: "Cleaner, safer template forms 🌸",
+  intro: "Hana Version 2 keeps long forms safely below the iPhone status area and treats optional list fields as suggestions instead of forced content.",
   items: [
-    { icon:"✨", title:"Smart Template", text:"Answer “What do you need?” and Hana points you to the closest meeting, routine, reference, checklist, tracker or plain-note structure." },
-    { icon:"⬜", title:"Actually blank", text:"Blank Template starts with zero categories and zero fields. You decide the first category and every field yourself." },
-    { icon:"🗂️", title:"Real category controls", text:"Add, rename and delete categories; add fields inside any category and move fields between categories." },
-    { icon:"↔️", title:"Flexible field types", text:"Each custom field can switch between Short text, Long text, Date and Number without rebuilding the whole form." },
-    { icon:"🛡️", title:"Safe migration", text:"Existing Bionote, Strategy and Measurement entries keep their values while old section names become editable categories." }
+    { icon:"📱", title:"Close button stays reachable", text:"Long template and form modals now respect the iPhone safe area, with headers that stay available while you scroll." },
+    { icon:"🫧", title:"Optional means optional", text:"New lists no longer pre-fill Quantity or Detail. Those names are suggestions only until you choose to use them." },
+    { icon:"☑️", title:"Cleaner list items", text:"If an extra list field has no label, Hana hides that field when you add or edit list items instead of showing a meaningless input." },
+    { icon:"🛡️", title:"Existing lists preserved", text:"Lists that already use Quantity, Detail or custom extra labels keep them exactly as saved." }
   ]
 };
 
@@ -2794,8 +2795,8 @@ function clearListForm() {
   document.getElementById("listIcon").value = "☑️";
   document.getElementById("listName").value = "";
   document.getElementById("listSpace").value = preferredSpace();
-  document.getElementById("listQuantityLabel").value = "Quantity";
-  document.getElementById("listDetailLabel").value = "Detail";
+  document.getElementById("listQuantityLabel").value = "";
+  document.getElementById("listDetailLabel").value = "";
   document.getElementById("listColumnMode").checked = false;
   document.getElementById("listColumnCount").value = "3";
   document.getElementById("listColumnPartnerLabel").value = "Column 1";
@@ -2818,8 +2819,8 @@ function openListModal(listId = "") {
     document.getElementById("listIcon").value = list.icon;
     document.getElementById("listName").value = list.name;
     document.getElementById("listSpace").value = list.space;
-    document.getElementById("listQuantityLabel").value = list.quantityLabel || "Quantity";
-    document.getElementById("listDetailLabel").value = list.detailLabel || "Detail";
+    document.getElementById("listQuantityLabel").value = list.quantityLabel ?? "";
+    document.getElementById("listDetailLabel").value = list.detailLabel ?? "";
     document.getElementById("listColumnMode").checked = Boolean(list.columnMode);
     document.getElementById("listColumnCount").value = String(listColumnCount(list));
     const labels = listColumnLabels(list);
@@ -2848,8 +2849,8 @@ function saveList() {
     name,
     icon: document.getElementById("listIcon").value.trim() || "☑️",
     space: document.getElementById("listSpace").value,
-    quantityLabel: document.getElementById("listQuantityLabel").value.trim() || "Quantity",
-    detailLabel: document.getElementById("listDetailLabel").value.trim() || "Detail",
+    quantityLabel: document.getElementById("listQuantityLabel").value.trim(),
+    detailLabel: document.getElementById("listDetailLabel").value.trim(),
     columnMode: document.getElementById("listColumnMode").checked,
     columnCount: Math.max(1, Math.min(5, Number(document.getElementById("listColumnCount").value || 3))),
     columnLabels: {
@@ -2911,8 +2912,11 @@ function openListItemModal(listId, itemId = "") {
     }
   }
   openListItemModal.defaultLane = "";
-  document.getElementById("listItemQuantityLabel").innerHTML = `${escapeHTML(list.quantityLabel || "Quantity")} <span class="optional-label">optional</span>`;
-  document.getElementById("listItemDetailLabel").innerHTML = `${escapeHTML(list.detailLabel || "Detail")} <span class="optional-label">optional</span>`;
+  const quantityLabel=String(list.quantityLabel||"").trim(),detailLabel=String(list.detailLabel||"").trim();
+  const quantityWrap=document.getElementById("listItemQuantity")?.closest(".form-group"),detailWrap=document.getElementById("listItemDetail")?.closest(".form-group");
+  quantityWrap?.classList.toggle("hidden",!quantityLabel);detailWrap?.classList.toggle("hidden",!detailLabel);
+  if(quantityLabel)document.getElementById("listItemQuantityLabel").innerHTML = `${escapeHTML(quantityLabel)} <span class="optional-label">optional</span>`;
+  if(detailLabel)document.getElementById("listItemDetailLabel").innerHTML = `${escapeHTML(detailLabel)} <span class="optional-label">optional</span>`;
   document.getElementById("listItemModalTitle").textContent = item ? "Edit item" : `Add to ${list.name}`;
   document.getElementById("saveListItemButton").textContent = item ? "Save item" : "Add item";
   document.getElementById("deleteListItemFromModal").classList.toggle("hidden", !item);
