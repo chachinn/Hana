@@ -1,0 +1,1 @@
+Quick Capture placeholder should use HTML newline entities instead of literal backslash-n sequences.
