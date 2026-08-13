@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.22
+   HANA 🌸 Version 2 · internal build 2.0.23
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -52,11 +52,11 @@ const DEFAULT_SPACES = [
 ];
 
 const LIST_TEMPLATES = {
-  grocery: { name: "Groceries", icon: "🛒", items: ["Produce", "Protein", "Pantry", "Drinks", "Household"] },
-  buy: { name: "Things to Buy", icon: "🛍️", items: ["Item to buy"] },
-  packing: { name: "Packing List", icon: "🧳", items: ["Documents", "Clothes", "Toiletries", "Chargers", "Medicine"] },
-  errands: { name: "Errands", icon: "🚶", items: ["First errand"] },
-  simple: { name: "Checklist", icon: "☑️", items: ["First item"] }
+  grocery: { name: "Grocery List", icon: "🛒", items: [] },
+  buy: { name: "Things to Buy", icon: "🛍️", items: [] },
+  packing: { name: "Packing List", icon: "🧳", items: [] },
+  errands: { name: "Errands", icon: "🚶", items: [] },
+  simple: { name: "Checklist", icon: "☑️", items: [] }
 };
 
 const THEME_LABELS = {
@@ -70,97 +70,16 @@ const THEME_LABELS = {
 
 
 const STARTER_TEMPLATES = [
-  {
-    id: "weekly-review",
-    icon: "🌸",
-    title: "Weekly Review",
-    description: "A recurring work review with a short checklist.",
-    kind: "task"
-  },
-  {
-    id: "monthly-life-admin",
-    icon: "🏡",
-    title: "Monthly Life Admin",
-    description: "Recurring personal admin for bills, documents and loose ends.",
-    kind: "task"
-  },
-  {
-    id: "meeting-agenda",
-    icon: "📋",
-    title: "Meeting Agenda",
-    description: "Plan the purpose, attendees, topics, owners, time boxes, prep materials and actions before a meeting.",
-    kind: "note"
-  },
-  {
-    id: "meeting-minutes",
-    icon: "📝",
-    title: "Minutes of the Meeting",
-    description: "Record attendance, discussion summaries, decisions, action items and next-meeting details.",
-    kind: "note"
-  },
-  {
-    id: "grocery-list",
-    icon: "🛒",
-    title: "Grocery List",
-    description: "A resettable checklist you can use again and again.",
-    kind: "note"
-  },
-  {
-    id: "packing-list",
-    icon: "🧳",
-    title: "Packing List",
-    description: "A reusable personal packing checklist.",
-    kind: "note"
-  },
-  {
-    id: "work-deliverables",
-    icon: "💼",
-    title: "Work Deliverables",
-    description: "A Living Table for owner, due date, status and completion.",
-    kind: "table"
-  },
-  {
-    id: "bills-tracker",
-    icon: "💳",
-    title: "Bills Tracker",
-    description: "A Living Table for amount, due date and paid status.",
-    kind: "table"
-  },
-  {
-    id: "weekly-reset",
-    icon: "🌷",
-    title: "Weekly Reset",
-    description: "A gentle reset checklist for home and personal planning.",
-    kind: "note"
-  },
-  {
-    id: "skincare-routine-note",
-    icon: "🧴",
-    title: "Weekly Skincare Planner",
-    description: "Plan one full week with main and optional alternate AM/PM product tables, reuse routines across days, and open straight to today’s routine.",
-    kind: "note"
-  },
-  {
-    id: "professional-bionote",
-    icon: "👤",
-    title: "Professional Bionote",
-    description: "A structured biography for current role, experience, education, training and achievements.",
-    kind: "note"
-  },
-  {
-    id: "strategy-outline-note",
-    icon: "🧭",
-    title: "Strategy / Meeting Outline",
-    description: "Keep strategies, presentation structure, decisions, action items and ways forward together.",
-    kind: "note"
-  },
-  {
-    id: "measurement-profile-note",
-    icon: "📏",
-    title: "Measurement Profile",
-    description: "A tidy reference sheet for body measurements, units and dated updates.",
-    kind: "note"
-  }
+  { id:"meeting-agenda", icon:"📋", title:"Meeting Agenda", description:"Plan meeting details, purpose, attendees, topics, owners, time boxes and preparation.", kind:"note", category:"Meetings" },
+  { id:"meeting-minutes", icon:"📝", title:"Minutes of the Meeting", description:"Record attendance, discussion, decisions, actions and next-meeting details.", kind:"note", category:"Meetings" },
+  { id:"skincare-routine-note", icon:"🧴", title:"Weekly Skincare Planner", description:"Build main and optional alternate AM/PM routines for each day of the week.", kind:"note", category:"Personal & routines" },
+  { id:"professional-bionote", icon:"👤", title:"Professional Bionote", description:"A blank structured profile for role, experience, education, training and achievements.", kind:"note", category:"Work & reference" },
+  { id:"strategy-outline-note", icon:"🧭", title:"Strategy Plan", description:"A customizable structure for objectives, approaches, evidence, risks, decisions and ways forward.", kind:"note", category:"Work & reference" },
+  { id:"measurement-profile-note", icon:"📏", title:"Measurement Profile", description:"A customizable measurement sheet with blank values and removable fields.", kind:"note", category:"Personal & routines" },
+  { id:"grocery-list", icon:"🛒", title:"Grocery List", description:"A blank grocery checklist with optional customizable columns.", kind:"list", category:"Personal & routines" },
+  { id:"packing-list", icon:"🧳", title:"Packing List", description:"A blank reusable packing checklist you fill only with what you actually need.", kind:"list", category:"Personal & routines" },
+  { id:"work-deliverables", icon:"💼", title:"Work Deliverables", description:"A customizable tracker structure for deliverables, owners, progress, due dates and status.", kind:"tracker", category:"Trackers" },
+  { id:"bills-tracker", icon:"💳", title:"Bills Tracker", description:"A customizable tracker structure for bills, amount, due date and payment status.", kind:"tracker", category:"Trackers" }
 ];
 
 const QUICK_ACCESS_MENU = {
@@ -461,8 +380,60 @@ function normalizeMeetingData(data = {}) {
   };
 }
 
+const CUSTOM_STRUCTURED_NOTE_TYPES = ["professional-bionote", "strategy-plan", "measurement-profile"];
+const STRUCTURED_NOTE_SCHEMAS = {
+  "professional-bionote": {
+    title:"Professional Bionote", icon:"👤",
+    fields:[
+      ["Full name","text","Identity"], ["Current title / position","text","Identity"], ["Organization","text","Identity"], ["Primary responsibilities","textarea","Identity"],
+      ["Years of experience","text","Experience"], ["Key areas of work","textarea","Experience"], ["Major programs / responsibilities","textarea","Experience"],
+      ["Education","textarea","Background"], ["Training & development","textarea","Background"], ["Projects / achievements / presentations","textarea","Background"],
+      ["Short bionote","textarea","Ready-to-use copy"]
+    ]
+  },
+  "strategy-plan": {
+    title:"Strategy Plan", icon:"🧭",
+    fields:[
+      ["Objective","textarea","Direction"], ["Desired outcome","textarea","Direction"], ["Strategies / approaches","textarea","Plan"], ["Key data / evidence","textarea","Plan"],
+      ["Stakeholders / owners","textarea","People"], ["Risks / constraints","textarea","People"], ["Decisions / agreements","textarea","Execution"],
+      ["Action items","textarea","Execution"], ["Dependencies / assistance needed","textarea","Execution"], ["Ways forward","textarea","Execution"]
+    ]
+  },
+  "measurement-profile": {
+    title:"Measurement Profile", icon:"📏",
+    fields:[
+      ["Person","text","Profile"], ["Date measured","date","Profile"], ["Units","text","Profile"], ["Height","text","Profile"], ["Weight","text","Profile"],
+      ["Neck","text","Upper body"], ["Overbust","text","Upper body"], ["Bust","text","Upper body"], ["Underbust","text","Upper body"], ["Shoulder to shoulder","text","Upper body"],
+      ["Arm hole","text","Upper body"], ["Bicep","text","Upper body"], ["Forearm","text","Upper body"], ["Wrist around","text","Upper body"],
+      ["Waist","text","Lower body"], ["Hips","text","Lower body"], ["Inseam","text","Lower body"], ["Outseam","text","Lower body"],
+      ["Fit / tailoring notes","textarea","Notes"]
+    ]
+  }
+};
+
+function normalizeStructuredNoteField(field={},index=0){
+  const type=["text","textarea","date","number"].includes(field.type)?field.type:"text";
+  return {id:field.id||createId(),label:String(field.label||""),type,value:String(field.value??""),group:String(field.group||"Custom"),order:Number.isFinite(Number(field.order))?Number(field.order):index};
+}
+function normalizeStructuredNoteFields(fields=[]){
+  return (Array.isArray(fields)?fields:[]).map(normalizeStructuredNoteField).filter(field=>field.label||field.value).sort((a,b)=>a.order-b.order);
+}
+function structuredSchemaFields(structuredType){
+  const schema=STRUCTURED_NOTE_SCHEMAS[structuredType];if(!schema)return [];
+  return schema.fields.map(([label,type,group],index)=>normalizeStructuredNoteField({id:createId(),label,type,group,value:"",order:index},index));
+}
+function isCustomStructuredNote(noteOrType){
+  const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType;
+  return CUSTOM_STRUCTURED_NOTE_TYPES.includes(type);
+}
+function structuredNoteSchema(type){return STRUCTURED_NOTE_SCHEMAS[type]||null;}
+function structuredNotePreview(note){
+  const values=normalizeStructuredNoteFields(note?.structuredFields||[]).filter(field=>String(field.value||"").trim()).slice(0,3);
+  return values.map(field=>`${field.label}: ${field.value}`).join(" · ")||structuredNoteSchema(note?.structuredType)?.title||"Structured note";
+}
+
 function normalizeNote(note = {}) {
-  const allowedStructuredTypes = ["skincare-weekly", "meeting-agenda", "meeting-minutes"];
+  const allowedStructuredTypes = ["skincare-weekly", "meeting-agenda", "meeting-minutes", ...CUSTOM_STRUCTURED_NOTE_TYPES];
   const structuredType = allowedStructuredTypes.includes(note.structuredType) ? note.structuredType : "";
   const meetingKind = structuredType === "meeting-minutes" ? "minutes" : structuredType === "meeting-agenda" ? "agenda" : (note.meetingData?.kind === "minutes" ? "minutes" : "agenda");
   return {
@@ -481,6 +452,7 @@ function normalizeNote(note = {}) {
     structuredType,
     skincareRoutine: structuredType === "skincare-weekly" ? normalizeSkincareRoutine(note.skincareRoutine || {}) : null,
     meetingData: note.type === "meeting" ? normalizeMeetingData({...(note.meetingData || {}), kind: meetingKind}) : null,
+    structuredFields: isCustomStructuredNote(structuredType) ? normalizeStructuredNoteFields(note.structuredFields || []) : [],
     createdAt: Number(note.createdAt || Date.now()),
     updatedAt: Number(note.updatedAt || note.createdAt || Date.now()),
     ...normalizeShareMeta(note)
@@ -831,18 +803,19 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.22";
+const HANA_APP_VERSION = "2.0.23";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Templates are previews first 🌸",
-  intro: "Hana Version 2 no longer adds a template to your real data just because you opened it to look around.",
+  title: "Cleaner templates & focus ✨",
+  intro: "Hana Version 2 now keeps templates blank, gives structured references real customizable fields, and makes Focus Bouquet much calmer on Today.",
   items: [
-    { icon: "👀", title: "Preview without creating", text: "Opening a task, note, list or tracker template now fills an unsaved draft instead of adding it immediately." },
-    { icon: "✅", title: "Save when you actually want it", text: "A template becomes a real Hana item only after you tap its normal Create or Save button." },
-    { icon: "☑️", title: "List starter items stay intact", text: "Groceries and Packing can still start with their suggested items, but those items are held only in the draft until you create the list." },
-    { icon: "🛡️", title: "Cancel means cancel", text: "Closing or cancelling a template preview leaves Notes, Lists, Tasks and Trackers completely unchanged." }
+    { icon:"🧩", title:"Curated templates", text:"Removed redundant pre-filled review/reset templates and grouped the useful templates by purpose." },
+    { icon:"✏️", title:"Real customizable fields", text:"Bionote, Strategy Plan and Measurement Profile now use separate fields you can rename, remove or extend." },
+    { icon:"🫧", title:"No example entries to delete", text:"Meeting, skincare, grocery and packing previews open blank; tracker templates provide editable columns only." },
+    { icon:"🌷", title:"Cleaner Focus Bouquet", text:"Today now opens with a compact focus summary and a single clean task list instead of duplicated flower cards and rows." },
+    { icon:"🛡️", title:"New-item delete bug fixed", text:"Delete buttons stay hidden on unsaved forms and template previews until a real saved item exists." }
   ]
 };
 
@@ -1643,7 +1616,8 @@ function renderToday() {
     <section class="morning-card morning-card-simple"><div class="morning-title"><div><p class="eyebrow">${escapeHTML(formatLongToday())}</p><h1>${greeting()} 🌸</h1></div></div><div class="morning-compact-stats"><span><strong>${active.length}</strong> active</span><span><strong>${waitingTasks().length}</strong> waiting</span><span><strong>${completedToday}</strong> done</span></div>${attention.length ? `<div class="attention-list attention-list-simple">${attention.slice(0,2).map(i => `<div class="attention-item"><span>${i.icon}</span><span>${escapeHTML(i.text)}</span></div>`).join("")}${attention.length>2?`<button data-goto="agenda">+ ${attention.length-2} more</button>`:""}</div>` : `<div class="attention-item quiet-attention"><span>🌿</span><span>Nothing urgent is asking for you.</span></div>`}${firewallIsActive() ? `<div class="firewall-banner">🌙 Boundary Firewall is active.</div>` : ""}</section>
     ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip compact-life-flow">${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me</strong></button>` : ""}${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong></button>` : ""}</section>` : ""}
     ${futureDue.length ? `<section class="future-morning-card compact-future-card"><p class="eyebrow">FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Make task</button><button data-archive-future-note="${futureDue[0].id}">Archive</button></div></section>` : ""}
-    <details class="section focus-section-simple focus-bouquet-card" open><summary class="focus-bouquet-summary"><div><p class="eyebrow">TODAY · TOP 3</p><h2>Focus Bouquet</h2><small>${bouquetSelected}/3 selected · ${completedFocus.length} bloomed</small></div><span class="focus-bouquet-chevron">⌄</span></summary><div class="focus-bouquet-body"><div class="bouquet-visual" aria-label="Today's focus bouquet">${bouquetFlowerSlotsHTML(focusTasks, completedFocus)}</div><div class="progress-track bouquet-progress"><div class="progress-fill" style="width:${progress}%"></div></div>${focusTasks.length ? `<div class="focus-grid">${focusTasks.map(t => focusTaskRow(t, true)).join("")}</div>` : completedFocus.length ? `<div class="bouquet-complete-message"><strong>Beautiful — today's focus has bloomed 🌸</strong><span>${bouquetSelected < FOCUS_BOUQUET_LIMIT ? "You still have an open focus slot if something else truly matters." : "Your Top 3 is complete. You can let the bouquet rest."}</span></div>` : `<div class="bouquet-empty-copy"><strong>No focus flowers yet</strong><span>Choose up to three tasks that matter most today.</span></div>`}<div class="bouquet-actions"><button class="primary-button" type="button" data-open-bouquet-picker>${bouquetSelected ? "Manage focus" : "Choose tasks"}</button>${bouquetSelected < FOCUS_BOUQUET_LIMIT ? `<button class="secondary-button" type="button" data-bouquet-quick>+ Quick add</button>` : ""}<button class="text-button" type="button" data-goto="bloom">Bloom view</button></div></div></details>
+    <details class="section focus-section-simple focus-bouquet-card"><summary class="focus-bouquet-summary"><div><p class="eyebrow">TODAY · TOP 3</p><h2>Focus Bouquet</h2><small>${bouquetSelected}/3 selected · ${completedFocus.length} bloomed</small></div><div class="focus-summary-blooms" aria-hidden="true">${Array.from({length:FOCUS_BOUQUET_LIMIT},(_,index)=>`<span>${index<completedFocus.length?"🌸":index<bouquetSelected?"🌷":"○"}</span>`).join("")}</div><span class="focus-bouquet-chevron">⌄</span></summary><div class="focus-bouquet-body focus-bouquet-body-clean">${focusTasks.length?`<div class="focus-clean-list">${focusTasks.map(task=>`<div class="focus-clean-row"><button class="task-checkbox" data-toggle-task="${task.id}" aria-label="Complete ${escapeHTML(task.title)}"></button><button class="focus-clean-title" data-edit-task="${task.id}"><strong>${escapeHTML(task.title)}</strong><small>${formatDuration(task.durationMinutes)} · ${energyLabel(task.energy)} · ${modeLabel(task.space)}</small></button><button class="focus-clean-remove" data-focus-task="${task.id}" aria-label="Remove ${escapeHTML(task.title)} from focus">×</button></div>`).join("")}</div>`:completedFocus.length?`<div class="bouquet-complete-message"><strong>Today’s focus bloomed 🌸</strong><span>${bouquetSelected<FOCUS_BOUQUET_LIMIT?"You still have an open focus slot if something else truly matters.":"Your Top 3 is complete."}</span></div>`:`<div class="bouquet-empty-copy"><strong>No focus tasks yet</strong><span>Choose up to three things that matter most today.</span></div>`}${bouquetSelected<FOCUS_BOUQUET_LIMIT?`<button class="focus-clean-add" type="button" data-open-bouquet-picker>+ Add focus task</button>`:""}<div class="bouquet-actions bouquet-actions-clean"><button class="secondary-button" type="button" data-open-bouquet-picker>${bouquetSelected?"Edit focus":"Choose tasks"}</button><button class="text-button" type="button" data-goto="bloom">Bloom view</button></div></div></details>
+
     <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong>${sharedBadgeHTML(task,true)}<small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
     <section class="section compact-more-section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong></button></div></section>
   `;
@@ -2107,10 +2081,10 @@ function meetingNotePreview(note) {
 function noteCard(note) {
   if (isSkincarePlanner(note)) return skincareRoutineCard(note);
   const done = note.checklist.filter(i=>i.completed).length;
-  const preview=note.type==="meeting"?meetingNotePreview(note):note.content;
+  const preview=note.type==="meeting"?meetingNotePreview(note):isCustomStructuredNote(note)?structuredNotePreview(note):note.content;
   const meetingMeta=note.type==="meeting"?normalizeMeetingData(note.meetingData||{}):null;
   return `<article class="note-card note-card-openable ${note.pinned ? "pinned" : ""}" data-open-note-card="${note.id}" role="button" tabindex="0" aria-label="Open note: ${escapeHTML(note.title)}">
-    <h3>${note.pinned ? "📌 " : ""}${noteTypeIcon(note.type)} ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3>
+    <h3>${note.pinned ? "📌 " : ""}${structuredNoteSchema(note.structuredType)?.icon||noteTypeIcon(note.type)} ${escapeHTML(note.title)} ${sharedBadgeHTML(note,true)}</h3>
     ${meetingMeta?`<div class="meeting-note-meta"><span>${meetingMeta.kind==="minutes"?"Minutes":"Agenda"}</span>${meetingMeta.date?`<span>${escapeHTML(formatFullDate(meetingMeta.date))}</span>`:""}${meetingMeta.startTime?`<span>${escapeHTML(formatTime(meetingMeta.startTime))}</span>`:""}</div>`:""}
     <div class="note-preview">${escapeHTML(preview).slice(0,320)}</div>
     ${note.checklist.length ? `<div class="note-checklist">${note.checklist.slice(0,5).map(item=>`<button class="note-check-row ${item.completed?"done":""}" data-toggle-note-check="${note.id}" data-note-check-id="${item.id}"><span class="note-check-box">${item.completed?"✓":""}</span><span>${escapeHTML(item.title)}</span></button>`).join("")}</div><div class="task-meta" style="margin-top:7px;">${done}/${note.checklist.length} complete</div>` : ""}
@@ -2137,7 +2111,7 @@ function renderNotes() {
         <button type="button" data-use-template="meeting-minutes">📝 Minutes of the Meeting</button>
         <button type="button" data-use-template="skincare-routine-note">🧴 Weekly Skincare</button>
         <button type="button" data-use-template="professional-bionote">👤 Professional Bionote</button>
-        <button type="button" data-use-template="strategy-outline-note">🧭 Strategy / Meeting Outline</button>
+        <button type="button" data-use-template="strategy-outline-note">🧭 Strategy Plan</button>
         <button type="button" data-use-template="measurement-profile-note">📏 Measurement Profile</button>
       </div>
     </details>
@@ -2225,8 +2199,47 @@ function populateMeetingData(note = null) {
   updateMeetingKindFields();
 }
 
+let structuredNoteDraftFields=[];
+function structuredNoteFieldValueControl(field){
+  const value=escapeHTML(field.value||"");
+  if(field.type==="textarea")return `<textarea data-structured-field-value placeholder="Enter ${escapeHTML((field.label||"details").toLowerCase())}">${value}</textarea>`;
+  const inputType=field.type==="date"?"date":field.type==="number"?"number":"text";
+  return `<input data-structured-field-value type="${inputType}" value="${value}" placeholder="${inputType==="text"?`Enter ${escapeHTML((field.label||"value").toLowerCase())}`:""}" />`;
+}
+function structuredNoteFieldRowHTML(field,showGroup=false){
+  return `${showGroup?`<div class="structured-note-group-title">${escapeHTML(field.group||"Custom")}</div>`:""}<div class="structured-note-field-row" data-structured-field-row data-structured-field-id="${escapeHTML(field.id)}" data-structured-field-type="${escapeHTML(field.type)}" data-structured-field-group="${escapeHTML(field.group||"Custom")}"><div class="structured-note-field-label-row"><input data-structured-field-label class="structured-note-field-label-input" value="${escapeHTML(field.label)}" placeholder="Field label" aria-label="Field label" /><button type="button" class="structured-note-field-remove" data-remove-structured-field="${escapeHTML(field.id)}" aria-label="Remove ${escapeHTML(field.label||"field")}">×</button></div>${structuredNoteFieldValueControl(field)}</div>`;
+}
+function readStructuredNoteFields(){
+  return [...document.querySelectorAll("#structuredNoteFieldsEditor [data-structured-field-row]")].map((row,index)=>normalizeStructuredNoteField({id:row.dataset.structuredFieldId||createId(),label:row.querySelector("[data-structured-field-label]")?.value.trim()||"",type:row.dataset.structuredFieldType||"text",value:row.querySelector("[data-structured-field-value]")?.value||"",group:row.dataset.structuredFieldGroup||"Custom",order:index},index)).filter(field=>field.label||field.value);
+}
+function renderStructuredNoteFields(fields=structuredNoteDraftFields){
+  structuredNoteDraftFields=normalizeStructuredNoteFields(fields);
+  const editor=document.getElementById("structuredNoteFieldsEditor");if(!editor)return;
+  let lastGroup="";
+  editor.innerHTML=structuredNoteDraftFields.length?structuredNoteDraftFields.map(field=>{const showGroup=field.group!==lastGroup;lastGroup=field.group;return structuredNoteFieldRowHTML(field,showGroup);}).join(""):`<div class="structured-note-empty"><span>＋</span><strong>No fields yet</strong><small>Add any fields you want below.</small></div>`;
+}
+function populateStructuredNoteFields(noteOrType){
+  const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType||"";
+  const existing=typeof noteOrType==="object"?normalizeStructuredNoteFields(noteOrType?.structuredFields||[]):[];
+  structuredNoteDraftFields=existing.length?existing:structuredSchemaFields(type);
+  const schema=structuredNoteSchema(type);const title=document.getElementById("structuredNoteFieldsTitle");if(title)title.textContent=schema?.title||"Custom fields";
+  renderStructuredNoteFields(structuredNoteDraftFields);
+}
+function addStructuredNoteField(type="text"){
+  structuredNoteDraftFields=readStructuredNoteFields();
+  structuredNoteDraftFields.push(normalizeStructuredNoteField({id:createId(),label:"",type,value:"",group:"Custom",order:structuredNoteDraftFields.length}));
+  renderStructuredNoteFields(structuredNoteDraftFields);
+  requestAnimationFrame(()=>{const rows=document.querySelectorAll("#structuredNoteFieldsEditor [data-structured-field-row]");rows[rows.length-1]?.querySelector("[data-structured-field-label]")?.focus();});
+}
+function removeStructuredNoteField(id){
+  structuredNoteDraftFields=readStructuredNoteFields().filter(field=>field.id!==id);renderStructuredNoteFields(structuredNoteDraftFields);
+}
+
 function clearNoteForm() {
   clearTemplateDraftBanner("noteModal");
+  structuredNoteDraftFields=[];
+  document.getElementById("structuredNoteFieldsWrap")?.classList.add("hidden");
+  const structuredEditor=document.getElementById("structuredNoteFieldsEditor");if(structuredEditor)structuredEditor.innerHTML="";
   ["noteEditId","noteStructuredType","noteTitle","noteTags","noteContent","noteChecklist","noteProject","meetingDate","meetingStartTime","meetingEndTime","meetingLocation","meetingFacilitator","meetingAttendees","meetingAbsent","meetingObjective","meetingPrepMaterials","meetingDecisionsNeeded","meetingDiscussion","meetingDecisions","meetingNextDate","meetingNextTime","meetingPreparedBy"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
   refreshProjectDatalist();
   document.getElementById("noteType").value="note";
@@ -2244,6 +2257,7 @@ function openNoteModal(noteId="") {
   if (note) {
     document.getElementById("noteEditId").value=note.id; document.getElementById("noteStructuredType").value=note.structuredType||""; document.getElementById("noteTitle").value=note.title; document.getElementById("noteType").value=note.type; document.getElementById("noteSpace").value=note.space; document.getElementById("noteTags").value=note.tags.join(", "); document.getElementById("noteProject").value=note.project||""; document.getElementById("noteContent").value=note.content; document.getElementById("noteChecklist").value=note.checklist.map(i=>i.title).join("\n"); document.getElementById("noteResettable").checked=note.resettable; document.getElementById("notePinned").checked=note.pinned;
     if(note.type==="meeting")populateMeetingData(note);
+    if(isCustomStructuredNote(note))populateStructuredNoteFields(note);
     document.getElementById("noteModalEyebrow").textContent="NOTE DETAILS"; document.getElementById("noteModalTitle").textContent="Edit note"; document.getElementById("saveNoteButton").textContent="Save changes"; document.getElementById("deleteNoteFromModal").classList.remove("hidden"); updateNoteConditionalFields();
   }
   openModal("noteModal");
@@ -2258,18 +2272,23 @@ function updateMeetingKindFields() {
 }
 
 function updateNoteConditionalFields() {
-  const type = document.getElementById("noteType")?.value;
+  const type=document.getElementById("noteType")?.value;
+  const structuredType=document.getElementById("noteStructuredType")?.value||"";
   const meeting=type==="meeting";
-  const showChecklist=["checklist","meeting"].includes(type);
+  const structured=isCustomStructuredNote(structuredType)&&!meeting;
+  const showChecklist=["checklist","meeting"].includes(type)&&!structured;
   document.getElementById("meetingFieldsWrap")?.classList.toggle("hidden",!meeting);
-  document.getElementById("noteToolbar")?.classList.toggle("hidden",meeting);
-  document.getElementById("noteResettableWrap")?.classList.toggle("hidden", type !== "checklist");
-  document.getElementById("noteChecklistWrap")?.classList.toggle("hidden", !showChecklist);
+  document.getElementById("structuredNoteFieldsWrap")?.classList.toggle("hidden",!structured);
+  document.getElementById("noteToolbar")?.classList.toggle("hidden",meeting||structured);
+  document.getElementById("noteContentWrap")?.classList.toggle("hidden",structured);
+  document.getElementById("noteResettableWrap")?.classList.toggle("hidden",type!=="checklist"||structured);
+  document.getElementById("noteChecklistWrap")?.classList.toggle("hidden",!showChecklist);
   const contentLabel=document.getElementById("noteContentLabel");if(contentLabel)contentLabel.textContent=meeting?"Additional notes":"Note";
   const content=document.getElementById("noteContent");if(content)content.placeholder=meeting?"Anything else worth keeping from this meeting...":"Write anything...";
   const checklistLabel=document.getElementById("noteChecklistLabel");if(checklistLabel)checklistLabel.textContent=meeting?"Action items / next steps":"Checklist / action items";
   const checklistHelp=document.getElementById("noteChecklistHelp");if(checklistHelp)checklistHelp.textContent=meeting?"One action per line. Hana can turn these into tasks.":"Checklist items can be managed here.";
   if(meeting){if(!document.querySelector("#meetingAgendaItems [data-meeting-agenda-row]"))renderMeetingAgendaItems([]);updateMeetingKindFields();}
+  if(structured&&!structuredNoteDraftFields.length)populateStructuredNoteFields(structuredType);
 }
 
 function meetingHasMeaningfulData(data) {
@@ -2278,18 +2297,24 @@ function meetingHasMeaningfulData(data) {
 }
 
 function saveNote() {
-  const id=document.getElementById("noteEditId").value; const old=id?state.notes.find(n=>n.id===id):null;
+  const id=document.getElementById("noteEditId").value;const old=id?state.notes.find(n=>n.id===id):null;
   const type=document.getElementById("noteType").value,title=document.getElementById("noteTitle").value.trim(),content=document.getElementById("noteContent").value.trim();
   const oldChecks=old?.checklist||[];
-  const checks=parseLines(document.getElementById("noteChecklist").value).map(title=>{ const e=oldChecks.find(i=>i.title===title); return e?{...e}:{id:createId(),title,completed:false}; });
+  const checks=parseLines(document.getElementById("noteChecklist").value).map(title=>{const e=oldChecks.find(i=>i.title===title);return e?{...e}:{id:createId(),title,completed:false};});
   const meetingData=type==="meeting"?readMeetingData():null;
-  if (!title && !content && !checks.length && !meetingHasMeaningfulData(meetingData)) return showToast("Write something first 🌸");
-  const structuredType=type==="meeting"?(meetingData.kind==="minutes"?"meeting-minutes":"meeting-agenda"):(old?.structuredType==="skincare-weekly"?"skincare-weekly":"");
-  const fallbackTitle=type==="meeting"?(meetingData.kind==="minutes"?"Minutes of the Meeting":"Meeting Agenda"):"Untitled note";
-  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||fallbackTitle,type,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content,checklist:checks,resettable:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,structuredType,meetingData,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
-  if(old) state.notes[state.notes.findIndex(n=>n.id===id)]=note; else state.notes.push(note);
-  ensureProjectRecord(note.project, note.space);
-  closeModal("noteModal"); showToast(old?"Note updated 🌸":"Note saved 🌸"); render();
+  const requestedStructured=document.getElementById("noteStructuredType")?.value||"";
+  const structured=isCustomStructuredNote(requestedStructured)&&type!=="meeting";
+  const structuredFields=structured?readStructuredNoteFields():[];
+  const structuredHasValue=structuredFields.some(field=>String(field.value||"").trim());
+  if(!title&&!content&&!checks.length&&!meetingHasMeaningfulData(meetingData)&&!structuredHasValue)return showToast("Enter something first 🌸");
+  let structuredType="";
+  if(type==="meeting")structuredType=meetingData.kind==="minutes"?"meeting-minutes":"meeting-agenda";
+  else if(structured)structuredType=requestedStructured;
+  else if(old?.structuredType==="skincare-weekly")structuredType="skincare-weekly";
+  const fallbackTitle=type==="meeting"?(meetingData.kind==="minutes"?"Minutes of the Meeting":"Meeting Agenda"):(structuredNoteSchema(structuredType)?.title||"Untitled note");
+  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||fallbackTitle,type,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content:structured?"":content,checklist:structured?[]:checks,resettable:structured?false:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,structuredType,meetingData,structuredFields,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  if(old)state.notes[state.notes.findIndex(n=>n.id===id)]=note;else state.notes.push(note);
+  ensureProjectRecord(note.project,note.space);closeModal("noteModal");showToast(old?"Note updated 🌸":"Note saved 🌸");render();
 }
 
 function deleteNote(id) { const note=state.notes.find(n=>n.id===id); if(!note||!canDeleteSharedRoot(note,"note")||!confirm("Move this note to Trash?"))return; moveToTrash("note",note); state.notes=state.notes.filter(n=>n.id!==id); closeModal("noteModal"); render(); }
@@ -2317,7 +2342,8 @@ function searchNotes(query) {
     const skincare=isSkincarePlanner(n)?(n.skincareRoutine?.steps||[]).flatMap(step=>[step.category,step.product,step.notes]):[];
     const meeting=n.type==="meeting"?normalizeMeetingData(n.meetingData||{}):null;
     const meetingText=meeting?[meeting.kind,meeting.date,meeting.location,meeting.facilitator,meeting.attendees,meeting.absent,meeting.objective,meeting.prepMaterials,meeting.decisionsNeeded,meeting.discussion,meeting.decisions,meeting.nextMeetingDate,meeting.preparedBy,...meeting.agendaItems.flatMap(item=>[item.topic,item.owner,item.minutes])]:[];
-    return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare,...meetingText].join(" ").toLowerCase().includes(q);
+    const structuredText=isCustomStructuredNote(n)?normalizeStructuredNoteFields(n.structuredFields||[]).flatMap(field=>[field.label,field.value]):[];
+    return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare,...meetingText,...structuredText].join(" ").toLowerCase().includes(q);
   });
   const el=document.getElementById("notesResults"); if(el)el.innerHTML=notes.length?`<div class="note-grid">${notes.map(noteCard).join("")}</div>`:emptyState("🔎","No matching notes","Try another search.","","");
 }
@@ -2374,7 +2400,7 @@ function skincareOptionalAlternateEditor(routine="am", rows=[]) {
 function skincareDraftFromNote(note = null) {
   const routine=normalizeSkincareRoutine(note?.skincareRoutine||{}),days={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
   SKINCARE_WEEKDAYS.forEach(meta=>{days[meta.day]=routine.steps.filter(step=>step.days.includes(meta.day)).map((step,index)=>({id:createId(),category:step.category,product:step.product,times:[...step.times],variant:step.variant==="alternate"?"alternate":"primary",notes:step.notes,order:index}));});
-  return {days,focus:routine.focus,title:note?.title||"Skincare Routine",space:note?.space||preferredSpace()};
+  return {days,focus:routine.focus,title:note?.title||"",space:note?.space||preferredSpace()};
 }
 function skincareEditDayIndex(day=activeSkincareEditDay){const index=SKINCARE_WEEKDAYS.findIndex(meta=>meta.day===Number(day));return index<0?0:index;}
 function readSkincareEditorPage() {
@@ -4119,36 +4145,9 @@ function reopenReminder(id) {
 }
 
 function renderTemplates() {
-  const c = document.getElementById("pageContent");
-
-  c.innerHTML = `
-    <div class="page-heading">
-      <p class="eyebrow">DON'T REBUILD THE SAME THING TWICE</p>
-      <h1>Templates</h1>
-      <p>Preview reusable structures safely. Nothing is added until you choose to save it.</p>
-    </div>
-
-    <div class="template-grid">
-      ${STARTER_TEMPLATES.map(template => `
-        <article class="template-card">
-          <div class="template-icon">${template.icon}</div>
-          <div>
-            <h3>${escapeHTML(template.title)}</h3>
-            <p>${escapeHTML(template.description)}</p>
-            <span class="badge badge-personal">${escapeHTML(template.kind)}</span>
-          </div>
-          <button class="secondary-button" data-use-template="${template.id}">Preview</button>
-        </article>
-      `).join("")}
-    </div>
-
-    <div class="card soft-card" style="margin-top:16px;">
-      <strong>Why templates belong in Hana 🌸</strong>
-      <p style="margin:6px 0 0;color:var(--text-soft);font-size:12px;line-height:1.5;">
-        Grocery lists, routines, bionotes, measurement references, strategy notes, recurring reviews and trackers should feel reusable instead of disposable.
-      </p>
-    </div>
-  `;
+  const c=document.getElementById("pageContent");
+  const categories=["Meetings","Personal & routines","Work & reference","Trackers"];
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">REUSABLE, BUT NEVER FORCED</p><h1>Templates</h1><p>Preview a blank structure, customize it, and save only when it actually fits what you need.</p></div><div class="template-customization-note"><span>✨</span><div><strong>Templates are starting structures, not pre-filled content.</strong><small>Structured-note field labels can be renamed or removed, and you can add your own. List and tracker structures remain editable too.</small></div></div>${categories.map(category=>{const items=STARTER_TEMPLATES.filter(template=>template.category===category);return items.length?`<section class="template-category"><div class="template-category-head"><h2>${escapeHTML(category)}</h2><span>${items.length}</span></div><div class="template-grid">${items.map(template=>`<article class="template-card"><div class="template-icon">${template.icon}</div><div><h3>${escapeHTML(template.title)}</h3><p>${escapeHTML(template.description)}</p><span class="badge badge-personal">${escapeHTML(template.kind)}</span></div><button class="secondary-button" data-use-template="${template.id}">Preview</button></article>`).join("")}</div></section>`:"";}).join("")}`;
 }
 
 function clearTemplateDraftBanner(modalId) {
@@ -4185,209 +4184,54 @@ function openTaskTemplateDraft(definition={}) {
 }
 
 function openNoteTemplateDraft(definition={}) {
-  openNoteModal();
-  refreshSpaceSelects();
-  const type=definition.type||"note";
-  document.getElementById("noteTitle").value=definition.title||"";
+  openNoteModal();refreshSpaceSelects();
+  const type=definition.type||"note",structuredType=definition.structuredType||"";
+  document.getElementById("noteTitle").value="";
+  document.getElementById("noteTitle").placeholder=definition.title?`Name this ${definition.title.toLowerCase()} (optional)`:"Note title";
   document.getElementById("noteType").value=type;
   document.getElementById("noteSpace").value=definition.space||preferredSpace();
-  document.getElementById("noteTags").value=(definition.tags||[]).join(", ");
-  document.getElementById("noteContent").value=definition.content||"";
-  document.getElementById("noteChecklist").value=(definition.checklist||[]).join("\n");
-  document.getElementById("noteResettable").checked=Boolean(definition.resettable);
-  document.getElementById("noteStructuredType").value=definition.structuredType||"";
+  document.getElementById("noteTags").value="";document.getElementById("noteContent").value="";document.getElementById("noteChecklist").value="";
+  document.getElementById("noteResettable").checked=false;document.getElementById("noteStructuredType").value=structuredType;
+  if(type==="meeting")populateMeetingData({structuredType,meetingData:{kind:structuredType==="meeting-minutes"?"minutes":"agenda",agendaItems:[]}});
+  if(isCustomStructuredNote(structuredType))populateStructuredNoteFields(structuredType);
   updateNoteConditionalFields();
-  if(type==="meeting")populateMeetingData({structuredType:definition.structuredType||"meeting-agenda",meetingData:definition.meetingData||{kind:"agenda"}});
-  document.getElementById("noteModalEyebrow").textContent="TEMPLATE PREVIEW";
-  document.getElementById("noteModalTitle").textContent=definition.title||"Note template";
-  document.getElementById("saveNoteButton").textContent="Save to Notes";
-  showTemplateDraftBanner("noteModal","This is only a working preview. Close it if you do not want to keep it.");
+  document.getElementById("noteModalEyebrow").textContent="TEMPLATE PREVIEW";document.getElementById("noteModalTitle").textContent=definition.title||"Note template";document.getElementById("saveNoteButton").textContent="Save to Notes";
+  showTemplateDraftBanner("noteModal","Blank structure only. Fill what you want, customize the fields, or close without saving.");
 }
 
 function openListTemplateDraft(templateId) {
   const template=LIST_TEMPLATES[templateId];if(!template)return showToast("Template not found.");
-  openListModal();
-  pendingListTemplateItems=(template.items||[]).map(title=>({id:createId(),title,detail:"",quantity:"",lane:"both",completed:false,createdAt:Date.now(),updatedAt:Date.now()}));
-  document.getElementById("listName").value=template.name||"";
-  document.getElementById("listIcon").value=template.icon||"☑️";
-  document.getElementById("listColumnMode").checked=templateId==="grocery";
-  document.getElementById("listColumnCount").value="3";
-  updateListColumnSettingsVisibility();
-  document.getElementById("listModalEyebrow").textContent="TEMPLATE PREVIEW";
-  document.getElementById("listModalTitle").textContent=template.name||"List template";
-  document.getElementById("saveListButton").textContent="Create list";
-  showTemplateDraftBanner("listModal","Starter items are being previewed only. They are added to the list only after you tap Create list.",template.items||[]);
+  openListModal();pendingListTemplateItems=[];
+  document.getElementById("listName").value="";document.getElementById("listName").placeholder=template.name||"List name";document.getElementById("listIcon").value=template.icon||"☑️";
+  document.getElementById("listColumnMode").checked=templateId==="grocery";document.getElementById("listColumnCount").value="3";updateListColumnSettingsVisibility();
+  document.getElementById("listModalEyebrow").textContent="TEMPLATE PREVIEW";document.getElementById("listModalTitle").textContent=template.name||"List template";document.getElementById("saveListButton").textContent="Create list";
+  showTemplateDraftBanner("listModal","Blank list only. Add your own entries after creating it; nothing is pre-filled or saved yet.");
 }
 
 function openTableTemplateDraft(definition={}) {
-  openTableModal();
-  document.getElementById("tableTemplate").value="blank";
-  document.getElementById("tableName").value=definition.name||"";
-  document.getElementById("tableSpace").value=definition.space||preferredSpace();
-  setTableBuilderColumns(definition.columns||[{name:"Item",type:"text"}]);
-  document.getElementById("tableStatusOptions").value=(definition.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");
-  refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");
-  updateTableSortFields();
-  document.getElementById("tableModalEyebrow").textContent="TEMPLATE PREVIEW";
-  document.getElementById("tableModalTitle").textContent=definition.name||"Tracker template";
-  document.getElementById("saveTableButton").textContent="Create tracker";
-  showTemplateDraftBanner("tableModal","These columns are only a preview until you tap Create tracker.",(definition.columns||[]).map(column=>column.name));
+  openTableModal();document.getElementById("tableTemplate").value="blank";document.getElementById("tableName").value="";document.getElementById("tableName").placeholder=definition.name||"Tracker name";document.getElementById("tableSpace").value=definition.space||preferredSpace();
+  setTableBuilderColumns(definition.columns||[{name:"Item",type:"text"}]);document.getElementById("tableStatusOptions").value=(definition.statusOptions||DEFAULT_TABLE_STATUSES).join(", ");refreshTableSortColumnOptions(tableBuilderColumns[0]?.id||"");updateTableSortFields();
+  document.getElementById("tableModalEyebrow").textContent="TEMPLATE PREVIEW";document.getElementById("tableModalTitle").textContent=definition.name||"Tracker template";document.getElementById("saveTableButton").textContent="Create tracker";
+  showTemplateDraftBanner("tableModal","Only the editable column structure is provided. No rows or values are pre-filled.",(definition.columns||[]).map(column=>column.name));
 }
-
 
 function useTemplate(templateId) {
   const space=preferredSpace();
-
-  if(templateId==="weekly-review")return openTaskTemplateDraft({
-    title:"Weekly Review",space,priority:"medium",status:"todo",recurrenceType:"weekly",
-    subtasks:["Review open tasks","Check Waiting On / follow-ups","Choose next week's priorities"]
-  });
-
-  if(templateId==="monthly-life-admin")return openTaskTemplateDraft({
-    title:"Monthly Life Admin",space,priority:"medium",status:"todo",recurrenceType:"monthly",
-    subtasks:["Review bills and subscriptions","Check documents / renewals","Clear personal loose ends"]
-  });
-
   if(["meeting-agenda","meeting-minutes"].includes(templateId)){
     const isMinutes=templateId==="meeting-minutes";
-    return openNoteTemplateDraft({
-      title:isMinutes?"Minutes of the Meeting":"Meeting Agenda",
-      type:"meeting",
-      structuredType:isMinutes?"meeting-minutes":"meeting-agenda",
-      space,
-      tags:isMinutes?["meeting","minutes"]:["meeting","agenda"],
-      meetingData:{kind:isMinutes?"minutes":"agenda",date:todayISO(),agendaItems:[]}
-    });
+    return openNoteTemplateDraft({title:isMinutes?"Minutes of the Meeting":"Meeting Agenda",type:"meeting",structuredType:isMinutes?"meeting-minutes":"meeting-agenda",space});
   }
-
   if(templateId==="skincare-routine-note"){
-    closeNavDrawer();
-    openSkincareRoutineModal("",{edit:true});
-    showTemplateDraftBanner("skincareRoutineModal","Build or inspect the routine first. Nothing is added to Notes until you tap Save whole week.");
-    return;
+    closeNavDrawer();openSkincareRoutineModal("",{edit:true});document.getElementById("skincareTitle").value="";showTemplateDraftBanner("skincareRoutineModal","Blank weekly planner. Add only the products and routines you actually use, then save when ready.");return;
   }
-
-  if(["professional-bionote","strategy-outline-note","measurement-profile-note"].includes(templateId)){
-    const definitions={
-      "professional-bionote":{
-        title:"Professional Bionote",tags:["reference","bio","professional"],content:`## Name & current role
-Full name:
-Current title / position:
-Organization:
-Primary responsibilities:
-
-## Professional experience
-Years of experience:
-Key areas of work:
-Major programs / responsibilities:
-
-## Education
-Degree / institution:
-Graduate studies / institution:
-Honors / distinctions:
-
-## Training & development
-- Program / institution / year:
-- Program / institution / year:
-
-## Projects, achievements & presentations
--
-
-## Short version
-Write a 2–4 sentence version here for programs, introductions or speaker profiles.`
-      },
-      "strategy-outline-note":{
-        title:"Strategy / Meeting Outline",tags:["work","strategy","meeting"],content:`## Objective
-
-## Additional strategies / ideas
--
-
-## Presentation / meeting structure
-1.
-2.
-3.
-
-## Key data / evidence needed
--
-
-## Decisions / agreements
--
-
-## Action items
-- Owner — Action — Due date
-
-## Assistance / dependencies
--
-
-## Ways forward
--`
-      },
-      "measurement-profile-note":{
-        title:"Measurement Profile",tags:["reference","measurements"],content:`## Profile
-Person:
-Date measured:
-Units: inches / cm
-
-## Upper body
-1. Neck —
-2. Overbust —
-3. Bust —
-4. Underbust —
-5. Shoulder to shoulder —
-6. Shoulder seam to wrist —
-7. Shoulder seam to neck —
-8. Arm hole —
-9. Bicep —
-10. Forearm —
-11. Wrist around —
-
-## Torso / lower body
-12. Waist —
-13. Hips —
-14. Top of shoulder to waist —
-15. Inseam —
-16. Outseam —
-
-## Length references
-17. Neck to top of heel —
-18. Neck to top of knee —
-19. Top of knee to ankle —
-
-## Height / weight
-Height —
-Weight —
-
-## Notes
-- Fit preference / ease:
-- Clothing / tailoring notes:
-- Updated measurements:`
-      }
-    };
-    const definition=definitions[templateId];
-    return openNoteTemplateDraft({...definition,type:"note",space});
-  }
-
+  if(templateId==="professional-bionote")return openNoteTemplateDraft({title:"Professional Bionote",type:"note",structuredType:"professional-bionote",space});
+  if(templateId==="strategy-outline-note")return openNoteTemplateDraft({title:"Strategy Plan",type:"note",structuredType:"strategy-plan",space});
+  if(templateId==="measurement-profile-note")return openNoteTemplateDraft({title:"Measurement Profile",type:"note",structuredType:"measurement-profile",space});
   if(templateId==="grocery-list"||templateId==="packing-list")return openListTemplateDraft(templateId==="grocery-list"?"grocery":"packing");
-
-  if(templateId==="weekly-reset")return openNoteTemplateDraft({
-    title:"Weekly Reset",type:"checklist",space,tags:["weekly","home"],resettable:true,
-    checklist:["Review calendar","Reset important spaces","Plan meals / errands","Choose personal priorities"]
-  });
-
   if(templateId==="work-deliverables"||templateId==="bills-tracker"){
     const isWork=templateId==="work-deliverables";
-    return openTableTemplateDraft({
-      name:isWork?"Work Deliverables":"Bills Tracker",
-      space:isWork&&state.spaces.some(item=>item.id==="work")?"work":space,
-      columns:isWork?[
-        {name:"Deliverable",type:"text"},{name:"Owner",type:"text"},{name:"Progress",type:"progress"},{name:"Due",type:"date"},{name:"Status",type:"status"},{name:"Remarks",type:"text"},{name:"Done",type:"checkbox"}
-      ]:[
-        {name:"Bill",type:"text"},{name:"Amount",type:"money"},{name:"Due",type:"date"},{name:"Paid",type:"checkbox"}
-      ],
-      statusOptions:DEFAULT_TABLE_STATUSES.slice()
-    });
+    return openTableTemplateDraft({name:isWork?"Work Deliverables":"Bills Tracker",space:isWork&&state.spaces.some(item=>item.id==="work")?"work":space,columns:isWork?[{name:"Deliverable",type:"text"},{name:"Owner",type:"text"},{name:"Progress",type:"progress"},{name:"Due",type:"date"},{name:"Status",type:"status"},{name:"Remarks",type:"text"},{name:"Done",type:"checkbox"}]:[{name:"Bill",type:"text"},{name:"Amount",type:"money"},{name:"Due",type:"date"},{name:"Paid",type:"checkbox"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()});
   }
-
   showToast("Template not found.");
 }
 
@@ -4458,7 +4302,7 @@ function refreshShareControl(prefix, item = null){
   }
   const deleteButtons={task:"deleteTaskFromModal",note:"deleteNoteFromModal",reminder:"deleteReminderFromModal",table:"deleteTableFromModal",list:"deleteListFromModal",event:"deleteEventButton",project:"deleteProjectButton"};
   const deleteButton=document.getElementById(deleteButtons[prefix]||"");
-  if(deleteButton)deleteButton.classList.toggle("hidden",received);
+  if(deleteButton)deleteButton.classList.toggle("hidden",!item||received);
 }
 
 function refreshModalShareControl(modalId){
@@ -5792,6 +5636,9 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-skincare-sync-apply]")){syncSkincareEditorDay();return;}
   if(event.target.closest("[data-save-skincare]")){saveSkincareRoutine();return;}
   if(event.target.closest("[data-skincare-note-settings]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";closeModal("skincareRoutineModal");if(id)openNoteModal(id);return;}
+
+  const addStructuredField=event.target.closest("[data-add-structured-field]");if(addStructuredField){addStructuredNoteField(addStructuredField.dataset.addStructuredField||"text");return;}
+  const removeStructuredField=event.target.closest("[data-remove-structured-field]");if(removeStructuredField){removeStructuredNoteField(removeStructuredField.dataset.removeStructuredField);return;}
 
   if(event.target.closest("[data-add-meeting-agenda-item]")){addMeetingAgendaItem();return;}
   const removeMeetingAgenda=event.target.closest("[data-remove-meeting-agenda-item]");if(removeMeetingAgenda){removeMeetingAgendaItem(removeMeetingAgenda);return;}
