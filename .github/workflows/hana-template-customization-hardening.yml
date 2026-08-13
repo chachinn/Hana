@@ -1,0 +1,47 @@
+name: Hana template customization hardening
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  update-hana:
+    if: github.event.head_commit.message == 'Run Hana template customization hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply hardening
+        run: python scripts/hana-template-customization-hardening.py
+
+      - name: JavaScript syntax check
+        run: node --check app.js
+
+      - name: Run hardening QA
+        run: python scripts/hana-template-customization-hardening-qa.py
+
+      - name: Repository consistency checks
+        shell: bash
+        run: |
+          grep -q 'hana-app-version" content="2.0.24"' index.html
+          grep -q 'data-hana-version>2</span>' index.html
+          grep -q 'hana-shell-v57' service-worker.js
+          git diff --check
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "hana-release-bot@users.noreply.github.com"
+          git rm .github/workflows/hana-template-customization-hardening.yml scripts/hana-template-customization-hardening.py scripts/hana-template-customization-hardening-qa.py
+          git add app.js index.html service-worker.js
+          git diff --cached --check
+          git commit -m "Harden Hana template customization"
+          git push origin HEAD:main
