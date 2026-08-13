@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.24
+   HANA 🌸 Version 2 · internal build 2.0.25
    List shopping columns + update prompt + Partner Link stability
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -411,24 +411,52 @@ const STRUCTURED_NOTE_SCHEMAS = {
   }
 };
 
-function normalizeStructuredNoteField(field={},index=0){
+function normalizeStructuredNoteGroup(group={},index=0){
+  return {id:String(group.id||createId()),name:String(group.name||"Category"),order:Number.isFinite(Number(group.order))?Number(group.order):index};
+}
+function inferStructuredNoteGroups(fields=[]){
+  const groups=[],seen=new Set();
+  (Array.isArray(fields)?fields:[]).forEach(field=>{
+    const name=String(field?.group||"Custom").trim()||"Custom",key=name.toLowerCase();
+    if(seen.has(key))return;seen.add(key);
+    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"custom";
+    groups.push(normalizeStructuredNoteGroup({id:`legacy-${slug}-${groups.length+1}`,name,order:groups.length},groups.length));
+  });
+  return groups;
+}
+function normalizeStructuredNoteGroups(groups,fields=[]){
+  if(Array.isArray(groups))return groups.map(normalizeStructuredNoteGroup).filter(group=>group.name.trim()).sort((a,b)=>a.order-b.order);
+  return inferStructuredNoteGroups(fields);
+}
+function normalizeStructuredNoteField(field={},index=0,groups=[]){
   const type=["text","textarea","date","number"].includes(field.type)?field.type:"text";
-  return {id:field.id||createId(),label:String(field.label||""),type,value:String(field.value??""),group:String(field.group||"Custom"),order:Number.isFinite(Number(field.order))?Number(field.order):index};
+  const legacyGroup=String(field.group||"Custom").trim()||"Custom";
+  let groupId=String(field.groupId||"");
+  let group=groups.find(item=>item.id===groupId);
+  if(!group)group=groups.find(item=>item.name===legacyGroup);
+  if(group)groupId=group.id;
+  return {id:field.id||createId(),label:String(field.label||""),type,value:String(field.value??""),groupId,group:group?.name||legacyGroup,order:Number.isFinite(Number(field.order))?Number(field.order):index};
 }
-function normalizeStructuredNoteFields(fields=[]){
-  return (Array.isArray(fields)?fields:[]).map(normalizeStructuredNoteField).filter(field=>field.label||field.value).sort((a,b)=>a.order-b.order);
+function normalizeStructuredNoteFields(fields=[],groups=[],options={}){
+  const keepBlank=options.keepBlank===true;
+  return (Array.isArray(fields)?fields:[]).map((field,index)=>normalizeStructuredNoteField(field,index,groups)).filter(field=>keepBlank||field.label||field.value).sort((a,b)=>a.order-b.order);
 }
-function structuredSchemaFields(structuredType){
-  const schema=STRUCTURED_NOTE_SCHEMAS[structuredType];if(!schema)return [];
-  return schema.fields.map(([label,type,group],index)=>normalizeStructuredNoteField({id:createId(),label,type,group,value:"",order:index},index));
+function structuredSchemaState(structuredType){
+  const schema=STRUCTURED_NOTE_SCHEMAS[structuredType];if(!schema)return {groups:[],fields:[]};
+  const groups=[],byName=new Map();
+  schema.fields.forEach(([, ,groupName])=>{const name=String(groupName||"Custom");if(!byName.has(name)){const group=normalizeStructuredNoteGroup({id:createId(),name,order:groups.length},groups.length);groups.push(group);byName.set(name,group);}});
+  const fields=schema.fields.map(([label,type,groupName],index)=>{const group=byName.get(String(groupName||"Custom"));return normalizeStructuredNoteField({id:createId(),label,type,value:"",groupId:group?.id||"",group:group?.name||"Custom",order:index},index,groups);});
+  return {groups,fields};
 }
+function structuredSchemaFields(structuredType){return structuredSchemaState(structuredType).fields;}
 function isCustomStructuredNote(noteOrType){
   const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType;
   return CUSTOM_STRUCTURED_NOTE_TYPES.includes(type);
 }
 function structuredNoteSchema(type){return STRUCTURED_NOTE_SCHEMAS[type]||null;}
 function structuredNotePreview(note){
-  const values=normalizeStructuredNoteFields(note?.structuredFields||[]).filter(field=>String(field.value||"").trim()).slice(0,3);
+  const groups=normalizeStructuredNoteGroups(note?.structuredGroups,note?.structuredFields||[]);
+  const values=normalizeStructuredNoteFields(note?.structuredFields||[],groups).filter(field=>String(field.value||"").trim()).slice(0,3);
   return values.map(field=>`${field.label}: ${field.value}`).join(" · ")||structuredNoteSchema(note?.structuredType)?.title||"Structured note";
 }
 
@@ -436,6 +464,9 @@ function normalizeNote(note = {}) {
   const allowedStructuredTypes = ["skincare-weekly", "meeting-agenda", "meeting-minutes", ...CUSTOM_STRUCTURED_NOTE_TYPES];
   const structuredType = allowedStructuredTypes.includes(note.structuredType) ? note.structuredType : "";
   const meetingKind = structuredType === "meeting-minutes" ? "minutes" : structuredType === "meeting-agenda" ? "agenda" : (note.meetingData?.kind === "minutes" ? "minutes" : "agenda");
+  const customStructured=isCustomStructuredNote(structuredType);
+  const structuredGroups=customStructured?normalizeStructuredNoteGroups(note.structuredGroups,note.structuredFields||[]):[];
+  const structuredFields=customStructured?normalizeStructuredNoteFields(note.structuredFields||[],structuredGroups):[];
   return {
     id: note.id || createId(),
     title: String(note.title || "Untitled note"),
@@ -452,7 +483,8 @@ function normalizeNote(note = {}) {
     structuredType,
     skincareRoutine: structuredType === "skincare-weekly" ? normalizeSkincareRoutine(note.skincareRoutine || {}) : null,
     meetingData: note.type === "meeting" ? normalizeMeetingData({...(note.meetingData || {}), kind: meetingKind}) : null,
-    structuredFields: isCustomStructuredNote(structuredType) ? normalizeStructuredNoteFields(note.structuredFields || []) : [],
+    structuredGroups,
+    structuredFields,
     createdAt: Number(note.createdAt || Date.now()),
     updatedAt: Number(note.updatedAt || note.createdAt || Date.now()),
     ...normalizeShareMeta(note)
@@ -803,19 +835,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.24";
+const HANA_APP_VERSION = "2.0.25";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 13, 2026",
-  title: "Cleaner templates & focus ✨",
-  intro: "Hana Version 2 now keeps templates blank, gives structured references real customizable fields, and makes Focus Bouquet much calmer on Today.",
+  title: "Structured categories that actually work 🗂️",
+  intro: "Hana Version 2 now lets structured notes manage categories and fields as real customizable parts instead of fixed section labels.",
   items: [
-    { icon:"🧩", title:"Curated templates", text:"Removed redundant pre-filled review/reset templates and grouped the useful templates by purpose." },
-    { icon:"✏️", title:"Real customizable fields", text:"Bionote, Strategy Plan and Measurement Profile now use separate fields you can rename, remove or extend." },
-    { icon:"🫧", title:"No example entries to delete", text:"Meeting, skincare, grocery and packing previews open blank; tracker templates provide editable columns only." },
-    { icon:"🌷", title:"Cleaner Focus Bouquet", text:"Today now opens with a compact focus summary and a single clean task list instead of duplicated flower cards and rows." },
-    { icon:"🛡️", title:"Customization safeguards", text:"Delete stays hidden on unsaved forms, intentionally removed custom fields stay removed, and tracker templates no longer force a name." }
+    { icon:"🗂️", title:"Editable categories", text:"Add, rename or delete categories in Bionote, Strategy Plan and Measurement Profile." },
+    { icon:"＋", title:"Fields add where you want them", text:"Each category has its own Add field button, and new blank fields no longer disappear before you can name them." },
+    { icon:"↔️", title:"Move and change fields", text:"Change a field between Short text, Long text, Date or Number, and move it to another category anytime." },
+    { icon:"🛡️", title:"Safe compatibility", text:"Existing structured notes migrate their old section names into editable categories without losing entered values." }
   ]
 };
 
@@ -2200,45 +2231,105 @@ function populateMeetingData(note = null) {
 }
 
 let structuredNoteDraftFields=[];
+let structuredNoteDraftGroups=[];
+function structuredNoteFieldTypeOptions(selected="text"){
+  return [["text","Short text"],["textarea","Long text"],["date","Date"],["number","Number"]].map(([value,label])=>`<option value="${value}" ${value===selected?"selected":""}>${label}</option>`).join("");
+}
+function structuredNoteFieldGroupOptions(groups=[],selected=""){
+  return groups.map(group=>`<option value="${escapeHTML(group.id)}" ${group.id===selected?"selected":""}>${escapeHTML(group.name||"Category")}</option>`).join("");
+}
 function structuredNoteFieldValueControl(field){
   const value=escapeHTML(field.value||"");
   if(field.type==="textarea")return `<textarea data-structured-field-value placeholder="Enter ${escapeHTML((field.label||"details").toLowerCase())}">${value}</textarea>`;
   const inputType=field.type==="date"?"date":field.type==="number"?"number":"text";
   return `<input data-structured-field-value type="${inputType}" value="${value}" placeholder="${inputType==="text"?`Enter ${escapeHTML((field.label||"value").toLowerCase())}`:""}" />`;
 }
-function structuredNoteFieldRowHTML(field,showGroup=false){
-  return `${showGroup?`<div class="structured-note-group-title">${escapeHTML(field.group||"Custom")}</div>`:""}<div class="structured-note-field-row" data-structured-field-row data-structured-field-id="${escapeHTML(field.id)}" data-structured-field-type="${escapeHTML(field.type)}" data-structured-field-group="${escapeHTML(field.group||"Custom")}"><div class="structured-note-field-label-row"><input data-structured-field-label class="structured-note-field-label-input" value="${escapeHTML(field.label)}" placeholder="Field label" aria-label="Field label" /><button type="button" class="structured-note-field-remove" data-remove-structured-field="${escapeHTML(field.id)}" aria-label="Remove ${escapeHTML(field.label||"field")}">×</button></div>${structuredNoteFieldValueControl(field)}</div>`;
+function structuredNoteFieldRowHTML(field,groups=[]){
+  return `<div class="structured-note-field-row" data-structured-field-row data-structured-field-id="${escapeHTML(field.id)}" data-structured-field-group-id="${escapeHTML(field.groupId||"")}">
+    <div class="structured-note-field-label-row"><input data-structured-field-label class="structured-note-field-label-input" value="${escapeHTML(field.label)}" placeholder="Field name" aria-label="Field name" /><button type="button" class="structured-note-field-remove" data-remove-structured-field="${escapeHTML(field.id)}" aria-label="Remove ${escapeHTML(field.label||"field")}">×</button></div>
+    <div class="structured-note-field-settings"><label><span>Field type</span><select data-structured-field-type-select>${structuredNoteFieldTypeOptions(field.type)}</select></label><label><span>Category</span><select data-structured-field-group-select>${structuredNoteFieldGroupOptions(groups,field.groupId)}</select></label></div>
+    ${structuredNoteFieldValueControl(field)}
+  </div>`;
 }
-function readStructuredNoteFields(){
-  return [...document.querySelectorAll("#structuredNoteFieldsEditor [data-structured-field-row]")].map((row,index)=>normalizeStructuredNoteField({id:row.dataset.structuredFieldId||createId(),label:row.querySelector("[data-structured-field-label]")?.value.trim()||"",type:row.dataset.structuredFieldType||"text",value:row.querySelector("[data-structured-field-value]")?.value||"",group:row.dataset.structuredFieldGroup||"Custom",order:index},index)).filter(field=>field.label||field.value);
+function readStructuredNoteEditor(){
+  const groupEls=[...document.querySelectorAll("#structuredNoteFieldsEditor [data-structured-category]")];
+  const groups=groupEls.map((section,index)=>normalizeStructuredNoteGroup({id:section.dataset.structuredCategory||createId(),name:section.querySelector("[data-structured-category-name]")?.value.trim()||`Category ${index+1}`,order:index},index));
+  const groupMap=new Map(groups.map(group=>[group.id,group]));
+  const fields=[];
+  groupEls.forEach(section=>{
+    const sectionGroupId=section.dataset.structuredCategory||"";
+    section.querySelectorAll("[data-structured-field-row]").forEach(row=>{
+      const selectedGroupId=row.querySelector("[data-structured-field-group-select]")?.value||sectionGroupId;
+      const group=groupMap.get(selectedGroupId)||groupMap.get(sectionGroupId)||groups[0];
+      fields.push(normalizeStructuredNoteField({id:row.dataset.structuredFieldId||createId(),label:row.querySelector("[data-structured-field-label]")?.value.trim()||"",type:row.querySelector("[data-structured-field-type-select]")?.value||"text",value:row.querySelector("[data-structured-field-value]")?.value||"",groupId:group?.id||"",group:group?.name||"Custom",order:fields.length},fields.length,groups));
+    });
+  });
+  return {groups,fields};
 }
-function renderStructuredNoteFields(fields=structuredNoteDraftFields){
-  structuredNoteDraftFields=normalizeStructuredNoteFields(fields);
+function readStructuredNoteFields(){return readStructuredNoteEditor().fields;}
+function readStructuredNoteGroups(){return readStructuredNoteEditor().groups;}
+function structuredNoteCategoryHTML(group,fields,groups){
+  const items=fields.filter(field=>field.groupId===group.id);
+  return `<section class="structured-note-category-card" data-structured-category="${escapeHTML(group.id)}">
+    <div class="structured-note-category-head"><input data-structured-category-name value="${escapeHTML(group.name)}" placeholder="Category name" aria-label="Category name" /><div class="structured-note-category-actions"><button type="button" data-add-structured-field-to-category="${escapeHTML(group.id)}">+ Field</button><button type="button" class="danger-soft" data-remove-structured-category="${escapeHTML(group.id)}" aria-label="Delete ${escapeHTML(group.name)} category">×</button></div></div>
+    <div class="structured-note-category-fields">${items.length?items.map(field=>structuredNoteFieldRowHTML(field,groups)).join(""):`<div class="structured-note-category-empty">No fields in this category yet.</div>`}</div>
+  </section>`;
+}
+function renderStructuredNoteFields(fields=structuredNoteDraftFields,groups=structuredNoteDraftGroups){
+  structuredNoteDraftGroups=normalizeStructuredNoteGroups(Array.isArray(groups)?groups:[],fields);
+  structuredNoteDraftFields=normalizeStructuredNoteFields(fields,structuredNoteDraftGroups,{keepBlank:true});
+  if(structuredNoteDraftGroups.length&&structuredNoteDraftFields.some(field=>!field.groupId))structuredNoteDraftFields=structuredNoteDraftFields.map(field=>field.groupId?field:{...field,groupId:structuredNoteDraftGroups[0].id,group:structuredNoteDraftGroups[0].name});
   const editor=document.getElementById("structuredNoteFieldsEditor");if(!editor)return;
-  let lastGroup="";
-  editor.innerHTML=structuredNoteDraftFields.length?structuredNoteDraftFields.map(field=>{const showGroup=field.group!==lastGroup;lastGroup=field.group;return structuredNoteFieldRowHTML(field,showGroup);}).join(""):`<div class="structured-note-empty"><span>＋</span><strong>No fields yet</strong><small>Add any fields you want below.</small></div>`;
+  editor.innerHTML=structuredNoteDraftGroups.length?structuredNoteDraftGroups.map(group=>structuredNoteCategoryHTML(group,structuredNoteDraftFields,structuredNoteDraftGroups)).join(""):`<div class="structured-note-empty"><span>🗂️</span><strong>No categories yet</strong><small>Add a category, then add only the fields you actually need.</small></div>`;
 }
 function populateStructuredNoteFields(noteOrType){
   const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType||"";
-  const hasSavedFields=typeof noteOrType==="object"&&Array.isArray(noteOrType?.structuredFields);
-  const existing=hasSavedFields?normalizeStructuredNoteFields(noteOrType.structuredFields):[];
-  structuredNoteDraftFields=hasSavedFields?existing:structuredSchemaFields(type);
+  if(typeof noteOrType==="object"){
+    const hasSavedGroups=Array.isArray(noteOrType?.structuredGroups);
+    const hasSavedFields=Array.isArray(noteOrType?.structuredFields);
+    structuredNoteDraftGroups=hasSavedGroups?normalizeStructuredNoteGroups(noteOrType.structuredGroups,noteOrType.structuredFields||[]):normalizeStructuredNoteGroups(undefined,noteOrType?.structuredFields||[]);
+    structuredNoteDraftFields=hasSavedFields?normalizeStructuredNoteFields(noteOrType.structuredFields,structuredNoteDraftGroups,{keepBlank:true}):[];
+  }else{
+    const schemaState=structuredSchemaState(type);structuredNoteDraftGroups=schemaState.groups;structuredNoteDraftFields=schemaState.fields;
+  }
   const schema=structuredNoteSchema(type);const title=document.getElementById("structuredNoteFieldsTitle");if(title)title.textContent=schema?.title||"Custom fields";
-  renderStructuredNoteFields(structuredNoteDraftFields);
+  renderStructuredNoteFields(structuredNoteDraftFields,structuredNoteDraftGroups);
 }
-function addStructuredNoteField(type="text"){
-  structuredNoteDraftFields=readStructuredNoteFields();
-  structuredNoteDraftFields.push(normalizeStructuredNoteField({id:createId(),label:"",type,value:"",group:"Custom",order:structuredNoteDraftFields.length}));
-  renderStructuredNoteFields(structuredNoteDraftFields);
-  requestAnimationFrame(()=>{const rows=document.querySelectorAll("#structuredNoteFieldsEditor [data-structured-field-row]");rows[rows.length-1]?.querySelector("[data-structured-field-label]")?.focus();});
+function addStructuredNoteCategory(){
+  const current=readStructuredNoteEditor();
+  const group=normalizeStructuredNoteGroup({id:createId(),name:`Category ${current.groups.length+1}`,order:current.groups.length},current.groups.length);
+  current.groups.push(group);renderStructuredNoteFields(current.fields,current.groups);
+  requestAnimationFrame(()=>{const input=document.querySelector(`[data-structured-category="${group.id}"] [data-structured-category-name]`);input?.focus();input?.select();});
+}
+function addStructuredNoteField(groupId=""){
+  const current=readStructuredNoteEditor();
+  let group=current.groups.find(item=>item.id===groupId);
+  if(!group){if(!current.groups.length){group=normalizeStructuredNoteGroup({id:createId(),name:"Category 1",order:0},0);current.groups.push(group);}else group=current.groups[current.groups.length-1];}
+  const field=normalizeStructuredNoteField({id:createId(),label:"",type:"text",value:"",groupId:group.id,group:group.name,order:current.fields.length},current.fields.length,current.groups);
+  current.fields.push(field);renderStructuredNoteFields(current.fields,current.groups);
+  requestAnimationFrame(()=>document.querySelector(`[data-structured-field-id="${field.id}"] [data-structured-field-label]`)?.focus());
 }
 function removeStructuredNoteField(id){
-  structuredNoteDraftFields=readStructuredNoteFields().filter(field=>field.id!==id);renderStructuredNoteFields(structuredNoteDraftFields);
+  const current=readStructuredNoteEditor();current.fields=current.fields.filter(field=>field.id!==id);renderStructuredNoteFields(current.fields,current.groups);
+}
+function removeStructuredNoteCategory(id){
+  const current=readStructuredNoteEditor(),group=current.groups.find(item=>item.id===id);if(!group)return;
+  const fields=current.fields.filter(field=>field.groupId===id);
+  if(fields.length&&!confirm(`Delete ${group.name} and its ${fields.length} field${fields.length===1?"":"s"}?`))return;
+  current.groups=current.groups.filter(item=>item.id!==id);current.fields=current.fields.filter(field=>field.groupId!==id);renderStructuredNoteFields(current.fields,current.groups);
+}
+function changeStructuredNoteFieldType(id,type){
+  const current=readStructuredNoteEditor(),field=current.fields.find(item=>item.id===id);if(!field)return;field.type=["text","textarea","date","number"].includes(type)?type:"text";renderStructuredNoteFields(current.fields,current.groups);
+  requestAnimationFrame(()=>document.querySelector(`[data-structured-field-id="${id}"] [data-structured-field-value]`)?.focus());
+}
+function moveStructuredNoteField(id,groupId){
+  const current=readStructuredNoteEditor(),field=current.fields.find(item=>item.id===id),group=current.groups.find(item=>item.id===groupId);if(!field||!group)return;field.groupId=group.id;field.group=group.name;renderStructuredNoteFields(current.fields,current.groups);
 }
 
 function clearNoteForm() {
   clearTemplateDraftBanner("noteModal");
   structuredNoteDraftFields=[];
+  structuredNoteDraftGroups=[];
   document.getElementById("structuredNoteFieldsWrap")?.classList.add("hidden");
   const structuredEditor=document.getElementById("structuredNoteFieldsEditor");if(structuredEditor)structuredEditor.innerHTML="";
   ["noteEditId","noteStructuredType","noteTitle","noteTags","noteContent","noteChecklist","noteProject","meetingDate","meetingStartTime","meetingEndTime","meetingLocation","meetingFacilitator","meetingAttendees","meetingAbsent","meetingObjective","meetingPrepMaterials","meetingDecisionsNeeded","meetingDiscussion","meetingDecisions","meetingNextDate","meetingNextTime","meetingPreparedBy"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
@@ -2304,7 +2395,8 @@ function saveNote() {
   const meetingData=type==="meeting"?readMeetingData():null;
   const requestedStructured=document.getElementById("noteStructuredType")?.value||"";
   const structured=isCustomStructuredNote(requestedStructured)&&type!=="meeting";
-  const structuredFields=structured?readStructuredNoteFields():[];
+  const structuredState=structured?readStructuredNoteEditor():{groups:[],fields:[]};
+  const structuredGroups=structuredState.groups,structuredFields=structuredState.fields;
   const structuredHasValue=structuredFields.some(field=>String(field.value||"").trim());
   if(!title&&!content&&!checks.length&&!meetingHasMeaningfulData(meetingData)&&!structuredHasValue)return showToast("Enter something first 🌸");
   let structuredType="";
@@ -2312,7 +2404,7 @@ function saveNote() {
   else if(structured)structuredType=requestedStructured;
   else if(old?.structuredType==="skincare-weekly")structuredType="skincare-weekly";
   const fallbackTitle=type==="meeting"?(meetingData.kind==="minutes"?"Minutes of the Meeting":"Meeting Agenda"):(structuredNoteSchema(structuredType)?.title||"Untitled note");
-  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||fallbackTitle,type,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content:structured?"":content,checklist:structured?[]:checks,resettable:structured?false:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,structuredType,meetingData,structuredFields,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  const note=normalizeNote({...(old||{}),id:id||createId(),title:title||fallbackTitle,type,space:document.getElementById("noteSpace").value,project:document.getElementById("noteProject").value.trim(),tags:parseTags(document.getElementById("noteTags").value),content:structured?"":content,checklist:structured?[]:checks,resettable:structured?false:document.getElementById("noteResettable").checked,pinned:document.getElementById("notePinned").checked,structuredType,meetingData,structuredGroups,structuredFields,...shareMetaFromControl("note",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
   if(old)state.notes[state.notes.findIndex(n=>n.id===id)]=note;else state.notes.push(note);
   ensureProjectRecord(note.project,note.space);closeModal("noteModal");showToast(old?"Note updated 🌸":"Note saved 🌸");render();
 }
@@ -2342,7 +2434,8 @@ function searchNotes(query) {
     const skincare=isSkincarePlanner(n)?(n.skincareRoutine?.steps||[]).flatMap(step=>[step.category,step.product,step.notes]):[];
     const meeting=n.type==="meeting"?normalizeMeetingData(n.meetingData||{}):null;
     const meetingText=meeting?[meeting.kind,meeting.date,meeting.location,meeting.facilitator,meeting.attendees,meeting.absent,meeting.objective,meeting.prepMaterials,meeting.decisionsNeeded,meeting.discussion,meeting.decisions,meeting.nextMeetingDate,meeting.preparedBy,...meeting.agendaItems.flatMap(item=>[item.topic,item.owner,item.minutes])]:[];
-    const structuredText=isCustomStructuredNote(n)?normalizeStructuredNoteFields(n.structuredFields||[]).flatMap(field=>[field.label,field.value]):[];
+    const structuredGroups=isCustomStructuredNote(n)?normalizeStructuredNoteGroups(n.structuredGroups,n.structuredFields||[]):[];
+    const structuredText=isCustomStructuredNote(n)?[...structuredGroups.map(group=>group.name),...normalizeStructuredNoteFields(n.structuredFields||[],structuredGroups).flatMap(field=>[field.label,field.value])]:[];
     return [n.title,n.content,...n.tags,...n.checklist.map(i=>i.title),n.skincareRoutine?.focus||"",...skincare,...meetingText,...structuredText].join(" ").toLowerCase().includes(q);
   });
   const el=document.getElementById("notesResults"); if(el)el.innerHTML=notes.length?`<div class="note-grid">${notes.map(noteCard).join("")}</div>`:emptyState("🔎","No matching notes","Try another search.","","");
@@ -5526,6 +5619,13 @@ document.addEventListener("keydown", event => {
 
 /* ================= EVENTS ================= */
 
+document.addEventListener("change", event => {
+  const typeSelect=event.target.closest?.("[data-structured-field-type-select]");
+  if(typeSelect){const row=typeSelect.closest("[data-structured-field-row]");if(row)changeStructuredNoteFieldType(row.dataset.structuredFieldId,typeSelect.value);return;}
+  const groupSelect=event.target.closest?.("[data-structured-field-group-select]");
+  if(groupSelect){const row=groupSelect.closest("[data-structured-field-row]");if(row)moveStructuredNoteField(row.dataset.structuredFieldId,groupSelect.value);}
+});
+
 document.addEventListener("click", event => {
   const tappedNoteCard=event.target.closest?.("[data-open-note-card],[data-open-skincare-card]");
   if(tappedNoteCard&&!noteCardTapIsInteractive(event.target)){openNoteCardElement(tappedNoteCard);return;}
@@ -5637,7 +5737,10 @@ document.addEventListener("click", event => {
   if(event.target.closest("[data-save-skincare]")){saveSkincareRoutine();return;}
   if(event.target.closest("[data-skincare-note-settings]")){const id=document.getElementById("skincareRoutineModal")?.dataset.noteId||document.getElementById("skincareEditId")?.value||"";closeModal("skincareRoutineModal");if(id)openNoteModal(id);return;}
 
-  const addStructuredField=event.target.closest("[data-add-structured-field]");if(addStructuredField){addStructuredNoteField(addStructuredField.dataset.addStructuredField||"text");return;}
+  if(event.target.closest("[data-add-structured-category]")){addStructuredNoteCategory();return;}
+  const addStructuredFieldToCategory=event.target.closest("[data-add-structured-field-to-category]");if(addStructuredFieldToCategory){addStructuredNoteField(addStructuredFieldToCategory.dataset.addStructuredFieldToCategory||"");return;}
+  const addStructuredField=event.target.closest("[data-add-structured-field]");if(addStructuredField){addStructuredNoteField("");return;}
+  const removeStructuredCategory=event.target.closest("[data-remove-structured-category]");if(removeStructuredCategory){removeStructuredNoteCategory(removeStructuredCategory.dataset.removeStructuredCategory);return;}
   const removeStructuredField=event.target.closest("[data-remove-structured-field]");if(removeStructuredField){removeStructuredNoteField(removeStructuredField.dataset.removeStructuredField);return;}
 
   if(event.target.closest("[data-add-meeting-agenda-item]")){addMeetingAgendaItem();return;}

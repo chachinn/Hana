@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
-  <meta name="hana-app-version" content="2.0.24" />
+  <meta name="hana-app-version" content="2.0.25" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.24" />
+  <link rel="stylesheet" href="style.css?v=2.0.25" />
 </head>
 <body>
   <div id="app">
@@ -366,15 +366,10 @@
 
       <section id="structuredNoteFieldsWrap" class="structured-note-fields hidden">
         <div class="structured-note-fields-head">
-          <div><small>STRUCTURED FIELDS</small><strong id="structuredNoteFieldsTitle">Custom fields</strong><span>Rename labels, remove anything you do not need, or add your own fields.</span></div>
+          <div><small>CUSTOMIZABLE SECTIONS</small><strong id="structuredNoteFieldsTitle">Custom fields</strong><span>Categories and fields are yours: rename, add, move or remove anything you do not need.</span></div>
         </div>
         <div id="structuredNoteFieldsEditor" class="structured-note-fields-editor"></div>
-        <div class="structured-note-add-row">
-          <button type="button" class="secondary-button compact-button" data-add-structured-field="text">+ Short field</button>
-          <button type="button" class="secondary-button compact-button" data-add-structured-field="textarea">+ Long field</button>
-          <button type="button" class="secondary-button compact-button" data-add-structured-field="date">+ Date</button>
-          <button type="button" class="secondary-button compact-button" data-add-structured-field="number">+ Number</button>
-        </div>
+        <div class="structured-note-category-tools"><button type="button" class="secondary-button" data-add-structured-category>+ Add category</button><small>Add fields inside a category, then choose Short text, Long text, Date or Number for each field.</small></div>
       </section>
 
       <div id="noteToolbar" class="note-toolbar" aria-label="Note formatting shortcuts">
@@ -976,6 +971,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.24"></script>
+  <script src="app.js?v=2.0.25"></script>
 </body>
 </html>

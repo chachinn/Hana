@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v57
+   HANA 🌸 Service Worker v58
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v57";
+const CACHE_NAME = "hana-shell-v58";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.24",
-  "./app.js?v=2.0.24",
+  "./style.css?v=2.0.25",
+  "./app.js?v=2.0.25",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
