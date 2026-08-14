@@ -1,0 +1,115 @@
+name: Hana 2 AM skincare cutoff release
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hana-skincare-2am-cutoff.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply 2 AM skincare cutoff
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
+              return text.replace(old, new, 1)
+
+          app_path = Path('app.js')
+          index_path = Path('index.html')
+          sw_path = Path('service-worker.js')
+
+          app = app_path.read_text(encoding='utf-8')
+          index = index_path.read_text(encoding='utf-8')
+          sw = sw_path.read_text(encoding='utf-8')
+
+          app = replace_once(
+              app,
+              'HANA 🌸 Version 2 · internal build 2.0.32\n   Skincare Today shortcut + time-aware AM/PM view',
+              'HANA 🌸 Version 2 · internal build 2.0.33\n   Skincare Today shortcut + 2 AM morning cutoff',
+              'app header version'
+          )
+          app = replace_once(app, 'const HANA_APP_VERSION = "2.0.32";', 'const HANA_APP_VERSION = "2.0.33";', 'app version')
+          app = replace_once(app, 'return hour >= 18 || hour < 4 ? "pm" : "am";', 'return hour >= 18 || hour < 2 ? "pm" : "am";', 'skincare time cutoff')
+          app = replace_once(
+              app,
+              'From 4:00 AM through 5:59 PM, the shortcut opens today’s morning routine first.',
+              'From 2:00 AM through 5:59 PM, the shortcut opens today’s morning routine first.',
+              'release note cutoff'
+          )
+
+          index = replace_once(index, '<meta name="hana-app-version" content="2.0.32" />', '<meta name="hana-app-version" content="2.0.33" />', 'index app version')
+          index = replace_once(index, 'style.css?v=2.0.32', 'style.css?v=2.0.33', 'index css cache key')
+          index = replace_once(index, 'app.js?v=2.0.32', 'app.js?v=2.0.33', 'index js cache key')
+
+          sw = re.sub(r'HANA 🌸 Service Worker v65', 'HANA 🌸 Service Worker v66', sw, count=1)
+          sw = replace_once(sw, 'const CACHE_NAME = "hana-shell-v65";', 'const CACHE_NAME = "hana-shell-v66";', 'service worker cache')
+          sw = replace_once(sw, 'style.css?v=2.0.32', 'style.css?v=2.0.33', 'service worker css key')
+          sw = replace_once(sw, 'app.js?v=2.0.32', 'app.js?v=2.0.33', 'service worker js key')
+
+          app_path.write_text(app, encoding='utf-8')
+          index_path.write_text(index, encoding='utf-8')
+          sw_path.write_text(sw, encoding='utf-8')
+          PY
+
+      - name: Run release QA
+        shell: bash
+        run: |
+          node --check app.js
+          python - <<'PY'
+          from pathlib import Path
+
+          app = Path('app.js').read_text(encoding='utf-8')
+          index = Path('index.html').read_text(encoding='utf-8')
+          sw = Path('service-worker.js').read_text(encoding='utf-8')
+
+          checks = {
+              'internal build': 'internal build 2.0.33' in app,
+              'app version': 'const HANA_APP_VERSION = "2.0.33";' in app,
+              '2 AM cutoff': 'return hour >= 18 || hour < 2 ? "pm" : "am";' in app,
+              'release note': 'From 2:00 AM through 5:59 PM' in app,
+              'index version': 'hana-app-version" content="2.0.33"' in index,
+              'index js key': 'app.js?v=2.0.33' in index,
+              'service worker': 'hana-shell-v66' in sw,
+              'service worker js key': 'app.js?v=2.0.33' in sw,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit('QA failed: ' + ', '.join(failed))
+
+          def period(hour):
+              return 'pm' if hour >= 18 or hour < 2 else 'am'
+
+          expected = {0:'pm', 1:'pm', 2:'am', 3:'am', 12:'am', 17:'am', 18:'pm', 23:'pm'}
+          for hour, want in expected.items():
+              got = period(hour)
+              if got != want:
+                  raise SystemExit(f'Boundary test failed at {hour}:00: got {got}, expected {want}')
+          print('PASS skincare cutoff boundary tests')
+          print('PASS Hana 2.0.33 release QA')
+          PY
+
+      - name: Commit completed release
+        shell: bash
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/hana-skincare-2am-cutoff.yml
+          git add app.js index.html service-worker.js
+          git commit -m "Hana: start morning skincare at 2 AM"
+          git push origin HEAD:main
