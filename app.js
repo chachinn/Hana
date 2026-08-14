@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.41
+   HANA 🌸 Version 1 · release 1.0.0
    Smarter editable packing categories + local learning
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -202,7 +202,7 @@ const defaultState = {
     birthdayLabels: ["Me", "Partner", "Mom", "Dad", "Other"],
     tutorialCompleted: false,
     accountPromptSeen: false,
-    lastSeenUpdateVersion: "2.0.1"
+    lastSeenUpdateVersion: "1.0.0"
   },
 
   tasks: [],
@@ -1120,18 +1120,21 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.41";
-const HANA_DISPLAY_VERSION = "2";
+const HANA_APP_VERSION = "1.0.0";
+const HANA_DISPLAY_VERSION = "1";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 15, 2026",
-  title: "Packing that learns with you 🧳",
-  intro: "Packing categories are broader, editable, and personal now. Hana makes a stronger first guess, lets you move any item from a category dropdown, and remembers your corrections locally for future packing lists.",
+  title: "Welcome to Hana v1 🌸",
+  intro: "This is Hana’s first complete release baseline. Everything built during pre-release development now belongs to Version 1, with the full planner, notes, routines, Smart Sort, packing, customization, safety and optional cloud features included from day one.",
   items: [
-    { icon:"🧠", title:"A much richer packing vocabulary", text:"Hana now recognizes many more clothing, hygiene, beauty, skincare, medicine, supplement, tech, travel, beach, food, work and comfort terms before falling back to Other." },
-    { icon:"▾", title:"Category dropdown", text:"Edit any packing item and choose from the standard travel categories. You can move a mistaken item in a couple of taps instead of retyping its category." },
-    { icon:"✨", title:"Hana remembers corrections", text:"A category you manually choose becomes part of your local packing dictionary. Normalized variants such as travel-size wording can reuse that correction later, and the dictionary travels with normal Hana cloud backup." },
-    { icon:"＋", title:"Your own categories", text:"Create custom packing categories from the same dropdown. Custom categories remain reusable on that packing list, and custom category names can be renamed without breaking the items already inside them." }
+    { icon:"🌷", title:"Plan your days your way", text:"Today, Tasks, Focus Bouquet, Calendar, Agenda, Reminders, Time Pockets, Rescue My Day, Daily Close, recurring tasks and projects work together without forcing you into one planning style." },
+    { icon:"📝", title:"Notes, lists, trackers & templates", text:"Build flexible notes, meeting records, checklists, living tables and reusable templates with blank-friendly defaults, custom fields, custom columns and project connections." },
+    { icon:"✨", title:"Smart Capture & Smart Sort", text:"Drop in messy text or structured content and Hana can recognize tasks, notes, meetings, projects, trackers, groceries, packing lists and skincare routines while keeping larger documents together when needed." },
+    { icon:"🧳", title:"Packing that gets smarter", text:"Packing uses 21 travel categories, editable category choices, custom categories and a local learning dictionary that remembers the corrections you make for future lists." },
+    { icon:"🧴", title:"Weekly skincare planning", text:"Paste natural AM/PM routines, grouped weekdays, daily routines and exceptions; Hana turns them into a weekly skincare planner with a time-aware Today shortcut." },
+    { icon:"☁️", title:"Private first, cloud when you want it", text:"Hana stays local-first with autosave, safety snapshots, Trash and JSON backup. Optional sign-in adds Firebase cloud backup and selective Partner sharing without making an account mandatory." },
+    { icon:"🎀", title:"Made to be yours", text:"Customize themes, wallpaper, spaces, Quick Access, bottom navigation, categories, fields and practical defaults while keeping the interface calm and iPhone-friendly." }
   ]
 };
 
@@ -1613,7 +1616,7 @@ function resetDailyFocusIfNeeded() {
     state.focusDate = todayISO();
     state.focusTaskIds = [];
   }
-  // v2.0.17 keeps the Focus Bouquet intentionally small. Existing users who
+  // v1.0.0 keeps the Focus Bouquet intentionally small. Existing users who
   // had more than three focus tasks are migrated safely to the first three.
   if (state.focusTaskIds.length > FOCUS_BOUQUET_LIMIT) state.focusTaskIds = state.focusTaskIds.slice(0, FOCUS_BOUQUET_LIMIT);
 }

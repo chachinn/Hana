@@ -1,14 +1,14 @@
 /* =====================================================
-   HANA 🌸 Service Worker v74 · Smart packing learning
+   HANA 🌸 Service Worker v1 · Hana Version 1 release
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v74";
+const CACHE_NAME = "hana-shell-v1";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.41",
-  "./app.js?v=2.0.41",
-  "./firebase-bridge.js?v=2.0.17"
+  "./style.css?v=1.0.0",
+  "./app.js?v=1.0.0",
+  "./firebase-bridge.js?v=1.0.0"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",

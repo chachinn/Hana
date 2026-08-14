@@ -4167,7 +4167,7 @@ body.wallpaper-active .nav-drawer {
 @media(max-width:560px){.partner-connect-actions{grid-template-columns:1fr}.partner-share-field{margin:10px 0;padding:11px 12px}.partner-invite-code strong{font-size:.86rem}.shared-pill:not(.shared-pill-compact){max-width:160px;overflow:hidden;text-overflow:ellipsis}}
 
 /* =====================================================
-   HANA v2.0.1 — STABILITY + UI POLISH
+   HANA v1.0.0 — STABILITY + UI POLISH
    Compact mobile density, safer modal behavior and
    honest Partner Link sync states.
    ===================================================== */
@@ -4250,7 +4250,7 @@ body.modal-open{overflow:hidden}
   .partner-connect-actions{grid-template-columns:1fr!important}
 }
 
-/* v2.0.1 · General screen density cleanup
+/* v1.0.0 · General screen density cleanup
    Hana has many tools now; keep page introductions and repeated cards from
    pushing the actual content below the fold on phones. */
 @media(max-width:640px){
@@ -4271,7 +4271,7 @@ body.modal-open{overflow:hidden}
   .primary-button,.secondary-button{min-height:38px}
 }
 
-/* v2.0.7 Partner diagnostics — shown only after an actual Partner Link error */
+/* v1.0.0 Partner diagnostics — shown only after an actual Partner Link error */
 .partner-diagnostic-card{margin-top:12px;padding:12px 14px;border:1px solid rgba(224,82,135,.2);border-radius:16px;background:rgba(255,247,250,.78);display:grid;gap:6px}
 .partner-diagnostic-card strong{font-size:.9rem}
 .partner-diagnostic-card small{color:var(--muted);line-height:1.35;overflow-wrap:anywhere}
@@ -4279,7 +4279,7 @@ body.modal-open{overflow:hidden}
 
 
 /* =====================================================
-   HANA v2.0.8 — LIST COLUMNS + UPDATE PROMPT
+   HANA v1.0.0 — LIST COLUMNS + UPDATE PROMPT
    ===================================================== */
 .list-column-settings{
   margin:12px 0;
@@ -4390,7 +4390,7 @@ body.modal-open{overflow:hidden}
 }
 
 
-/* v2.0.12 — Hana menu identity + reference note templates */
+/* v1.0.0 — Hana menu identity + reference note templates */
 .nav-drawer-about-hana{padding-top:10px;padding-bottom:14px}
 .nav-drawer-about-card{display:grid;grid-template-columns:46px 1fr;gap:11px;align-items:start;padding:12px;border:1px solid var(--border);border-radius:20px;background:linear-gradient(145deg,var(--white),var(--pink-50))}
 .nav-drawer-about-mark{width:46px;height:46px;border-radius:15px;background:rgba(255,255,255,.72);display:grid;place-items:center;overflow:hidden;border:1px solid var(--border)}
@@ -4408,7 +4408,7 @@ body.modal-open{overflow:hidden}
 @media(max-width:420px){.note-template-launcher summary{align-items:flex-start;flex-direction:column;gap:2px}.note-template-launcher summary small{text-align:left}.note-template-chip-grid{grid-template-columns:1fr 1fr}}
 
 
-/* ================= WEEKLY SKINCARE PLANNER v2.0.15 ================= */
+/* ================= WEEKLY SKINCARE PLANNER v1.0.0 ================= */
 .skincare-note-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.skincare-note-card-top h3{margin:0;min-width:0}.skincare-today-pill{flex:0 0 auto;border:1px solid var(--border);background:var(--pink-soft);border-radius:999px;padding:5px 8px;font-size:9px;font-weight:800;color:var(--pink-dark)}
 .skincare-card-counts{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}.skincare-card-counts span{font-size:9px;font-weight:750;padding:5px 8px;border-radius:999px;background:var(--surface-soft);border:1px solid var(--border)}
 .skincare-planner-modal{max-height:min(92dvh,820px);overflow-y:auto;overscroll-behavior:contain}.skincare-planner-header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--surface) 96%,transparent);backdrop-filter:blur(14px);padding-bottom:10px}
@@ -4425,7 +4425,7 @@ body.modal-open{overflow:hidden}
 @media(max-width:520px){.skincare-period-grid{grid-template-columns:1fr}.skincare-step-fields{grid-template-columns:1fr}.skincare-edit-intro{align-items:flex-start;flex-direction:column}.skincare-edit-intro .compact-button{width:100%}.skincare-planner-modal{max-height:94dvh}.skincare-day-tabs button{min-width:52px}.skincare-view-actions{padding-bottom:calc(2px + env(safe-area-inset-bottom))}}
 
 
-/* ================= FOCUS BOUQUET TOP 3 v2.0.16 ================= */
+/* ================= FOCUS BOUQUET TOP 3 v1.0.0 ================= */
 .focus-bouquet-card { overflow: hidden; }
 .focus-bouquet-card > summary { list-style: none; }
 .focus-bouquet-card > summary::-webkit-details-marker { display: none; }
@@ -4467,7 +4467,7 @@ body.modal-open{overflow:hidden}
 @media (prefers-reduced-motion:reduce){ .bouquet-flower-slot.bloomed .bouquet-flower-emoji{animation:none} }
 
 
-/* ================= v2.0.17 QUICK NOTE + SKINCARE DAY PAGES ================= */
+/* ================= v1.0.0 QUICK NOTE + SKINCARE DAY PAGES ================= */
 .notes-quick-actions{display:grid;grid-template-columns:1.2fr .8fr;gap:9px;margin:0 0 12px}.notes-quick-actions button{min-height:44px}
 .quick-note-modal{width:min(94vw,680px);height:min(80dvh,720px);display:flex;flex-direction:column;padding-bottom:calc(18px + env(safe-area-inset-bottom))}.quick-note-header{flex:0 0 auto}.quick-note-title{border:0!important;background:transparent!important;box-shadow:none!important;font-size:20px!important;font-weight:850!important;padding:10px 2px 8px!important;min-height:auto!important}.quick-note-content{flex:1;min-height:280px!important;border:0!important;background:transparent!important;box-shadow:none!important;padding:8px 2px!important;font-size:16px!important;line-height:1.55!important;resize:none}.quick-note-content:focus,.quick-note-title:focus{outline:none!important}.quick-note-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding-top:12px}.quick-note-footer small{font-size:8px;line-height:1.4;color:var(--text-soft);max-width:65%}.quick-note-footer .primary-button{min-width:92px}
 .skincare-week-editor-nav{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin:4px 0 10px;padding:10px;border:1px solid var(--border);border-radius:17px;background:var(--surface-soft)}.skincare-week-editor-nav>div{text-align:center;display:flex;flex-direction:column;gap:2px}.skincare-week-editor-nav small{font-size:8px;font-weight:800;color:var(--text-soft);text-transform:uppercase;letter-spacing:.06em}.skincare-week-editor-nav strong{font-size:15px}.skincare-week-editor-nav button:disabled{opacity:.35;pointer-events:none}.skincare-day-empty-editor{padding:28px 14px;text-align:center;border:1px dashed var(--border);border-radius:18px;background:var(--surface-soft)}.skincare-day-empty-editor span{font-size:24px}.skincare-day-empty-editor strong{display:block;margin-top:5px;font-size:11px}.skincare-day-empty-editor p{margin:4px auto 0;max-width:280px;font-size:9px;color:var(--text-soft)}.skincare-sync-card{margin-top:12px;padding:13px;border:1px solid var(--border);border-radius:18px;background:var(--pink-soft)}.skincare-sync-card>div:first-child strong{font-size:10px}.skincare-sync-card>div:first-child p{margin:3px 0 9px;font-size:8px;line-height:1.4;color:var(--text-soft)}.skincare-sync-day-choices{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.skincare-sync-day-choices .skincare-toggle-chip{background:var(--surface)}.skincare-sync-day-choices .skincare-toggle-chip.selected{background:var(--pink);color:white}.skincare-step-fields select{font-size:10px}
@@ -4680,7 +4680,7 @@ body.modal-open{overflow:hidden}
 }
 
 
-/* HANA SKINCARE ALTERNATE ROUTINES v2.0.19 */
+/* HANA SKINCARE ALTERNATE ROUTINES v1.0.0 */
 .skincare-time-pair { display:grid; gap:10px; padding:10px; border:1px solid var(--border); border-radius:22px; background:color-mix(in srgb, var(--surface) 97%, var(--blush)); }
 .skincare-time-pair + .skincare-time-pair { margin-top:2px; }
 .skincare-time-pair-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:1px 3px 0; }
@@ -4733,7 +4733,7 @@ body.modal-open{overflow:hidden}
 .template-draft-preview-items span { padding:4px 7px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--text-soft); font-size:9px; }
 
 
-/* HANA TEMPLATE FORMS + CLEAN FOCUS 2.0.23 */
+/* HANA TEMPLATE FORMS + CLEAN FOCUS 1.0.0 */
 .template-customization-note{display:flex;gap:10px;align-items:flex-start;margin:0 0 18px;padding:13px 14px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--surface) 92%,var(--blush));}
 .template-customization-note>span{font-size:19px}.template-customization-note strong,.template-customization-note small{display:block}.template-customization-note small{margin-top:3px;color:var(--text-soft);line-height:1.45}
 .template-category{margin:0 0 22px}.template-category-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 9px}.template-category-head h2{margin:0;font-size:15px}.template-category-head span{min-width:28px;padding:4px 8px;border-radius:999px;background:var(--blush);color:var(--rose);font-size:10px;font-weight:800;text-align:center}
@@ -4746,7 +4746,7 @@ body.modal-open{overflow:hidden}
 @media(max-width:390px){.structured-note-add-row button{flex:1 1 calc(50% - 7px)}.focus-summary-blooms{display:none}.bouquet-actions-clean{flex-wrap:wrap}.bouquet-actions-clean .secondary-button{flex:1 1 65%}}
 
 
-/* HANA STRUCTURED CATEGORY MANAGER 2.0.25 */
+/* HANA STRUCTURED CATEGORY MANAGER 1.0.0 */
 .structured-note-fields-editor{gap:12px}
 .structured-note-category-card{padding:10px;border:1px solid var(--border);border-radius:17px;background:color-mix(in srgb,var(--surface) 97%,var(--blush))}
 .structured-note-category-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
@@ -4764,11 +4764,11 @@ body.modal-open{overflow:hidden}
 @media(max-width:420px){.structured-note-category-head{align-items:stretch;flex-direction:column}.structured-note-category-actions{width:100%}.structured-note-category-actions button:first-child{flex:1}.structured-note-field-settings{grid-template-columns:1fr}.structured-note-field-label-row{align-items:flex-start}.structured-note-category-card{padding:9px}}
 
 
-/* HANA SMART + BLANK TEMPLATES 2.0.26 */
+/* HANA SMART + BLANK TEMPLATES 1.0.0 */
 .smart-template-card{max-height:min(92dvh,820px);overflow-y:auto;overscroll-behavior:contain}.smart-template-subtitle{margin:5px 0 0;color:var(--text-soft);font-size:10px;line-height:1.45}.smart-template-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:4px 0 14px}.smart-template-choice-grid>button{min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;row-gap:3px;align-items:center;padding:12px;text-align:left;border:1px solid var(--border);border-radius:16px;background:color-mix(in srgb,var(--surface) 97%,var(--blush));color:var(--text)}.smart-template-choice-grid>button>span{grid-row:1/3;font-size:22px}.smart-template-choice-grid strong{font-size:11px}.smart-template-choice-grid small{color:var(--text-soft);font-size:9px;line-height:1.35}.smart-template-choice-grid>button:active{transform:scale(.99)}.smart-template-choice-grid .smart-template-blank-choice{border-style:dashed;background:transparent}.template-category:first-of-type .template-card{background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 92%,var(--blush)),var(--surface))}@media(max-width:520px){.smart-template-choice-grid{grid-template-columns:1fr}.smart-template-card{max-height:94dvh}}
 
 
-/* HANA SAFE MODALS + OPTIONAL LIST FIELDS 2.0.27 */
+/* HANA SAFE MODALS + OPTIONAL LIST FIELDS 1.0.0 */
 .modal-overlay {
   padding-top: calc(12px + env(safe-area-inset-top));
 }
@@ -4795,7 +4795,7 @@ body.modal-open{overflow:hidden}
 }
 
 
-/* HANA COMPACT SKINCARE TABLE + NOTE SWIPE 2.0.28 */
+/* HANA COMPACT SKINCARE TABLE + NOTE SWIPE 1.0.0 */
 .skincare-routine-table {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -4864,7 +4864,7 @@ body.modal-open{overflow:hidden}
 }
 
 
-/* ================= HANA 2.0.30 · MOBILE POLISH ================= */
+/* ================= HANA 1.0.0 · MOBILE POLISH ================= */
 .meeting-record-intro{margin:-2px 0 10px;color:var(--text-soft);font-size:10px;line-height:1.45}
 .meeting-decision-items{display:grid;gap:10px;min-width:0}
 .meeting-decision-card{min-width:0;padding:12px;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--surface) 97%,var(--blush))}
@@ -4889,7 +4889,7 @@ body.modal-open{overflow:hidden}
 #skincareRoutineModal .skincare-batch-add,#skincareRoutineModal .skincare-add-alternate-routine{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;text-align:center}
 @media(max-width:520px){.brain-dump-controls{grid-template-columns:1fr 1fr}.brain-dump-controls .primary-button{grid-column:1/-1;width:100%}.meeting-decision-meta{grid-template-columns:1fr}.pomodoro-clock{font-size:33px}#skincareRoutineModal .skincare-time-pair{padding:7px}#skincareRoutineModal .skincare-routine-batch{padding:9px;border-radius:17px}}
 
-/* ================= FORMATTED SKINCARE IMPORT v2.0.31 ================= */
+/* ================= FORMATTED SKINCARE IMPORT v1.0.0 ================= */
 .skincare-import-card{margin:12px 0;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--surface) 96%,var(--blush));overflow:hidden}
 .skincare-import-card>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;cursor:pointer}
 .skincare-import-card>summary::-webkit-details-marker{display:none}
@@ -4908,7 +4908,7 @@ body.modal-open{overflow:hidden}
 .skincare-routine-badge{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:390px){.skincare-import-body textarea{min-height:165px}.skincare-import-card>summary{padding:11px 12px}}
 
-/* ================= SKINCARE TODAY SHORTCUT v2.0.32 ================= */
+/* ================= SKINCARE TODAY SHORTCUT v1.0.0 ================= */
 .skincare-quick-header-button{position:relative;background:linear-gradient(145deg,var(--pink-50),var(--white));border-color:var(--pink-150)}
 .skincare-quick-header-button>span{font-size:18px;line-height:1}.skincare-quick-header-button>small{position:absolute;right:-3px;bottom:-4px;width:18px;height:18px;display:grid;place-items:center;border-radius:999px;background:var(--white);border:1px solid var(--pink-150);box-shadow:var(--shadow-sm);font-size:10px;line-height:1}
 .skincare-period-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;margin:2px 0 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface-soft)}
@@ -4917,7 +4917,7 @@ body.modal-open{overflow:hidden}
 @media(max-width:520px){.skincare-period-switch button{font-size:8px;padding-inline:5px}.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr}}
 
 
-/* ================= HANA 2.0.34 · CONTEXT SHORTCUTS + PACKING ================= */
+/* ================= HANA 1.0.0 · CONTEXT SHORTCUTS + PACKING ================= */
 .packing-quick-header-button{position:relative;background:linear-gradient(145deg,var(--pink-50),var(--white));border-color:var(--pink-150)}
 .packing-quick-header-button>span{font-size:18px;line-height:1}
 .packing-quick-header-button>small{position:absolute;right:-4px;bottom:-4px;min-width:19px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:999px;background:var(--white);border:1px solid var(--pink-150);box-shadow:var(--shadow-sm);font-size:9px;font-weight:800;line-height:1;color:var(--pink-700)}
@@ -4928,12 +4928,12 @@ body.modal-open{overflow:hidden}
 
 
 /* =====================================================
-   HANA 2.0.36 · SMART LIBRARY + FILE-AWARE SMART SORT
+   HANA 1.0.0 · SMART LIBRARY + FILE-AWARE SMART SORT
    ===================================================== */
 .template-library-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0 18px}.template-library-search{min-width:0;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid rgba(112,76,91,.14);border-radius:15px;background:rgba(255,255,255,.88)}.template-library-search input{width:100%;min-width:0;border:0!important;background:transparent!important;padding:12px 0!important;box-shadow:none!important}.template-library-toolbar select{min-height:44px;border-radius:14px}.brain-dump-import-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.brain-dump-file-button{display:inline-flex!important;align-items:center;justify-content:center;margin:0!important;cursor:pointer}.brain-dump-import-row small{color:var(--muted);font-size:11px}.brain-dump-smart-preview{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.66);border:1px solid rgba(112,76,91,.09)}.brain-dump-smart-preview>span{font-size:18px;line-height:1.2}.brain-dump-smart-preview div{min-width:0;display:flex;flex-direction:column;gap:2px}.brain-dump-smart-preview strong{font-size:12px}.brain-dump-smart-preview small{font-size:11px;color:var(--muted);line-height:1.35}@media(max-width:520px){.template-library-toolbar{grid-template-columns:1fr}.template-library-toolbar select{width:100%}.template-grid{grid-template-columns:1fr}.brain-dump-import-row{align-items:flex-start;flex-direction:column}.brain-dump-file-button{width:100%}}
 
 
-/* ================= SMART PACKING GROUPS v2.0.40 ================= */
+/* ================= SMART PACKING GROUPS v1.0.0 ================= */
 .packing-category-stack{display:grid;gap:12px;}
 .packing-category-group{border:1px solid var(--border);border-radius:18px;background:var(--surface);overflow:hidden;}
 .packing-category-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 9px;border-bottom:1px solid var(--border);}
@@ -4945,7 +4945,7 @@ body.modal-open{overflow:hidden}
 @media(max-width:560px){.packing-category-stack{gap:10px}.packing-category-heading{padding:11px 12px 8px}.packing-category-items{padding:3px 6px 6px}}
 
 
-/* SMART PACKING CATEGORY LEARNING v2.0.41 */
+/* SMART PACKING CATEGORY LEARNING v1.0.0 */
 #listItemPackingCategory{width:100%;min-height:44px;}
 .packing-category-hint{display:block;margin-top:6px;color:var(--text-soft);font-size:11px;line-height:1.45;}
 .packing-category-hint.hidden{display:none;}
