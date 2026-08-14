@@ -41,52 +41,25 @@ jobs:
           if (!executablePath) throw new Error('No browser executable found');
           (async()=>{
             const browser = await chromium.launch({headless:true, executablePath, args:['--no-sandbox']});
-            const context = await browser.newContext({
-              viewport:{width:430,height:932},
-              deviceScaleFactor:3,
-              isMobile:true,
-              hasTouch:true,
-              userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
-            });
+            const context = await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
             const page = await context.newPage();
-            const errors = [];
-            page.on('pageerror', error => errors.push(String(error.stack || error)));
-            await page.goto('http://127.0.0.1:4173/', {waitUntil:'domcontentloaded'});
+            const errors=[];
+            page.on('pageerror',error=>errors.push(String(error.stack||error)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
             await page.waitForTimeout(900);
-            let text = await page.locator('#pageContent').innerText();
-            const version = await page.evaluate(() => ({
-              app:HANA_APP_VERSION,
-              display:HANA_DISPLAY_VERSION,
-              release:HANA_RELEASE_NOTES.version,
-              meta:document.querySelector('meta[name="hana-app-version"]')?.content||''
-            }));
-            if (version.app !== '1.0.0' || version.display !== '1' || version.release !== '1' || version.meta !== '1.0.0') throw new Error('Hana v1 release identity regressed');
-            if (!/Focus Bouquet|Nothing urgent|active/i.test(text)) throw new Error('Today failed to render');
-            const pages = [['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];
-            for (const [name, marker] of pages) {
-              await page.evaluate(pageName => changePage(pageName), name);
-              await page.waitForTimeout(80);
-              text = await page.locator('#pageContent').innerText();
-              if (!text.includes(marker)) throw new Error(`${name} failed to render`);
-            }
-            const packing = await page.evaluate(() => {
-              const sample = ['Travel packing','Top','Shoes','Charger','Deo','Passport','Sunscreen'].join('\n');
-              const items = smartListItemsFromText(sample, 'packing');
-              return {kind:smartStructuredCaptureKind(sample),categoryCount:SMART_PACKING_CATEGORY_ORDER.length,titles:items.map(item => item.title),categories:Object.fromEntries(items.map(item => [item.title,item.detail]))};
-            });
-            if (packing.kind !== 'packing') throw new Error('Named packing block detection regressed');
-            if (packing.categoryCount !== 21) throw new Error('Standard packing taxonomy regressed');
-            if (!packing.titles.includes('Deodorant')) throw new Error('Packing canonicalization regressed');
-            if (packing.categories.Top !== '👗 Clothing' || packing.categories.Shoes !== '👟 Footwear' || packing.categories.Charger !== '🔌 Chargers & Power' || packing.categories.Passport !== '🪪 Documents & Money' || packing.categories.Sunscreen !== '✨ Skincare & Sun Care') throw new Error('Packing categorization regressed');
-            const learned = await page.evaluate(() => {
-              state.settings.packingCategoryMemory = {};
-              const before = smartPackingCategory('Cloud Nine Wand');
-              rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');
-              return {before, exact:smartPackingCategory('Cloud Nine Wand'), variant:smartPackingCategory('Cloud Nine Wand (travel size)')};
-            });
-            if (learned.before !== '🧳 Other' || learned.exact !== '💇 Hair Care & Styling' || learned.variant !== '💇 Hair Care & Styling') throw new Error('Packing category memory regressed');
-            if (errors.length) throw new Error('Browser runtime errors: ' + errors.join(' | '));
+            let text=await page.locator('#pageContent').innerText();
+            const version=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,release:HANA_RELEASE_NOTES.version,meta:document.querySelector('meta[name="hana-app-version"]')?.content||''}));
+            if(version.app!=='1.0.0'||version.display!=='1'||version.release!=='1'||version.meta!=='1.0.0')throw new Error('Hana v1 release identity regressed');
+            if(!/Focus Bouquet|Nothing urgent|active/i.test(text))throw new Error('Today failed to render');
+            const pages=[['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];
+            for(const [name,marker] of pages){await page.evaluate(pageName=>changePage(pageName),name);await page.waitForTimeout(80);text=await page.locator('#pageContent').innerText();if(!text.includes(marker))throw new Error(`${name} failed to render`);}
+            const packing=await page.evaluate(()=>{const sample=['Travel packing','Top','Shoes','Charger','Deo','Passport','Sunscreen'].join('\n');const items=smartListItemsFromText(sample,'packing');return{kind:smartStructuredCaptureKind(sample),categoryCount:SMART_PACKING_CATEGORY_ORDER.length,titles:items.map(item=>item.title),categories:Object.fromEntries(items.map(item=>[item.title,item.detail]))};});
+            if(packing.kind!=='packing'||packing.categoryCount!==21||!packing.titles.includes('Deodorant'))throw new Error('Packing structure regressed');
+            if(packing.categories.Top!=='👗 Clothing'||packing.categories.Shoes!=='👟 Footwear'||packing.categories.Charger!=='🔌 Chargers & Power'||packing.categories.Passport!=='🪪 Documents & Money'||packing.categories.Sunscreen!=='✨ Skincare & Sun Care')throw new Error('Packing categorization regressed');
+            const learned=await page.evaluate(()=>{state.settings.packingCategoryMemory={};const before=smartPackingCategory('Cloud Nine Wand');rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');return{before,exact:smartPackingCategory('Cloud Nine Wand'),variant:smartPackingCategory('Cloud Nine Wand (travel size)')};});
+            if(learned.before!=='🧳 Other'||learned.exact!=='💇 Hair Care & Styling'||learned.variant!=='💇 Hair Care & Styling')throw new Error('Packing category memory regressed');
+            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
             await browser.close();
             console.log('Hana iPhone runtime smoke passed');
-          })().catch(error => { console.error(error); process.exit(1); });
+          })().catch(error=>{console.error(error);process.exit(1);});
           NODE
