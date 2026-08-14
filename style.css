@@ -4931,3 +4931,15 @@ body.modal-open{overflow:hidden}
    HANA 2.0.36 · SMART LIBRARY + FILE-AWARE SMART SORT
    ===================================================== */
 .template-library-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center;margin:14px 0 18px}.template-library-search{min-width:0;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid rgba(112,76,91,.14);border-radius:15px;background:rgba(255,255,255,.88)}.template-library-search input{width:100%;min-width:0;border:0!important;background:transparent!important;padding:12px 0!important;box-shadow:none!important}.template-library-toolbar select{min-height:44px;border-radius:14px}.brain-dump-import-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.brain-dump-file-button{display:inline-flex!important;align-items:center;justify-content:center;margin:0!important;cursor:pointer}.brain-dump-import-row small{color:var(--muted);font-size:11px}.brain-dump-smart-preview{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.66);border:1px solid rgba(112,76,91,.09)}.brain-dump-smart-preview>span{font-size:18px;line-height:1.2}.brain-dump-smart-preview div{min-width:0;display:flex;flex-direction:column;gap:2px}.brain-dump-smart-preview strong{font-size:12px}.brain-dump-smart-preview small{font-size:11px;color:var(--muted);line-height:1.35}@media(max-width:520px){.template-library-toolbar{grid-template-columns:1fr}.template-library-toolbar select{width:100%}.template-grid{grid-template-columns:1fr}.brain-dump-import-row{align-items:flex-start;flex-direction:column}.brain-dump-file-button{width:100%}}
+
+
+/* ================= SMART PACKING GROUPS v2.0.40 ================= */
+.packing-category-stack{display:grid;gap:12px;}
+.packing-category-group{border:1px solid var(--border);border-radius:18px;background:var(--surface);overflow:hidden;}
+.packing-category-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 9px;border-bottom:1px solid var(--border);}
+.packing-category-heading strong{font-size:13px;}
+.packing-category-heading small{font-size:11px;color:var(--text-soft);font-weight:700;}
+.packing-category-items{padding:4px 8px 7px;}
+.packing-category-items .list-swipe-shell:last-child .standalone-check-item{border-bottom:0;}
+.packing-grouped-checklist{display:block;}
+@media(max-width:560px){.packing-category-stack{gap:10px}.packing-category-heading{padding:11px 12px 8px}.packing-category-items{padding:3px 6px 6px}}

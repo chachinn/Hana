@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.39
-   Daily 8 AM cloud backup + provider-neutral account safety
+   HANA 🌸 Version 2 · internal build 2.0.40
+   Smart Packing categorization + reusable travel prep
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -1118,18 +1118,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.39";
+const HANA_APP_VERSION = "2.0.40";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
-  date: "August 14, 2026",
-  title: "A quieter cloud safety net ☁️",
-  intro: "Signed-in Hana accounts can now keep one automatic cloud backup per day after 8:00 AM local time, using the same safe backup path for Google and email sign-in.",
+  date: "August 15, 2026",
+  title: "Packing lists that organize themselves 🧳",
+  intro: "Brain Dump and Smart Template now work together for reusable travel packing. Paste a messy packing list and Hana can recognize it, group the items into useful categories, remove obvious duplicates, and keep separate reference notes connected.",
   items: [
-    { icon:"☁️", title:"Daily cloud backup", text:"After 8:00 AM local time, Hana makes one cloud backup for the day when the app is able to run. If Hana was closed or suspended at 8:00 AM, it catches up the next time you open it after 8." },
-    { icon:"G", title:"Google sign-in", text:"Google-authenticated Hana accounts use the same automatic cloud-backup scheduler and Firestore backup path." },
-    { icon:"✉️", title:"Email sign-in", text:"Email/password Hana accounts receive the same daily automatic cloud backup behavior—there is no separate or weaker backup mode." },
-    { icon:"🛡️", title:"Safer on multiple devices", text:"A device that finds an existing cloud backup must be confirmed once with Back up Hana now or Restore from cloud before it can automatically replace that cloud copy." }
+    { icon:"🧠", title:"Paste first, organize second", text:"A heading such as “Cha packing 2.0” is enough for Smart Sort to recognize a packing block when it is followed by a real list of items." },
+    { icon:"🧳", title:"Automatic packing categories", text:"Clothes, underwear and sleep, footwear, accessories, toiletries, hair, beauty and skincare, feminine care, medicine and supplements, and tech/travel gear are grouped automatically." },
+    { icon:"📝", title:"Separate notes stay separate", text:"Write “(separate note)” after an item such as Skincare. Hana links the packing list to the closest existing note, or creates a blank reference note only when no matching note exists." },
+    { icon:"✨", title:"Smart Template meets Brain Dump", text:"Smart Template now includes a route for messy text and a direct packing-list option, while keeping the actual Smart Sort engine in Brain Dump so there is one reliable parser to maintain." }
   ]
 };
 
@@ -3250,10 +3250,10 @@ function listLaneLabel(list, lane) {
   return labels[effective] || "Column";
 }
 
-function listItemHTML(list, item, { compact = false, showLane = false } = {}) {
+function listItemHTML(list, item, { compact = false, showLane = false, hideDetail = false } = {}) {
   const metaParts = [
     item.quantity ? `${escapeHTML(list.quantityLabel)}: ${escapeHTML(item.quantity)}` : "",
-    item.detail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""
+    item.detail && !hideDetail ? `${escapeHTML(list.detailLabel)}: ${escapeHTML(item.detail)}` : ""
   ].filter(Boolean);
   if (showLane && list.columnMode) metaParts.unshift(`👥 ${escapeHTML(listLaneLabel(list, item.lane))}`);
   const meta = metaParts.join(" · ");
@@ -3285,19 +3285,34 @@ function renderListColumnBoard(list, items) {
   </div>`;
 }
 
+
+function categorizedPackingList(list){
+  return isPackingList(list)&&/^category$/i.test(String(list.detailLabel||""))&&new Set(list.items.map(item=>String(item.detail||"").trim()).filter(Boolean)).size>=2;
+}
+function renderPackingCategoryGroups(list,items){
+  const groups=new Map();
+  items.forEach(item=>{const category=String(item.detail||"🧳 Other").trim()||"🧳 Other";if(!groups.has(category))groups.set(category,[]);groups.get(category).push(item);});
+  const ordered=[...groups.keys()].sort((a,b)=>{
+    const ai=SMART_PACKING_CATEGORY_ORDER.indexOf(a),bi=SMART_PACKING_CATEGORY_ORDER.indexOf(b);
+    if(ai<0&&bi<0)return a.localeCompare(b);if(ai<0)return 1;if(bi<0)return-1;return ai-bi;
+  });
+  return `<div class="packing-category-stack">${ordered.map(category=>{const categoryItems=groups.get(category)||[],done=categoryItems.filter(item=>item.completed).length;return `<section class="packing-category-group"><div class="packing-category-heading"><strong>${escapeHTML(category)}</strong><small>${done}/${categoryItems.length}</small></div><div class="packing-category-items">${categoryItems.map(item=>listItemHTML(list,item,{hideDetail:true})).join("")}</div></section>`;}).join("")}</div>`;
+}
+
 function renderSingleList(list) {
   const completed = list.items.filter(item => item.completed).length;
   const total = list.items.length;
   const progress = total ? Math.round((completed / total) * 100) : 0;
   const pendingItems = list.items.filter(item => !item.completed);
   const completedItems = list.items.filter(item => item.completed);
+  const packingGrouped=categorizedPackingList(list);
   return `
     <section class="checklist-shell">
       <div class="checklist-heading">
         <div>
           <span class="badge ${modeBadge(list.space)}">${modeLabel(list.space)}</span>
           <h2>${escapeHTML(list.icon)} ${escapeHTML(list.name)} ${sharedBadgeHTML(list,true)}</h2>
-          <p>${completed}/${total} checked${list.columnMode ? ` · ${listVisibleLanes(list).map(lane => escapeHTML(lane.label)).join(" / ")}` : ""}</p>
+          <p>${completed}/${total} checked${list.columnMode ? ` · ${listVisibleLanes(list).map(lane => escapeHTML(lane.label)).join(" / ")}` : packingGrouped?" · grouped by category":""}</p>
           ${packingListTimingSummaryHTML(list)}
         </div>
         <button class="mini-icon-button list-edit-button" data-edit-list="${list.id}" title="Edit list">✎</button>
@@ -3316,14 +3331,12 @@ function renderSingleList(list) {
         <div class="quick-list-add-body">
           <div class="quick-list-add-head"><small>One line per item. Optional: item | quantity | detail</small></div>
           ${list.columnMode ? `<div class="quick-list-lane-picker"><label for="quickListLane_${list.id}">Add these to</label><select id="quickListLane_${list.id}">${listVisibleLanes(list).map((lane,index,lanes)=>`<option value="${lane.id}" ${index===lanes.length-1?"selected":""}>${lane.icon} ${escapeHTML(lane.label)}</option>`).join("")}</select></div>` : ""}
-          <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk
-Eggs | 1 tray
-Shampoo | 2 | refill pouches"></textarea>
+          <textarea id="quickListInput_${list.id}" class="quick-list-textarea" placeholder="Milk\nEggs | 1 tray\nShampoo | 2 | refill pouches"></textarea>
           <div class="quick-list-add-actions"><button class="secondary-button" data-quick-add-list="${list.id}">Add lines</button></div>
         </div>
       </details>
-      <div class="standalone-checklist ${list.columnMode ? "standalone-checklist-columns" : ""}">
-        ${total ? `${list.columnMode ? renderListColumnBoard(list,pendingItems) : pendingItems.map(item=>listItemHTML(list,item)).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div><div class="completed-list-items">${completedItems.map(item=>listItemHTML(list,item,{showLane:list.columnMode})).join("")}</div>` : ""}` : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
+      <div class="standalone-checklist ${list.columnMode ? "standalone-checklist-columns" : ""} ${packingGrouped?"packing-grouped-checklist":""}">
+        ${total ? `${packingGrouped?renderPackingCategoryGroups(list,list.items):`${list.columnMode ? renderListColumnBoard(list,pendingItems) : pendingItems.map(item=>listItemHTML(list,item)).join("")}${completedItems.length ? `<div class="completed-list-divider"><span>Completed</span><small>${completedItems.length}</small></div><div class="completed-list-items">${completedItems.map(item=>listItemHTML(list,item,{showLane:list.columnMode})).join("")}</div>` : ""}`}` : `<div class="empty-state checklist-empty"><div class="empty-icon">☑️</div><h3>Nothing on this list yet</h3><p>Add items one by one or use Quick add so each entry still stays independently checkable.</p><button class="secondary-button" data-add-list-item="${list.id}">Add first item</button></div>`}
       </div>
     </section>`;
 }
@@ -4281,7 +4294,7 @@ function smartStructuredCaptureKind(text, forcedType="auto") {
   if (SMART_STRUCTURED_CAPTURE_TYPES.has(forcedType)) return forcedType;
   const raw=String(text||"").trim();if(!raw)return "";
   const lines=raw.split(/\r?\n/).map(line=>line.trim()).filter(Boolean),first=lines[0]||"";
-  if(/\bpacking\s+list\b|\bwhat\s+to\s+pack\b|^packing\s*:/i.test(raw))return "packing";
+  if(/\bpacking\s+list\b|\bwhat\s+to\s+pack\b|^packing\s*:/i.test(raw)||(lines.length>=4&&/\bpacking\b/i.test(first)))return "packing";
   if(/\bgrocery\s+list\b|\bgroceries\s*[:\n]|^groceries?\s*:/i.test(raw))return "grocery";
   if(/\b(minutes\s+of\s+the\s+meeting|meeting\s+minutes|minutes\s+of\s+meeting)\b/i.test(raw)||(/\bdecisions?\s+(?:made|reached)\b/i.test(raw)&&/\b(action\s+items?|meeting|attendees?)\b/i.test(raw)))return "meeting-minutes";
   if(/\bmeeting\s+agenda\b/i.test(raw)||(/^agenda\s*:/i.test(first)&&/\b(objective|attendees?|topics?|agenda)\b/i.test(raw)))return "meeting-agenda";
@@ -4337,17 +4350,97 @@ function smartTripStartFromText(text) {
   return "";
 }
 
+
+const SMART_PACKING_CATEGORY_ORDER = [
+  "👗 Clothes",
+  "🩲 Underwear & sleep",
+  "👟 Footwear",
+  "👜 Accessories",
+  "🧴 Toiletries",
+  "💇 Hair",
+  "💄 Beauty & skincare",
+  "🌸 Feminine care",
+  "💊 Medicine & supplements",
+  "🔌 Tech & travel gear",
+  "🧳 Other"
+];
+
+function smartPackingCanonicalTitle(title){
+  const raw=String(title||"").trim();
+  if(/^deo$/i.test(raw))return "Deodorant";
+  if(/^airpods?$/i.test(raw))return "AirPods";
+  if(/^power\s*bank$/i.test(raw))return "Power Bank";
+  if(/^hankerchief$/i.test(raw))return "Handkerchief";
+  return raw;
+}
+function smartPackingDedupeKey(title){
+  const value=smartPackingCanonicalTitle(title).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  if(/^(deo|deodorant)$/.test(value))return "deodorant";
+  return value;
+}
+function smartPackingCategory(title){
+  const value=String(title||"").toLowerCase().replace(/[’']/g,"");
+  if(/\b(top|tops|bottom|bottoms|dress|dresses|jacket|jackets|shirt|shirts|blouse|blouses|pants|jeans|shorts|skirt|skirts|coat|coats|cardigan|cardigans)\b/.test(value)&&!/(safety shorts)/.test(value))return "👗 Clothes";
+  if(/\b(underwear|bra|bras|safety shorts|pajamas?|pyjamas?|sleepwear|socks?)\b/.test(value))return "🩲 Underwear & sleep";
+  if(/\b(shoes?|slippers?|sandals?|sneakers?|boots?|heels?)\b/.test(value))return "👟 Footwear";
+  if(/\b(accessor(?:y|ies)|glasses|sunglasses|handkerchief|hankerchief|belt|belts|hat|hats|cap|caps|jewelry|jewellery|watch|watches)\b/.test(value))return "👜 Accessories";
+  if(/\b(panty liner|pantyliner|napkin|sanitary|pad|pads|tampon|tampons|fem wash|feminine wash)\b/.test(value))return "🌸 Feminine care";
+  if(/\b(medicine|medicines|medication|vitamin|vitamins|supplement|supplements|dear face|rose vitamins)\b/.test(value))return "💊 Medicine & supplements";
+  if(/\b(airpods?|adapter|charger|power ?bank|air pump|cable|cables|earphones?|headphones?|camera|battery|batteries|plug|converter)\b/.test(value))return "🔌 Tech & travel gear";
+  if(/\b(shampoo|conditioner|hair straightener|hair oil|matomake|hair brush|hairbrush|hair clip|heat protectant|comb|hair dryer|hairdryer)\b/.test(value))return "💇 Hair";
+  if(/\b(makeup|lip balm|perfume|sunscreen|sunblock|pimple patch|skincare|skin care|cosmetic|cosmetics)\b/.test(value))return "💄 Beauty & skincare";
+  if(/\b(deo|deodorant|listerine|mouthwash|toothbrush|toothpaste|toothpick|soap|cotton|wet wipes|wipes|tissue|tissues|body wash|lotion)\b/.test(value))return "🧴 Toiletries";
+  return "🧳 Other";
+}
+function smartPackingSeparateNoteRequests(text){
+  const seen=new Set(),requests=[];
+  String(text||"").replace(/\r/g,"").split("\n").forEach(source=>{
+    const plain=smartCleanBullet(source).replace(/^#{1,6}\s*/,"").trim();
+    const match=plain.match(/^(.*?)(?:\s*\(\s*separate\s+note\s*\))\s*$/i);if(!match)return;
+    const title=smartPackingCanonicalTitle(match[1].trim());if(!title)return;
+    const key=title.toLowerCase();if(seen.has(key))return;seen.add(key);requests.push(title);
+  });
+  return requests;
+}
+function smartPackingRelatedNote(title){
+  const key=String(title||"").trim().toLowerCase();
+  const candidates=state.notes.filter(note=>{
+    const noteTitle=String(note.title||"").toLowerCase(),tags=(note.tags||[]).map(tag=>String(tag).toLowerCase());
+    if(key.includes("skincare")||key.includes("skin care"))return note.structuredType==="skincare-weekly"||tags.includes("skincare")||/skincare|skin care/.test(noteTitle);
+    return noteTitle.includes(key)||tags.includes(key);
+  }).sort((a,b)=>Number(Boolean(b.pinned))-Number(Boolean(a.pinned))||Number(b.updatedAt||0)-Number(a.updatedAt||0));
+  return candidates[0]||null;
+}
+function smartPackingConnectSeparateNotes(list,requests,space){
+  if(!list||!requests.length)return [];
+  const links=[{type:"list",id:list.id}],noteIds=[];
+  requests.forEach(title=>{
+    let note=smartPackingRelatedNote(title);
+    if(!note){note=normalizeNote({id:createId(),title,type:"note",space,tags:["travel","packing","reference"],content:"",checklist:[],resettable:false,pinned:false,createdAt:Date.now(),updatedAt:Date.now()});state.notes.push(note);}
+    if(!noteIds.includes(note.id)){noteIds.push(note.id);links.push({type:"note",id:note.id});}
+  });
+  if(links.length>1){
+    const thread=normalizeThread({id:createId(),title:`${list.name} · travel prep`,emoji:"🧳",description:"Packing list and separate reference notes kept together by Smart Sort.",space,links,createdAt:Date.now(),updatedAt:Date.now()});
+    state.threads.push(thread);state.activeThreadId=thread.id;
+  }
+  return noteIds;
+}
+
 function smartListItemsFromText(text, kind) {
   const raw=String(text||"").replace(/\r/g,"").trim();
   const lines=raw.split("\n").map(line=>line.trim()).filter(Boolean).filter(line=>!/^[-–—━─⸻\s]+$/.test(line));
-  const items=[];
+  const items=[],packingKeys=new Set();
   lines.forEach((source,index)=>{
     const plain=smartCleanBullet(source).replace(/^#{1,6}\s*/,"").trim();
     if(!plain)return;
     if(kind==="packing"&&/\b(trip\s+starts?|departure|depart(?:ure|ing)?|travel\s+starts?|flight\s+(?:is|at|leaves?))\b/i.test(plain))return;
+    if(kind==="packing"&&/\(\s*separate\s+note\s*\)\s*$/i.test(plain))return;
+    if(kind==="packing"&&index===0&&lines.length>=4&&/\bpacking\b/i.test(plain)&&!/[|,;]/.test(plain))return;
     if(kind==="packing"&&/^(?:packing\s+list|packing|what\s+to\s+pack)\s*(?:[:\-–—]\s*)?/i.test(plain)){
       const tail=plain.replace(/^(?:packing\s+list|packing|what\s+to\s+pack)\s*(?:[:\-–—]\s*)?/i,"").trim();
-      if(tail&&index===0&&tail.includes(","))tail.split(",").map(value=>value.trim()).filter(Boolean).forEach(value=>items.push({title:value,quantity:"",detail:""}));
+      if(tail&&index===0&&tail.includes(","))tail.split(",").map(value=>value.trim()).filter(Boolean).forEach(value=>{
+        const title=smartPackingCanonicalTitle(value),key=smartPackingDedupeKey(title);if(!title||packingKeys.has(key))return;packingKeys.add(key);items.push({title,quantity:"",detail:smartPackingCategory(title)});
+      });
       return;
     }
     if(kind==="grocery"&&/^(?:grocery\s+list|groceries?|shopping\s+list)\s*(?:[:\-–—]\s*)?/i.test(plain)){
@@ -4355,9 +4448,12 @@ function smartListItemsFromText(text, kind) {
       if(tail)tail.split(",").map(value=>value.trim()).filter(Boolean).forEach(value=>items.push({title:value,quantity:"",detail:""}));
       return;
     }
-    if(/^[^|]{1,45}:$/.test(plain))return;
-    const parts=plain.split("|").map(value=>value.trim());
-    const title=parts[0]||"";if(!title)return;
+    const parts=plain.split("|").map(part=>part.trim());
+    let title=parts[0]||"";if(!title)return;
+    if(kind==="packing"){
+      title=smartPackingCanonicalTitle(title);const key=smartPackingDedupeKey(title);if(!key||packingKeys.has(key))return;packingKeys.add(key);
+      items.push({title,quantity:parts[1]||"",detail:smartPackingCategory(title)});return;
+    }
     items.push({title,quantity:parts[1]||"",detail:parts.slice(2).join(" | ")||""});
   });
   return items;
@@ -4366,17 +4462,21 @@ function smartListItemsFromText(text, kind) {
 function createSmartListFromText(text,space,kind,options={}) {
   const items=smartListItemsFromText(text,kind);
   const first=String(text||"").split(/\r?\n/).map(line=>line.trim()).find(Boolean)||"";
+  if(!items.length)return `invalid-${kind}`;
   let name=kind==="packing"?"Packing List":"Grocery List";
   if(kind==="packing"){
     const tail=smartHeadingTail(first,/^(?:packing\s+list|packing|what\s+to\s+pack)\s*(?:[:\-–—]\s*(.+))?$/i);
     if(tail&&!tail.includes(","))name=`${tail} Packing List`;
+    else if(/\bpacking\b/i.test(first)&&first.length<=72&&!/[|,;]/.test(first))name=smartCleanBullet(first).replace(/^#{1,6}\s*/,"").trim();
   }else{
     const tail=smartHeadingTail(first,/^(?:grocery\s+list|groceries?|shopping\s+list)\s*(?:[:\-–—]\s*(.+))?$/i);
     if(tail&&!tail.includes(","))name=`${tail} Grocery List`;
   }
   const hasQty=items.some(item=>item.quantity),hasDetail=items.some(item=>item.detail);
-  const list=normalizeList({id:createId(),name,icon:kind==="packing"?"🧳":"🛒",space,templateType:kind,tripStartAt:kind==="packing"?smartTripStartFromText(text):"",quantityLabel:hasQty?"Quantity":"",detailLabel:hasDetail?"Detail":"",columnMode:false,columnCount:3,columnLabels:{partner:"Column 1",me:"Column 2",both:"Column 3",column4:"Column 4",column5:"Column 5"},items:items.map(item=>({id:createId(),...item,lane:"both",completed:false,createdAt:Date.now(),updatedAt:Date.now()})),createdAt:Date.now(),updatedAt:Date.now()});
-  state.lists.push(list);state.activeListId=list.id;saveState();
+  const list=normalizeList({id:createId(),name,icon:kind==="packing"?"🧳":"🛒",space,templateType:kind,tripStartAt:kind==="packing"?smartTripStartFromText(text):"",quantityLabel:hasQty?"Quantity":"",detailLabel:kind==="packing"&&hasDetail?"Category":(hasDetail?"Detail":""),columnMode:false,columnCount:3,columnLabels:{partner:"Column 1",me:"Column 2",both:"Column 3",column4:"Column 4",column5:"Column 5"},items:items.map(item=>({id:createId(),...item,lane:"both",completed:false,createdAt:Date.now(),updatedAt:Date.now()})),createdAt:Date.now(),updatedAt:Date.now()});
+  state.lists.push(list);state.activeListId=list.id;
+  if(kind==="packing")smartPackingConnectSeparateNotes(list,smartPackingSeparateNoteRequests(text),space);
+  saveState();
   if(!options.quiet)showToast(`${list.name} created · ${items.length} item${items.length===1?"":"s"} ${list.icon}`);
   if(options.open)changePage("lists");
   return kind;
@@ -5560,6 +5660,8 @@ function openSmartTemplate(){
 }
 function chooseSmartTemplate(target){
   closeModal("smartTemplateModal");
+  if(target==="smart-sort-brain-dump"){changePage("inbox");setTimeout(()=>document.getElementById("brainDumpText")?.focus(),60);showToast("Paste it into Brain Dump — Smart Sort will organize it ✨");return;}
+  if(target==="packing-list")return openListTemplateDraft("packing");
   if(target==="generic-list")return openListTemplateDraft("simple");
   if(target==="generic-tracker")return openTableTemplateDraft({name:"Tracker",space:preferredSpace(),columns:[{name:"Item",type:"text"},{name:"Status",type:"status"},{name:"Notes",type:"text"}],statusOptions:DEFAULT_TABLE_STATUSES.slice()});
   if(target==="plain-note")return openNoteTemplateDraft({title:"Note",type:"note",space:preferredSpace()});
