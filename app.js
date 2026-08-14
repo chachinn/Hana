@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.35
-   Routine-first skincare import + Smart Sort refinements
+   HANA 🌸 Version 2 · internal build 2.0.36
+   Smart Library + file-aware Smart Sort
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -80,7 +80,30 @@ const STARTER_TEMPLATES = [
   { id:"grocery-list", icon:"🛒", title:"Grocery List", description:"A blank grocery checklist with optional customizable columns.", kind:"list", category:"Personal & routines" },
   { id:"packing-list", icon:"🧳", title:"Packing List", description:"A blank reusable packing checklist you fill only with what you actually need.", kind:"list", category:"Personal & routines" },
   { id:"work-deliverables", icon:"💼", title:"Work Deliverables", description:"A customizable tracker structure for deliverables, owners, progress, due dates and status.", kind:"tracker", category:"Trackers" },
-  { id:"bills-tracker", icon:"💳", title:"Bills Tracker", description:"A customizable tracker structure for bills, amount, due date and payment status.", kind:"tracker", category:"Trackers" }
+  { id:"bills-tracker", icon:"💳", title:"Bills Tracker", description:"A customizable tracker structure for bills, amount, due date and payment status.", kind:"tracker", category:"Trackers" },
+{ id:"daily-routine-list", icon:"🌅", title:"Daily Routine", description:"A blank repeatable checklist for a morning, evening or any routine you define.", kind:"list", category:"Personal & routines" },
+  { id:"cleaning-checklist", icon:"🧹", title:"Cleaning Checklist", description:"A blank home cleaning checklist with optional custom columns and details.", kind:"list", category:"Home & life" },
+  { id:"travel-day-checklist", icon:"✈️", title:"Travel Day Checklist", description:"A blank checklist for departure-day tasks, documents and last-minute checks.", kind:"list", category:"Travel & events" },
+  { id:"event-planning-checklist", icon:"🎉", title:"Event Planning Checklist", description:"A blank checklist for planning an event without preloading fake tasks.", kind:"list", category:"Travel & events" },
+  { id:"recipe-card", icon:"🍳", title:"Recipe Card", description:"A structured recipe note for ingredients, method, timings and your own notes.", kind:"note", category:"Reference" },
+  { id:"project-brief", icon:"🗂️", title:"Project Brief", description:"A structured project brief for scope, outcomes, deliverables, people, risks and dependencies.", kind:"note", category:"Work & school" },
+  { id:"event-brief", icon:"🎟️", title:"Event Brief", description:"A structured event reference for schedule, venue, budget, guests, vendors and run-of-show notes.", kind:"note", category:"Travel & events" },
+  { id:"travel-itinerary", icon:"🗺️", title:"Travel Itinerary", description:"A customizable tracker for dates, times, plans, locations, bookings and notes.", kind:"tracker", category:"Travel & events" },
+  { id:"workout-plan", icon:"🏋️", title:"Workout Plan", description:"A customizable exercise tracker for sets, reps, load, rest and notes.", kind:"tracker", category:"Personal & routines" },
+  { id:"study-plan", icon:"📚", title:"Study Plan", description:"Plan subjects, topics, dates, duration, progress and notes in a customizable tracker.", kind:"tracker", category:"Work & school" },
+  { id:"medication-schedule", icon:"💊", title:"Medication / Supplement Schedule", description:"A personal reference tracker for item, dose, timing, days and notes.", kind:"tracker", category:"Personal & routines" },
+  { id:"meal-planner", icon:"🍱", title:"Meal Planner", description:"A blank meal planning tracker for day, meal, dish and notes.", kind:"tracker", category:"Personal & routines" },
+  { id:"habit-tracker", icon:"🌱", title:"Habit Tracker", description:"A customizable habit tracker for frequency, target, progress and notes.", kind:"tracker", category:"Personal & routines" },
+  { id:"reading-list", icon:"📖", title:"Reading List", description:"Track books, status, author, rating and notes without preloading titles.", kind:"tracker", category:"Reference" },
+  { id:"watch-list", icon:"🎬", title:"Watch List", description:"Track films, series, anime or anything else you want to watch.", kind:"tracker", category:"Reference" },
+  { id:"subscription-tracker", icon:"🔁", title:"Subscription Tracker", description:"Track services, cost, billing date, frequency and status.", kind:"tracker", category:"Home & life" },
+  { id:"application-tracker", icon:"📨", title:"Application Tracker", description:"Track job, school or other applications with dates, status and next steps.", kind:"tracker", category:"Work & school" },
+  { id:"delivery-tracker", icon:"📦", title:"Order / Delivery Tracker", description:"Track orders, stores, dates, ETA, status and tracking links.", kind:"tracker", category:"Home & life" },
+  { id:"home-inventory", icon:"🏠", title:"Home Inventory", description:"A customizable inventory for items, category, quantity, location and notes.", kind:"tracker", category:"Home & life" },
+  { id:"content-calendar", icon:"🗓️", title:"Content Calendar", description:"Track content ideas, platform, publish date, status and notes.", kind:"tracker", category:"Work & school" },
+  { id:"decision-log", icon:"⚖️", title:"Decision Log", description:"Keep decisions, rationale, owner, date and follow-up in one tracker.", kind:"tracker", category:"Work & school" },
+  { id:"contact-list", icon:"👥", title:"Contact List", description:"A simple customizable contact reference for name, phone, email, context and notes.", kind:"tracker", category:"Reference" },
+  { id:"bookmark-library", icon:"🔖", title:"Bookmark Library", description:"Keep useful links with a title, category and notes in one searchable tracker.", kind:"tracker", category:"Reference" }
 ];
 
 const QUICK_ACCESS_MENU = {
@@ -670,6 +693,37 @@ function isCustomStructuredNote(noteOrType){
   const type=typeof noteOrType==="string"?noteOrType:noteOrType?.structuredType;
   return CUSTOM_STRUCTURED_NOTE_TYPES.includes(type);
 }
+
+
+// Extended blank-first note schemas. These define editable field structure only;
+// no user values are created until the template is explicitly saved.
+["recipe-card","project-brief","event-brief"].forEach(type=>{if(!CUSTOM_STRUCTURED_NOTE_TYPES.includes(type))CUSTOM_STRUCTURED_NOTE_TYPES.push(type);});
+Object.assign(STRUCTURED_NOTE_SCHEMAS, {
+  "recipe-card": {
+    title:"Recipe Card", icon:"🍳",
+    fields:[
+      ["Servings","text","Recipe"], ["Prep time","text","Recipe"], ["Cook time","text","Recipe"],
+      ["Ingredients","textarea","Ingredients"], ["Method / instructions","textarea","Method"], ["Notes / substitutions","textarea","Notes"]
+    ]
+  },
+  "project-brief": {
+    title:"Project Brief", icon:"🗂️",
+    fields:[
+      ["Objective / problem","textarea","Direction"], ["Desired outcome","textarea","Direction"], ["Scope","textarea","Direction"],
+      ["Deliverables","textarea","Plan"], ["Timeline / milestones","textarea","Plan"], ["Stakeholders / owners","textarea","People"],
+      ["Risks / constraints","textarea","Execution"], ["Dependencies","textarea","Execution"], ["Notes","textarea","Execution"]
+    ]
+  },
+  "event-brief": {
+    title:"Event Brief", icon:"🎟️",
+    fields:[
+      ["Date","date","Event"], ["Start time","text","Event"], ["End time","text","Event"], ["Venue / location","text","Event"],
+      ["Purpose / theme","textarea","Plan"], ["Guest count / attendees","text","Plan"], ["Budget","number","Plan"],
+      ["Vendors / contacts","textarea","Coordination"], ["Run of show","textarea","Coordination"], ["Notes","textarea","Coordination"]
+    ]
+  }
+});
+
 function structuredNoteSchema(type){return STRUCTURED_NOTE_SCHEMAS[type]||null;}
 function structuredNotePreview(note){
   const groups=normalizeStructuredNoteGroups(note?.structuredGroups,note?.structuredFields||[]);
@@ -1059,18 +1113,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.35";
+const HANA_APP_VERSION = "2.0.36";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 14, 2026",
-  title: "Skincare routines, written naturally 🧴✨",
-  intro: "Hana now understands routine-first skincare schedules too — including Daily morning routines, day-specific product exceptions, and different night routines for different weekday groups.",
+  title: "A much smarter Hana library ✨🧩",
+  intro: "Smart Sort can now recognize many more real-life structures, read text-friendly files locally, and turn them into useful Hana notes, lists and trackers. The template library is much bigger too — without adding demo data.",
   items: [
-    { icon:"☀️", title:"Daily morning routines", text:"Paste a Morning Routine followed by (Daily), and Hana applies the shared products across the whole week." },
-    { icon:"🧴", title:"Day-specific exceptions", text:"Lines such as Tuesday & Saturday → exfoliating toner and All other days → hydrating toner are assigned to the correct weekdays automatically." },
-    { icon:"🌙", title:"Grouped night routines", text:"Hana understands weekday groups such as Tuesday / Thursday / Saturday / Sunday and Monday / Wednesday / Friday inside the same Night Routine." },
-    { icon:"🧳", title:"Trip-aware packing stays exact", text:"Packing still appears exactly 7 days before a trip and disappears at the precise departure time you set." }
+    { icon:"✨", title:"More structured Smart Sort", text:"Recipes, itineraries, workouts, study plans, medication schedules, meal plans, habits, media lists, subscriptions, applications, deliveries, inventories, content plans, decisions, bookmarks and ordinary routines can stay together instead of becoming loose notes." },
+    { icon:"📄", title:"Import a file into Brain Dump", text:"Load TXT, Markdown, CSV, TSV, JSON or HTML locally on your device, review the extracted text, then let Smart Sort organize it. Hana does not upload the file just to read it." },
+    { icon:"🧩", title:"A bigger template library", text:"New blank-first templates cover routines, home, travel, health, study, work, reference and many practical trackers. Templates still create nothing until you save them." },
+    { icon:"🔎", title:"Templates are searchable", text:"Search the larger library by name or purpose and filter by note, list or tracker so the extra options do not make the page harder to use." }
   ]
 };
 
@@ -4205,33 +4259,49 @@ function parseCaptureMeta(text,defaultSpace=preferredSpace()){
 
 
 /* ================= EXPANDED SMART SORT ================= */
-const SMART_STRUCTURED_CAPTURE_TYPES = new Set(["packing","grocery","meeting-agenda","meeting-minutes","expenses","tracker","project"]);
+const SMART_STRUCTURED_CAPTURE_TYPES = new Set(["packing","grocery","meeting-agenda","meeting-minutes","expenses","tracker","project","recipe","travel-itinerary","workout","study-plan","medication","meal-plan","habit-tracker","reading-list","watch-list","subscriptions","applications","deliveries","inventory","content-calendar","decision-log","bookmarks","routine"]);
 
 function smartStructuredCaptureLabel(kind) {
   return ({
-    packing:"🧳 Packing List · structured block",
-    grocery:"🛒 Grocery List · structured block",
-    "meeting-agenda":"📋 Meeting Agenda · structured block",
-    "meeting-minutes":"📝 Meeting Minutes · structured block",
-    expenses:"💳 Expense Tracker · structured block",
-    tracker:"📒 Tracker · structured rows",
-    project:"🌷 Project Plan · structured block"
+    packing:"🧳 Packing List · structured block", grocery:"🛒 Grocery List · structured block", "meeting-agenda":"📋 Meeting Agenda · structured block", "meeting-minutes":"📝 Meeting Minutes · structured block",
+    expenses:"💳 Expense Tracker · structured block", tracker:"📒 Tracker · structured rows", project:"🌷 Project Plan · structured block", recipe:"🍳 Recipe Card · ingredients + method",
+    "travel-itinerary":"🗺️ Travel Itinerary · schedule detected", workout:"🏋️ Workout Plan · exercises detected", "study-plan":"📚 Study Plan · study structure detected", medication:"💊 Medication / Supplement Schedule",
+    "meal-plan":"🍱 Meal Planner · meals detected", "habit-tracker":"🌱 Habit Tracker · routine detected", "reading-list":"📖 Reading List · titles detected", "watch-list":"🎬 Watch List · titles detected",
+    subscriptions:"🔁 Subscription Tracker · billing detected", applications:"📨 Application Tracker · status flow detected", deliveries:"📦 Order / Delivery Tracker", inventory:"🏠 Inventory · quantities / locations detected",
+    "content-calendar":"🗓️ Content Calendar · publishing plan detected", "decision-log":"⚖️ Decision Log · decisions detected", bookmarks:"🔖 Bookmark Library · links detected", routine:"🌅 Routine Checklist · repeated steps detected"
   })[kind] || "✨ Structured capture";
 }
 
 function smartStructuredCaptureKind(text, forcedType="auto") {
   if (SMART_STRUCTURED_CAPTURE_TYPES.has(forcedType)) return forcedType;
   const raw=String(text||"").trim();if(!raw)return "";
-  const lines=raw.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-  const first=lines[0]||"";
+  const lines=raw.split(/\r?\n/).map(line=>line.trim()).filter(Boolean),first=lines[0]||"";
   if(/\bpacking\s+list\b|\bwhat\s+to\s+pack\b|^packing\s*:/i.test(raw))return "packing";
   if(/\bgrocery\s+list\b|\bgroceries\s*[:\n]|^groceries?\s*:/i.test(raw))return "grocery";
   if(/\b(minutes\s+of\s+the\s+meeting|meeting\s+minutes|minutes\s+of\s+meeting)\b/i.test(raw)||(/\bdecisions?\s+(?:made|reached)\b/i.test(raw)&&/\b(action\s+items?|meeting|attendees?)\b/i.test(raw)))return "meeting-minutes";
   if(/\bmeeting\s+agenda\b/i.test(raw)||(/^agenda\s*:/i.test(first)&&/\b(objective|attendees?|topics?|agenda)\b/i.test(raw)))return "meeting-agenda";
   if(/\b(expense\s+tracker|expenses?\s*[:\n]|travel\s+expenses?|budget\s+spent)\b/i.test(raw)&&/(?:₱|\$|€|£|¥)\s*\d|\d[\d,]*\.\d{2}/.test(raw))return "expenses";
   if(/^\s*(?:project\s+plan|project)\s*[:\-–—]/i.test(first)||/^#{1,6}\s*project\s+plan\b/i.test(first))return "project";
+  if(/\bingredients?\b/i.test(raw)&&/\b(instructions?|method|directions?|steps?)\b/i.test(raw))return "recipe";
+  if(/\b(?:travel\s+)?itinerary\b/i.test(raw)||(/\bday\s*\d+\b/i.test(raw)&&/\b(hotel|flight|check[- ]?in|train|visit|tour|reservation|depart|arrive)\b/i.test(raw)))return "travel-itinerary";
+  if(/\bworkout\s*(?:plan|routine)?\b/i.test(raw)||(/\bsets?\b/i.test(raw)&&/\breps?\b/i.test(raw))||/\b\d+\s*[x×]\s*\d+\b/i.test(raw))return "workout";
+  if(/\bstudy\s+(?:plan|schedule)\b/i.test(raw)||(/\b(subject|chapter|topic|review)\b/i.test(raw)&&/\b(study|exam|quiz|lesson)\b/i.test(raw)))return "study-plan";
+  if(/\b(medication|medicine|supplement|vitamin)\s+(?:schedule|routine|list)\b/i.test(raw)||(/\b(?:mg|mcg|tablet|capsule|dose|dosage)\b/i.test(raw)&&/\b(?:daily|morning|night|am|pm|after|before)\b/i.test(raw)))return "medication";
+  if(/\bmeal\s+plan(?:ner)?\b/i.test(raw)||(/\bbreakfast\b/i.test(raw)&&/\b(?:lunch|dinner)\b/i.test(raw)))return "meal-plan";
+  if(/\bhabit\s+tracker\b/i.test(raw)||(/\bhabit\b/i.test(raw)&&/\b(?:daily|weekly|streak|target|frequency)\b/i.test(raw)))return "habit-tracker";
+  if(/\breading\s+list\b|\bbooks?\s+to\s+read\b|\bcurrently\s+reading\b/i.test(raw))return "reading-list";
+  if(/\bwatch\s+list\b|\b(?:movies?|series|shows?|anime)\s+to\s+watch\b/i.test(raw))return "watch-list";
+  if(/\bsubscription\s+(?:tracker|list)\b/i.test(raw)||(/\b(?:monthly|annual|yearly)\b/i.test(raw)&&/\b(?:renew|billing|subscription|plan)\b/i.test(raw)&&/(?:₱|\$|€|£|¥)\s*\d/i.test(raw)))return "subscriptions";
+  if(/\bapplication\s+tracker\b/i.test(raw)||(/\b(?:applied|interview|application)\b/i.test(raw)&&/\b(?:company|role|position|school|program|status)\b/i.test(raw)))return "applications";
+  if(/\b(?:order|delivery)\s+tracker\b/i.test(raw)||(/\b(?:tracking|shipped|delivered|eta)\b/i.test(raw)&&/\b(?:order|package|parcel)\b/i.test(raw)))return "deliveries";
+  if(/\b(?:home\s+)?inventory\b/i.test(raw)||(/\bquantity\b/i.test(raw)&&/\blocation\b/i.test(raw)&&/\bitem\b/i.test(raw)))return "inventory";
+  if(/\bcontent\s+calendar\b/i.test(raw)||(/\b(?:publish|post|platform)\b/i.test(raw)&&/\b(?:caption|content|draft|scheduled)\b/i.test(raw)))return "content-calendar";
+  if(/\bdecision\s+log\b/i.test(raw)||(/\bdecision\b/i.test(raw)&&/\brationale\b/i.test(raw)&&/\bowner\b/i.test(raw)))return "decision-log";
+  const urls=[...raw.matchAll(/https?:\/\/[^\s)]+/g)];if(/\bbookmarks?\b|\blink\s+library\b/i.test(raw)||(urls.length>=3&&lines.length>=3))return "bookmarks";
+  if(/\b(?:morning|evening|night|daily|weekly)\s+routine\b/i.test(raw)&&lines.length>=3&&!/\b(cleanser|toner|serum|moisturizer|sunscreen)\b/i.test(raw))return "routine";
   const delimited=lines.filter(line=>line.includes("\t")||line.split("|").length>=2);
-  if(lines.length>=2&&delimited.length>=2)return "tracker";
+  const csvish=lines.length>=2&&lines.filter(line=>(line.match(/,/g)||[]).length>=2).length>=2;
+  if(lines.length>=2&&(delimited.length>=2||csvish))return "tracker";
   return "";
 }
 
@@ -4439,12 +4509,91 @@ function createSmartProjectFromText(text,space,options={}) {
   state.activeProjectId=project.id;saveState();if(!options.quiet)showToast(`${project.name} created · ${created} task${created===1?"":"s"} 🌷`);if(options.open)changePage("projects");return "project";
 }
 
+
+
+const SMART_PRESET_TRACKERS = {
+  "travel-itinerary": EXTRA_TABLE_TEMPLATE_DEFINITIONS["travel-itinerary"], workout: EXTRA_TABLE_TEMPLATE_DEFINITIONS["workout-plan"], "study-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["study-plan"],
+  medication: EXTRA_TABLE_TEMPLATE_DEFINITIONS["medication-schedule"], "meal-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["meal-planner"], "habit-tracker": EXTRA_TABLE_TEMPLATE_DEFINITIONS["habit-tracker"],
+  "reading-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["reading-list"], "watch-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["watch-list"], subscriptions: EXTRA_TABLE_TEMPLATE_DEFINITIONS["subscription-tracker"],
+  applications: EXTRA_TABLE_TEMPLATE_DEFINITIONS["application-tracker"], deliveries: EXTRA_TABLE_TEMPLATE_DEFINITIONS["delivery-tracker"], inventory: EXTRA_TABLE_TEMPLATE_DEFINITIONS["home-inventory"],
+  "content-calendar": EXTRA_TABLE_TEMPLATE_DEFINITIONS["content-calendar"], "decision-log": EXTRA_TABLE_TEMPLATE_DEFINITIONS["decision-log"], bookmarks: EXTRA_TABLE_TEMPLATE_DEFINITIONS["bookmark-library"]
+};
+function smartMeaningfulLines(text){
+  return String(text||"").replace(/\r/g,"").split("\n").map(smartCleanBullet).map(line=>line.replace(/^#{1,6}\s*/,"").trim()).filter(line=>line&&!/^[\s⸻━─—–-]+$/.test(line));
+}
+function smartSplitLooseRow(line){
+  const text=String(line||"").trim();if(!text)return[];
+  if(text.includes("\t"))return text.split("\t").map(x=>x.trim());
+  if(text.includes("|"))return text.split("|").map(x=>x.trim());
+  if((text.match(/,/g)||[]).length>=2)return text.split(",").map(x=>x.trim());
+  if(/\s+[–—-]\s+/.test(text))return text.split(/\s+[–—-]\s+/).map(x=>x.trim());
+  return [text];
+}
+function smartPresetRecords(text,kind){
+  let lines=smartMeaningfulLines(text).filter((line,index)=>{
+    if(index>1)return true;
+    return !new RegExp(`^(?:${kind.replace(/[-]/g,"[ -]")}|${String(SMART_PRESET_TRACKERS[kind]?.name||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")})\\s*:?$`,"i").test(line);
+  });
+  const records=[];
+  for(const line of lines){
+    if(/^(ingredients?|instructions?|method|notes?|schedule|exercises?|plan|items?)\s*:?$/i.test(line))continue;
+    if(kind==="workout"){
+      const m=line.match(/^(.+?)\s*(?:[-:])?\s*(\d+)\s*[x×]\s*([\d-]+)(?:\s*(?:@|[-–—])\s*([^|]+))?$/i);if(m){records.push([m[1].trim(),m[2],m[3],String(m[4]||"").trim(),"",""]);continue;}
+    }
+    if(kind==="meal-plan"){
+      const m=line.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:\s*[-–—:]\s*)(Breakfast|Lunch|Dinner|Snack)?\s*:?[\s]*(.+)$/i);if(m){records.push([m[1],m[2]||"",m[3],""]);continue;}
+      const meal=line.match(/^(Breakfast|Lunch|Dinner|Snack)\s*[:\-–—]\s*(.+)$/i);if(meal){records.push(["",meal[1],meal[2],""]);continue;}
+    }
+    if(kind==="bookmarks"){
+      const url=line.match(/https?:\/\/[^\s)]+/i);if(url){const title=line.replace(url[0],"").replace(/^[\s:|–—-]+|[\s:|–—-]+$/g,"").trim();records.push([title||url[0],url[0],"",""]);continue;}
+    }
+    const parts=smartSplitLooseRow(line);records.push(parts);
+  }
+  return records.filter(row=>row.some(value=>String(value||"").trim()));
+}
+function createSmartPresetTracker(text,space,kind,options={}){
+  const definition=SMART_PRESET_TRACKERS[kind];if(!definition)return `invalid-${kind}`;
+  const records=smartPresetRecords(text,kind);if(!records.length)return `invalid-${kind}`;
+  const columns=definition.columns.map(column=>({id:createId(),name:column.name,type:column.type}));
+  const rows=records.map(record=>({id:createId(),values:Object.fromEntries(columns.map((column,index)=>[column.id,String(record[index]??"").trim()])),createdAt:Date.now(),updatedAt:Date.now()}));
+  const table=normalizeTable({id:createId(),name:definition.name,space,project:"",columns,statusOptions:DEFAULT_TABLE_STATUSES.slice(),sortMode:"manual",sortColumnId:columns[0]?.id||"",sortDirection:"asc",rowView:"compact",rows,createdAt:Date.now(),updatedAt:Date.now()});
+  state.tables.push(table);state.activeTableId=table.id;saveState();if(!options.quiet)showToast(`${definition.name} created · ${rows.length} row${rows.length===1?"":"s"} ✨`);if(options.open)changePage("tables");return kind;
+}
+function createSmartPlainList(text,space,kind,options={}){
+  const meta=kind==="routine"?{name:"Routine",icon:"🌅"}:{name:"Cleaning Checklist",icon:"🧹"};
+  let lines=smartMeaningfulLines(text).filter((line,index)=>!(index===0&&/\b(?:routine|cleaning checklist)\b/i.test(line))).filter(line=>!/^(morning|evening|night|daily|weekly)\s+routine\s*:?$/i.test(line));
+  if(!lines.length)return `invalid-${kind}`;
+  const list=normalizeList({id:createId(),name:meta.name,icon:meta.icon,space,templateType:"",items:lines.map(title=>({id:createId(),title,quantity:"",detail:"",completed:false,createdAt:Date.now(),updatedAt:Date.now()})),createdAt:Date.now(),updatedAt:Date.now()});
+  state.lists.push(list);state.activeListId=list.id;saveState();if(!options.quiet)showToast(`${meta.name} created · ${lines.length} item${lines.length===1?"":"s"} ☑️`);if(options.open)changePage("lists");return kind;
+}
+function smartRecipeSections(text){
+  const lines=String(text||"").replace(/\r/g,"").split("\n");let section="",title="",ingredients=[],method=[],notes=[];
+  for(const source of lines){let line=smartCleanBullet(source).replace(/^#{1,6}\s*/,"").trim();if(!line||/^[\s⸻━─—–-]+$/.test(line))continue;
+    if(/^ingredients?\s*:?$/i.test(line)){section="ingredients";continue;}if(/^(instructions?|method|directions?|steps?)\s*:?$/i.test(line)){section="method";continue;}if(/^notes?\s*:?$/i.test(line)){section="notes";continue;}
+    if(!title&&!/^(recipe|ingredients?|instructions?|method)\b/i.test(line)){title=line.replace(/^recipe\s*[:\-–—]\s*/i,"").trim();if(lines.length>2)continue;}
+    if(section==="ingredients")ingredients.push(line);else if(section==="method")method.push(line);else if(section==="notes")notes.push(line);
+  }
+  if(!title){const first=smartMeaningfulLines(text)[0]||"Recipe";title=first.replace(/^recipe\s*[:\-–—]?\s*/i,"").trim()||"Recipe";}
+  return{title:title.slice(0,80),ingredients,method,notes};
+}
+function createSmartRecipe(text,space,options={}){
+  const parsed=smartRecipeSections(text);if(!parsed.ingredients.length||!parsed.method.length)return"invalid-recipe";
+  const stateDef=structuredSchemaState("recipe-card"),valueMap={"Ingredients":parsed.ingredients.join("\n"),"Method / instructions":parsed.method.join("\n"),"Notes / substitutions":parsed.notes.join("\n")};
+  const raw=String(text||"");const servings=raw.match(/\bserv(?:es|ings?)\s*[:\-]?\s*([^\n]+)/i),prep=raw.match(/\bprep(?:\s*time)?\s*[:\-]?\s*([^\n]+)/i),cook=raw.match(/\bcook(?:\s*time)?\s*[:\-]?\s*([^\n]+)/i);if(servings)valueMap["Servings"]=servings[1].trim();if(prep)valueMap["Prep time"]=prep[1].trim();if(cook)valueMap["Cook time"]=cook[1].trim();
+  const fields=stateDef.fields.map(field=>({...field,value:valueMap[field.label]||""}));
+  const note=normalizeNote({id:createId(),title:parsed.title,type:"note",space,tags:["recipe"],content:"",checklist:[],resettable:false,pinned:false,structuredType:"recipe-card",structuredGroups:stateDef.groups,structuredFields:fields,createdAt:Date.now(),updatedAt:Date.now()});
+  state.notes.push(note);saveState();if(!options.quiet)showToast("Recipe Card created 🍳");if(options.open){state.currentPage="notes";render();setTimeout(()=>openNoteModal(note.id),20);}return"recipe";
+}
+
 function createSmartStructuredCapture(text,space,kind,options={}) {
   if(kind==="packing"||kind==="grocery")return createSmartListFromText(text,space,kind,options);
   if(kind==="meeting-agenda"||kind==="meeting-minutes")return createSmartMeetingFromText(text,space,kind,options);
   if(kind==="expenses")return createSmartExpenseTracker(text,space,options);
   if(kind==="tracker")return createSmartTrackerFromText(text,space,options);
   if(kind==="project")return createSmartProjectFromText(text,space,options);
+  if(kind==="recipe")return createSmartRecipe(text,space,options);
+  if(kind==="routine")return createSmartPlainList(text,space,kind,options);
+  if(SMART_PRESET_TRACKERS[kind])return createSmartPresetTracker(text,space,kind,options);
   return "";
 }
 
@@ -4478,6 +4627,23 @@ const BRAIN_DUMP_DESTINATIONS = [
   {value:"expenses",label:"💳 Expense tracker"},
   {value:"tracker",label:"📒 Tracker"},
   {value:"project",label:"🌷 Project plan"},
+  {value:"recipe",label:"🍳 Recipe card"},
+  {value:"travel-itinerary",label:"🗺️ Travel itinerary"},
+  {value:"workout",label:"🏋️ Workout plan"},
+  {value:"study-plan",label:"📚 Study plan"},
+  {value:"medication",label:"💊 Medication / supplements"},
+  {value:"meal-plan",label:"🍱 Meal plan"},
+  {value:"habit-tracker",label:"🌱 Habit tracker"},
+  {value:"reading-list",label:"📖 Reading list"},
+  {value:"watch-list",label:"🎬 Watch list"},
+  {value:"subscriptions",label:"🔁 Subscriptions"},
+  {value:"applications",label:"📨 Applications"},
+  {value:"deliveries",label:"📦 Orders / deliveries"},
+  {value:"inventory",label:"🏠 Inventory"},
+  {value:"content-calendar",label:"🗓️ Content calendar"},
+  {value:"decision-log",label:"⚖️ Decision log"},
+  {value:"bookmarks",label:"🔖 Bookmarks"},
+  {value:"routine",label:"🌅 Routine checklist"},
   {value:"someday",label:"🌱 Someday"}
 ];
 function brainDumpDestinationOptions(selected="auto"){const value=BRAIN_DUMP_DESTINATIONS.some(item=>item.value===selected)?selected:"auto";return BRAIN_DUMP_DESTINATIONS.map(item=>`<option value="${item.value}" ${item.value===value?"selected":""}>${item.label}</option>`).join("");}
@@ -4506,11 +4672,40 @@ function plantText(text,space=preferredSpace(),forcedType="auto"){
 function saveQuickCapture(){const input=document.getElementById("quickCaptureInput"),text=input.value.trim(),space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");if(skincareTextLooksStructured(text,{allowSingleDay:false})){input.value="";closeModal("quickCaptureModal");createSkincareRoutineNoteFromText(text,space,{open:true});return;}const structuredKind=smartStructuredCaptureKind(text);if(structuredKind){input.value="";closeModal("quickCaptureModal");createSmartStructuredCapture(text,space,structuredKind,{open:true,quiet:false});return;}const lines=parseLines(text);lines.forEach(line=>plantText(line,space));input.value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
 function sendQuickCaptureToInbox(){const input=document.getElementById("quickCaptureInput"),text=input.value.trim(),space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");if(skincareTextLooksStructured(text,{allowSingleDay:false})){state.inbox.push({id:createId(),text,space,prediction:"skincare",destination:"skincare",createdAt:Date.now()});input.value="";closeModal("quickCaptureModal");showToast("Weekly skincare routine kept together in Inbox 🧴");render();return;}const structuredKind=smartStructuredCaptureKind(text);if(structuredKind){state.inbox.push({id:createId(),text,space,prediction:structuredKind,destination:structuredKind,createdAt:Date.now()});input.value="";closeModal("quickCaptureModal");showToast(`${smartStructuredCaptureLabel(structuredKind).split(" · ")[0]} kept together in Inbox`);render();return;}const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));input.value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
 
-function renderInbox(){const container=document.getElementById("pageContent");const defaultSpace=preferredSpace();container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Drop the thoughts first. Hana can suggest where each one belongs, and you stay in control.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste thoughts, a list, meeting notes, expenses, a project plan..."></textarea><div class="brain-dump-controls" style="margin-top:9px;"><label><span>Where should these go?</span><select id="brainDumpDestination">${brainDumpDestinationOptions("auto")}</select></label><label><span>Space</span><select id="brainDumpSpace">${spaceOptionsHTML(defaultSpace," default")}</select></label><button class="primary-button" id="brainDumpAddButton">Organize ✨</button></div><small class="brain-dump-help">Smart Sort reads ordinary thoughts line by line, but keeps recognized structures — skincare, packing, groceries, meetings, expenses, trackers and project plans — together.</small></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
+
+function smartSortPreview(text){
+  const raw=String(text||"").trim();if(!raw)return{icon:"✨",title:"Paste anything",detail:"Hana will keep recognized structures together or sort ordinary lines individually."};
+  if(skincareTextLooksStructured(raw,{allowSingleDay:false}))return{icon:"🧴",title:"Weekly Skincare Planner",detail:"This block will stay together."};
+  const kind=smartStructuredCaptureKind(raw);if(kind)return{icon:smartStructuredCaptureLabel(kind).split(" ")[0],title:smartStructuredCaptureLabel(kind).replace(/^\S+\s*/,"").split(" · ")[0],detail:"Recognized as one structured block."};
+  const count=parseLines(raw).length;return{icon:"🌱",title:`${count} separate item${count===1?"":"s"}`,detail:"No whole-block structure detected; Smart Sort will classify each line."};
+}
+function updateBrainDumpSmartPreview(){
+  const box=document.getElementById("brainDumpSmartPreview"),input=document.getElementById("brainDumpText");if(!box||!input)return;const preview=smartSortPreview(input.value);box.innerHTML=`<span>${preview.icon}</span><div><strong>${escapeHTML(preview.title)}</strong><small>${escapeHTML(preview.detail)}</small></div>`;
+}
+function importedJSONToText(raw){
+  const value=JSON.parse(raw);if(Array.isArray(value)&&value.every(item=>item&&typeof item==="object"&&!Array.isArray(item))){const keys=[...new Set(value.flatMap(item=>Object.keys(item)))].slice(0,16);return [keys.join("\t"),...value.map(item=>keys.map(key=>{const v=item[key];return typeof v==="object"&&v!==null?JSON.stringify(v):String(v??"");}).join("\t"))].join("\n");}
+  if(value&&typeof value==="object"&&!Array.isArray(value))return ["Key\tValue",...Object.entries(value).map(([key,v])=>`${key}\t${typeof v==="object"&&v!==null?JSON.stringify(v):String(v??"")}`)].join("\n");
+  return String(value??"");
+}
+async function importBrainDumpFile(input){
+  const file=input?.files?.[0];if(!file)return;if(file.size>1500000){input.value="";return showToast("Keep Smart Sort files under 1.5 MB so Hana stays smooth.");}
+  const ext=(file.name.split(".").pop()||"").toLowerCase(),allowed=new Set(["txt","md","csv","tsv","json","html","htm"]);if(!allowed.has(ext)){input.value="";return showToast("Hana can currently read TXT, Markdown, CSV, TSV, JSON and HTML files.");}
+  try{let text=await file.text();if(ext==="json")text=importedJSONToText(text);if(ext==="html"||ext==="htm")text=new DOMParser().parseFromString(text,"text/html").body?.innerText||"";const area=document.getElementById("brainDumpText");if(area){area.value=text.trim();area.focus();updateBrainDumpSmartPreview();showToast(`${file.name} loaded locally · review, then Organize ✨`);}}catch(error){console.warn("Brain Dump file import failed",error);showToast("Hana couldn’t read that file.");}finally{input.value="";}
+}
+
+function renderInbox(){
+  const container=document.getElementById("pageContent"),defaultSpace=preferredSpace();
+  container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Paste thoughts, structured plans, or load a text-friendly file. Hana can suggest what each thing should become, and you stay in control.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste thoughts, a recipe, itinerary, workout, meeting notes, spreadsheet rows..."></textarea><div class="brain-dump-import-row"><label class="secondary-button brain-dump-file-button" for="brainDumpFileInput">📄 Import file</label><input id="brainDumpFileInput" class="hidden" type="file" accept=".txt,.md,.csv,.tsv,.json,.html,.htm,text/plain,text/markdown,text/csv,application/json,text/html" /><small>TXT · MD · CSV · TSV · JSON · HTML · read locally</small></div><div id="brainDumpSmartPreview" class="brain-dump-smart-preview"><span>✨</span><div><strong>Paste anything</strong><small>Hana will keep recognized structures together or sort ordinary lines individually.</small></div></div><div class="brain-dump-controls" style="margin-top:9px;"><label><span>Where should these go?</span><select id="brainDumpDestination">${brainDumpDestinationOptions("auto")}</select></label><label><span>Space</span><select id="brainDumpSpace">${spaceOptionsHTML(defaultSpace," default")}</select></label><button class="primary-button" id="brainDumpAddButton">Organize ✨</button></div><small class="brain-dump-help">Smart Sort recognizes skincare, packing, groceries, meetings, recipes, itineraries, workouts, study plans, medication schedules, meal plans, habits, media lists, expenses, trackers, projects and more. If nothing matches, Hana safely falls back to line-by-line sorting.</small></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;
+}
+
 function inboxCard(item){const destination=BRAIN_DUMP_DESTINATIONS.some(option=>option.value===item.destination)?item.destination:"auto";return `<div class="inbox-item"><div class="inbox-item-main"><strong>${escapeHTML(item.text)}</strong><div class="inbox-prediction">${escapeHTML(brainDumpDestinationLabel(destination,item.text))}</div><div class="task-meta">${modeLabel(item.space)}</div><label class="inbox-destination-control"><span>Send to</span><select data-inbox-destination="${item.id}">${brainDumpDestinationOptions(destination)}</select></label></div><div class="inbox-actions"><button class="mini-icon-button" data-plant-inbox="${item.id}" aria-label="Plant this item">🌱</button><button class="mini-icon-button" data-delete-inbox="${item.id}" aria-label="Move this inbox item to Trash">×</button></div></div>`;}
 function addBrainDump(){const input=document.getElementById("brainDumpText"),text=input?.value.trim()||"",space=document.getElementById("brainDumpSpace")?.value||preferredSpace(),destination=document.getElementById("brainDumpDestination")?.value||"auto";if(!text)return showToast("Add a few thoughts first 🌸");const forcedSkincare=destination==="skincare",smartSkincare=destination==="auto"&&skincareTextLooksStructured(text,{allowSingleDay:false});if(forcedSkincare||smartSkincare){const parsed=parseSkincareRoutineText(text,{allowSingleDay:forcedSkincare});if(!parsed)return showToast("I couldn't find a skincare day + AM/PM + Product type: Product pattern yet.");input.value="";createSkincareRoutineNoteFromText(text,space,{allowSingleDay:forcedSkincare,open:true});return;}const structuredKind=smartStructuredCaptureKind(text,destination);if(structuredKind){input.value="";const result=createSmartStructuredCapture(text,space,structuredKind,{open:true,quiet:false});if(String(result||"").startsWith("invalid-"))showToast("Hana needs a little more structure before creating that format.");return;}parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,destination:BRAIN_DUMP_DESTINATIONS.some(item=>item.value===destination)?destination:"auto",createdAt:Date.now()}));showToast("Brain dump sorted into the Inbox 🧠");render();}
 function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;const result=plantText(item.text,item.space,item.destination||"auto");if(String(result||"").startsWith("invalid-"))return showToast(result==="invalid-skincare"?"That item needs a day + AM/PM + Product type: Product format before it can become a skincare planner.":"Hana needs a little more structure before creating that format.");state.inbox=state.inbox.filter(i=>i.id!==id);showToast(result==="skincare"?"Skincare planner created 🧴":"Planted 🌱");render();}
 function plantAllInbox(){const items=[...state.inbox],remaining=[];let planted=0;items.forEach(i=>{const result=plantText(i.text,i.space,i.destination||"auto");if(String(result||"").startsWith("invalid-"))remaining.push(i);else planted++;});state.inbox=remaining;showToast(`${planted} item${planted===1?"":"s"} planted${remaining.length?` · ${remaining.length} needs review`:""} 🌸`);render();}
+
+
+document.addEventListener("input",event=>{if(event.target?.id==="brainDumpText")updateBrainDumpSmartPreview();if(event.target?.id==="templateSearchInput")filterTemplateLibrary();});
+document.addEventListener("change",event=>{if(event.target?.id==="brainDumpFileInput")importBrainDumpFile(event.target);if(event.target?.id==="templateKindFilter")filterTemplateLibrary();});
 
 /* ================= HANA LIFE FLOW ================= */
 
@@ -5072,10 +5267,22 @@ function reopenReminder(id) {
   render();
 }
 
+function templateLibraryCategories(){
+  return ["Build your own","Meetings","Personal & routines","Travel & events","Home & life","Work & school","Work & reference","Reference","Trackers"];
+}
+function templateCardHTML(template){
+  const search=[template.title,template.description,template.kind,template.category].join(" ").toLowerCase();
+  return `<article class="template-card" data-template-library-card data-template-kind="${escapeHTML(template.kind)}" data-template-search="${escapeHTML(search)}"><div class="template-icon">${template.icon}</div><div><h3>${escapeHTML(template.title)}</h3><p>${escapeHTML(template.description)}</p><span class="badge badge-personal">${escapeHTML(template.kind)}</span></div><button class="secondary-button" data-use-template="${template.id}">Preview</button></article>`;
+}
+function filterTemplateLibrary(){
+  const query=String(document.getElementById("templateSearchInput")?.value||"").trim().toLowerCase(),kind=document.getElementById("templateKindFilter")?.value||"all";
+  document.querySelectorAll("[data-template-library-card]").forEach(card=>{const matchesText=!query||String(card.dataset.templateSearch||"").includes(query),matchesKind=kind==="all"||card.dataset.templateKind===kind;card.classList.toggle("hidden",!(matchesText&&matchesKind));});
+  document.querySelectorAll("[data-template-category-section]").forEach(section=>{section.classList.toggle("hidden",!section.querySelector("[data-template-library-card]:not(.hidden)"));});
+  const empty=document.getElementById("templateSearchEmpty");if(empty)empty.classList.toggle("hidden",Boolean(document.querySelector("[data-template-library-card]:not(.hidden)")));
+}
 function renderTemplates() {
-  const c=document.getElementById("pageContent");
-  const categories=["Build your own","Meetings","Personal & routines","Work & reference","Trackers"];
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">REUSABLE, BUT NEVER FORCED</p><h1>Templates</h1><p>Choose a ready-made structure, let Smart Template guide you, or start from a completely empty canvas.</p></div><div class="template-customization-note"><span>✨</span><div><strong>Smart guides you. Blank assumes nothing.</strong><small>Smart Template helps match your need to a Hana structure. Blank Template has no categories, fields or rows until you create them yourself.</small></div></div>${categories.map(category=>{const items=STARTER_TEMPLATES.filter(template=>template.category===category);return items.length?`<section class="template-category"><div class="template-category-head"><h2>${escapeHTML(category)}</h2><span>${items.length}</span></div><div class="template-grid">${items.map(template=>`<article class="template-card"><div class="template-icon">${template.icon}</div><div><h3>${escapeHTML(template.title)}</h3><p>${escapeHTML(template.description)}</p><span class="badge badge-personal">${escapeHTML(template.kind)}</span></div><button class="secondary-button" data-use-template="${template.id}">Preview</button></article>`).join("")}</div></section>`:"";}).join("")}`;
+  const c=document.getElementById("pageContent"),categories=templateLibraryCategories();
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">REUSABLE, BUT NEVER FORCED</p><h1>Templates</h1><p>Choose a ready-made structure, let Smart Template guide you, or start from a completely empty canvas.</p></div><div class="template-customization-note"><span>✨</span><div><strong>Smart guides you. Blank assumes nothing.</strong><small>Every template below is blank-first: structure and placeholders can be provided, but no sample rows or fake entries are saved.</small></div></div><div class="template-library-toolbar"><label class="template-library-search"><span>🔎</span><input id="templateSearchInput" type="search" placeholder="Search templates — travel, workout, recipe..." /></label><select id="templateKindFilter" aria-label="Filter templates by type"><option value="all">All types</option><option value="note">Notes</option><option value="list">Lists</option><option value="tracker">Trackers</option><option value="guide">Guides</option><option value="blank">Blank</option></select></div>${categories.map(category=>{const items=STARTER_TEMPLATES.filter(template=>template.category===category);return items.length?`<section class="template-category" data-template-category-section><div class="template-category-head"><h2>${escapeHTML(category)}</h2><span>${items.length}</span></div><div class="template-grid">${items.map(templateCardHTML).join("")}</div></section>`:"";}).join("")}<div id="templateSearchEmpty" class="empty-state hidden"><div class="empty-icon">🔎</div><h3>No matching template</h3><p>Try another word or switch the type filter.</p></div>`;
 }
 
 function clearTemplateDraftBanner(modalId) {
@@ -5156,8 +5363,53 @@ function chooseSmartTemplate(target){
   return useTemplate(target);
 }
 
+
+
+const EXTRA_LIST_TEMPLATE_DEFINITIONS = {
+  "daily-routine-list": {name:"Daily Routine",icon:"🌅"},
+  "cleaning-checklist": {name:"Cleaning Checklist",icon:"🧹"},
+  "travel-day-checklist": {name:"Travel Day Checklist",icon:"✈️"},
+  "event-planning-checklist": {name:"Event Planning Checklist",icon:"🎉"}
+};
+const EXTRA_NOTE_TEMPLATE_DEFINITIONS = {
+  "recipe-card": {title:"Recipe Card",structuredType:"recipe-card"},
+  "project-brief": {title:"Project Brief",structuredType:"project-brief"},
+  "event-brief": {title:"Event Brief",structuredType:"event-brief"}
+};
+const EXTRA_TABLE_TEMPLATE_DEFINITIONS = {
+  "travel-itinerary": {name:"Travel Itinerary",columns:[{name:"Date",type:"date"},{name:"Time",type:"text"},{name:"Plan",type:"text"},{name:"Location",type:"text"},{name:"Booking / reference",type:"text"},{name:"Notes",type:"text"}]},
+  "workout-plan": {name:"Workout Plan",columns:[{name:"Exercise",type:"text"},{name:"Sets",type:"number"},{name:"Reps",type:"text"},{name:"Load",type:"text"},{name:"Rest",type:"text"},{name:"Notes",type:"text"}]},
+  "study-plan": {name:"Study Plan",columns:[{name:"Subject",type:"text"},{name:"Topic",type:"text"},{name:"Date",type:"date"},{name:"Duration",type:"text"},{name:"Progress",type:"progress"},{name:"Notes",type:"text"}]},
+  "medication-schedule": {name:"Medication / Supplement Schedule",columns:[{name:"Item",type:"text"},{name:"Dose",type:"text"},{name:"Time",type:"text"},{name:"Days / frequency",type:"text"},{name:"Notes",type:"text"}]},
+  "meal-planner": {name:"Meal Planner",columns:[{name:"Day / date",type:"text"},{name:"Meal",type:"text"},{name:"Dish",type:"text"},{name:"Notes",type:"text"}]},
+  "habit-tracker": {name:"Habit Tracker",columns:[{name:"Habit",type:"text"},{name:"Frequency",type:"text"},{name:"Target",type:"text"},{name:"Progress",type:"progress"},{name:"Notes",type:"text"}]},
+  "reading-list": {name:"Reading List",columns:[{name:"Title",type:"text"},{name:"Author",type:"text"},{name:"Status",type:"status"},{name:"Rating",type:"number"},{name:"Notes",type:"text"}]},
+  "watch-list": {name:"Watch List",columns:[{name:"Title",type:"text"},{name:"Type",type:"text"},{name:"Status",type:"status"},{name:"Rating",type:"number"},{name:"Notes",type:"text"}]},
+  "subscription-tracker": {name:"Subscription Tracker",columns:[{name:"Service",type:"text"},{name:"Amount",type:"money"},{name:"Billing date",type:"date"},{name:"Frequency",type:"text"},{name:"Status",type:"status"},{name:"Notes",type:"text"}]},
+  "application-tracker": {name:"Application Tracker",columns:[{name:"Organization",type:"text"},{name:"Role / program",type:"text"},{name:"Applied",type:"date"},{name:"Status",type:"status"},{name:"Next step",type:"text"},{name:"Notes",type:"text"}]},
+  "delivery-tracker": {name:"Order / Delivery Tracker",columns:[{name:"Order",type:"text"},{name:"Store",type:"text"},{name:"Ordered",type:"date"},{name:"ETA",type:"date"},{name:"Status",type:"status"},{name:"Tracking",type:"link"},{name:"Notes",type:"text"}]},
+  "home-inventory": {name:"Home Inventory",columns:[{name:"Item",type:"text"},{name:"Category",type:"text"},{name:"Quantity",type:"number"},{name:"Location",type:"text"},{name:"Notes",type:"text"}]},
+  "content-calendar": {name:"Content Calendar",columns:[{name:"Content",type:"text"},{name:"Platform",type:"text"},{name:"Publish date",type:"date"},{name:"Status",type:"status"},{name:"Link",type:"link"},{name:"Notes",type:"text"}]},
+  "decision-log": {name:"Decision Log",columns:[{name:"Decision",type:"text"},{name:"Rationale",type:"text"},{name:"Owner",type:"text"},{name:"Date",type:"date"},{name:"Follow-up",type:"text"}]},
+  "contact-list": {name:"Contact List",columns:[{name:"Name",type:"text"},{name:"Phone",type:"text"},{name:"Email",type:"text"},{name:"Context",type:"text"},{name:"Notes",type:"text"}]},
+  "bookmark-library": {name:"Bookmark Library",columns:[{name:"Title",type:"text"},{name:"Link",type:"link"},{name:"Category",type:"text"},{name:"Notes",type:"text"}]}
+};
+function openExtendedListTemplateDraft(definition={}){
+  openListModal();pendingListTemplateItems=[];
+  document.getElementById("listName").value="";document.getElementById("listName").placeholder=definition.name||"List name";document.getElementById("listIcon").value=definition.icon||"☑️";
+  document.getElementById("listModalEyebrow").textContent="TEMPLATE PREVIEW";document.getElementById("listModalTitle").textContent=definition.name||"List template";document.getElementById("saveListButton").textContent="Create list";
+  showTemplateDraftBanner("listModal","Blank structure only. Add your own items after creating it; closing this preview saves nothing.");
+}
+function useExtendedTemplate(templateId,space=preferredSpace()){
+  const listDef=EXTRA_LIST_TEMPLATE_DEFINITIONS[templateId];if(listDef){openExtendedListTemplateDraft(listDef);return true;}
+  const noteDef=EXTRA_NOTE_TEMPLATE_DEFINITIONS[templateId];if(noteDef){openNoteTemplateDraft({title:noteDef.title,type:"note",structuredType:noteDef.structuredType,space});return true;}
+  const tableDef=EXTRA_TABLE_TEMPLATE_DEFINITIONS[templateId];if(tableDef){openTableTemplateDraft({name:tableDef.name,space,columns:tableDef.columns,statusOptions:DEFAULT_TABLE_STATUSES.slice()});return true;}
+  return false;
+}
+
 function useTemplate(templateId) {
   const space=preferredSpace();
+  if(useExtendedTemplate(templateId,space))return;
   if(templateId==="smart-template")return openSmartTemplate();
   if(templateId==="blank-template")return openNoteTemplateDraft({title:"Blank Template",type:"note",structuredType:"custom-form",space});
   if(["meeting-agenda","meeting-minutes"].includes(templateId)){

@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v68 · routine-first skincare import
+   HANA 🌸 Service Worker v69 · Smart Library release
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v68";
+const CACHE_NAME = "hana-shell-v69";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.35",
-  "./app.js?v=2.0.35",
+  "./style.css?v=2.0.36",
+  "./app.js?v=2.0.36",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
