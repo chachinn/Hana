@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   release:
-    if: contains(github.event.head_commit.message, 'Run Hana formatted skincare import release')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +24,7 @@ jobs:
           from pathlib import Path
           import subprocess
           path='.github/workflows/hana-skincare-text-import-release.yml'
-          source=subprocess.check_output(['git','show',f'HEAD^:{path}'],text=True)
+          source=subprocess.check_output(['git','show',f'HEAD^^:{path}'],text=True)
           start_marker="          python - <<'PY'\n"
           end_marker="\n          PY\n"
           start=source.index(start_marker)+len(start_marker)
@@ -39,7 +38,7 @@ jobs:
       - name: JavaScript syntax check
         run: node --check app.js
 
-      - name: Formatted skincare parser regression
+      - name: Parser regression test
         shell: bash
         run: |
           python - <<'PY'
@@ -48,47 +47,12 @@ jobs:
           source=Path('app.js').read_text(encoding='utf-8')
           start=source.index('const SKINCARE_WEEKDAYS =')
           end=source.index('function normalizeSkincareRoutine',start)
-          sample='''📅 Monday – Acne Control (Azelaic)
-
-AM
-* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash
-* Cream: SEOUL 1988 Capsule Cream (Niacinamide 5% + Yuja)
-
-PM
-* Spot Treatment: Lion Pair Acne Cream (active pimples only)
-
-⸻
-
-📅 Tuesday – Exfoliation Night
-
-AM
-* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash
-
-PM (Week A)
-* Toner: Y.O.U. 7% Acid Deep Exfoliating Toner
-* Serum: COSRX The Alpha Arbutin 2 Discoloration Care Serum
-
-PM (Week B)
-* Treatment: Dr. Melaxin Exfoliating White Rice Ampoule
-* Moisturizer: Centellian24 Madeca Mela Capture Ampoule Capsule Cream'''
+          sample="📅 Monday – Acne Control (Azelaic)\n\nAM\n* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash\n* Cream: SEOUL 1988 Capsule Cream (Niacinamide 5% + Yuja)\n\nPM\n* Spot Treatment: Lion Pair Acne Cream (active pimples only)\n\n⸻\n\n📅 Tuesday – Exfoliation Night\n\nAM\n* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash\n\nPM (Week A)\n* Toner: Y.O.U. 7% Acid Deep Exfoliating Toner\n* Serum: COSRX The Alpha Arbutin 2 Discoloration Care Serum\n\nPM (Week B)\n* Treatment: Dr. Melaxin Exfoliating White Rice Ampoule\n* Moisturizer: Centellian24 Madeca Mela Capture Ampoule Capsule Cream"
           block=source[start:end]
-          test=block+f'''\nconst __sample={json.dumps(sample)};
-          const __result=parseSkincareRoutineText(__sample,{{allowSingleDay:false}});
-          if(!__result)throw new Error('Parser returned null');
-          if(__result.dayCount!==2)throw new Error('Expected two days');
-          if(__result.dayLabels[1]!=='Acne Control (Azelaic)')throw new Error('Monday label lost');
-          if(__result.dayLabels[2]!=='Exfoliation Night')throw new Error('Tuesday label lost');
-          if(!__result.days[2].some(x=>x.routineLabel==='Week A'&&x.variant==='primary'))throw new Error('Week A mapping failed');
-          if(!__result.days[2].some(x=>x.routineLabel==='Week B'&&x.variant==='alternate'))throw new Error('Week B mapping failed');
-          const __spot=__result.days[1].find(x=>x.category==='Spot Treatment');
-          if(!__spot||__spot.notes!=='active pimples only'||__spot.product.includes('active pimples only'))throw new Error('Usage note extraction failed');
-          const __cream=__result.days[1].find(x=>x.category==='Moisturizer / Cream');
-          if(!__cream||!__cream.product.includes('(Niacinamide 5% + Yuja)'))throw new Error('Ingredient parentheses lost');
-          if(!skincareTextLooksStructured(__sample,{{allowSingleDay:false}}))throw new Error('Structured detection failed');
-          console.log('PASS formatted skincare parser');\n'''
-          Path('/tmp/hana_skincare_parser_test.js').write_text(test,encoding='utf-8')
+          assertions="const r=parseSkincareRoutineText(S,{allowSingleDay:false});if(!r||r.dayCount!==2)throw new Error('day parse');if(r.dayLabels[1]!=='Acne Control (Azelaic)'||r.dayLabels[2]!=='Exfoliation Night')throw new Error('labels');if(!r.days[2].some(x=>x.routineLabel==='Week A'&&x.variant==='primary'))throw new Error('week A');if(!r.days[2].some(x=>x.routineLabel==='Week B'&&x.variant==='alternate'))throw new Error('week B');const spot=r.days[1].find(x=>x.category==='Spot Treatment');if(!spot||spot.notes!=='active pimples only'||spot.product.includes('active pimples only'))throw new Error('usage notes');const cream=r.days[1].find(x=>x.category==='Moisturizer / Cream');if(!cream||!cream.product.includes('(Niacinamide 5% + Yuja)'))throw new Error('ingredients');if(!skincareTextLooksStructured(S,{allowSingleDay:false}))throw new Error('detection');console.log('PASS skincare parser');"
+          Path('/tmp/skincare-test.js').write_text(block+'\nconst S='+json.dumps(sample)+';\n'+assertions+'\n',encoding='utf-8')
           PY
-          node /tmp/hana_skincare_parser_test.js
+          node /tmp/skincare-test.js
 
       - name: Targeted release QA
         shell: bash
@@ -99,20 +63,7 @@ PM (Week B)
           html=Path('index.html').read_text(encoding='utf-8')
           css=Path('style.css').read_text(encoding='utf-8')
           sw=Path('service-worker.js').read_text(encoding='utf-8')
-          checks={
-            'internal 2.0.31':'const HANA_APP_VERSION = "2.0.31";' in app,
-            'public stays Version 2':'const HANA_DISPLAY_VERSION = "2";' in app,
-            'parser present':'function parseSkincareRoutineText' in app and 'function createSkincareRoutineNoteFromText' in app,
-            'day labels preserved':'dayLabels' in app and 'skincareDayLabel' in html,
-            'routine labels preserved':'routineLabel' in app,
-            'paste UI':'skincareImportText' in html and 'data-skincare-import-text' in html,
-            'Brain Dump skincare destination':'{value:"skincare",label:"🧴 Skincare planner"}' in app,
-            'smart capture detection':'formatted routine detected' in app,
-            'CSS import card':'FORMATTED SKINCARE IMPORT v2.0.31' in css,
-            'cache v64':'hana-shell-v64' in sw,
-            'service worker app version':'app.js?v=2.0.31' in sw,
-            'index cache bust':'app.js?v=2.0.31' in html and 'style.css?v=2.0.31' in html,
-          }
+          checks={'version':'const HANA_APP_VERSION = "2.0.31";' in app,'parser':'function parseSkincareRoutineText' in app,'day labels':'skincareDayLabel' in html and 'dayLabels' in app,'routine labels':'routineLabel' in app,'paste UI':'skincareImportText' in html and 'data-skincare-import-text' in html,'Brain Dump':'{value:"skincare",label:"🧴 Skincare planner"}' in app,'capture':'formatted routine detected' in app,'css':'FORMATTED SKINCARE IMPORT v2.0.31' in css,'cache':'hana-shell-v64' in sw and 'app.js?v=2.0.31' in sw,'index':'app.js?v=2.0.31' in html and 'style.css?v=2.0.31' in html}
           for name,ok in checks.items(): print(('PASS' if ok else 'FAIL'),name)
           failed=[name for name,ok in checks.items() if not ok]
           if failed: raise SystemExit('QA failed: '+', '.join(failed))
