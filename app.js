@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 1.1 · Smart Template Garden 1.1.0
+   HANA 🌸 Version 1 · unreleased baseline 1.0.0
    Smarter editable packing categories + local learning
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -1120,20 +1120,20 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "1.1.0";
-const HANA_DISPLAY_VERSION = "1.1";
+const HANA_APP_VERSION = "1.0.0";
+const HANA_DISPLAY_VERSION = "1";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 15, 2026",
-  title: "Smart Template Garden 🌸✨",
-  intro: "Hana can now understand many more kinds of real-life pasted content, and a new Smart Paste Guide teaches you what to paste without filling your app with sample data.",
+  title: "Welcome to Hana v1 🌸",
+  intro: "This is Hana’s first complete release baseline. Everything built during pre-release development—including Smart Template Garden, Smart Packing, skincare planning, cloud backup and Hana’s planning tools—belongs to Version 1 from day one.",
   items: [
-    { icon:"🌸", title:"Smart Paste Guide", text:"Browse and search a large library of smart formats with short examples. Examples stay as placeholders only and are never saved automatically." },
-    { icon:"✨", title:"More life formats", text:"Hana now understands specialized travel prep, home maintenance, budgets, bills, cleaning, events, birthdays, weddings, gifts, moving, self-care, haircare, health logs, medical prep, pet and plant care, wishlists, game backlogs, requirements, wardrobes, brainstorms, decisions and schedules in addition to the existing Smart Sort library." },
-    { icon:"🧠", title:"Choose or auto-detect", text:"Use automatic Smart Sort when you want Hana to decide, or pick a Smart Template first when you already know the structure you want." },
-    { icon:"📝", title:"Review-first by design", text:"Choosing a Smart Template sends you to Brain Dump with a helpful placeholder. Your own pasted text stays reviewable before Hana creates anything." },
-    { icon:"🧩", title:"Specialized structures", text:"New smart formats create useful trackers or categorized checklists with editable columns instead of flattening everything into generic notes." },
-    { icon:"🧳", title:"Existing smart favorites preserved", text:"Weekly Skincare, Smart Packing, recipes, meals, workouts, study plans, itineraries, meetings, subscriptions, applications, deliveries, inventory and the rest of the existing Smart Sort library continue to work." }
+    { icon:"✨", title:"Smart Template Garden", text:"Browse the Smart Paste Guide, choose from more than 50 understood formats, or paste naturally into Brain Dump and let Smart Sort recognize useful structures while keeping examples as unsaved placeholders only." },
+    { icon:"🧳", title:"Packing that learns with you", text:"Smart Packing uses 21 travel categories, editable category choices, custom categories and a local learning dictionary that remembers your corrections." },
+    { icon:"🧴", title:"Weekly skincare planning", text:"Paste natural AM/PM routines, grouped weekdays and exceptions; Hana turns them into an editable weekly skincare planner with a time-aware Today shortcut." },
+    { icon:"🌷", title:"Plan and organize in one garden", text:"Today, Tasks, Lists, Notes, Trackers, Calendar, Projects, Reminders, Templates, Brain Dump, Memory Threads and Hana’s focus tools work together without forcing one planning style." },
+    { icon:"☁️", title:"Private first, cloud when you want it", text:"Hana stays local-first with autosave, safety snapshots, Trash and export. Optional Google or email sign-in adds cloud backup without making an account mandatory." },
+    { icon:"🎀", title:"Made to be yours", text:"Customize themes, wallpaper, spaces, Quick Access, bottom navigation, categories, fields and practical defaults while keeping Hana mobile-first and iPhone-friendly." }
   ]
 };
 

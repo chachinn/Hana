@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Smart Template Garden v1.1
+   HANA 🌸 Smart Template Garden · Version 1
    Expanded local-first Smart Sort profiles + paste guide
    ===================================================== */
 
