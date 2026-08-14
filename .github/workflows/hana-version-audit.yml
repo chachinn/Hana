@@ -1,0 +1,23 @@
+name: Hana version audit
+
+on:
+  push:
+    paths:
+      - .github/workflows/hana-version-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Version reference audit
+        run: |
+          echo '=== 2.x references ==='
+          grep -RInE --exclude-dir=.git --exclude='hana-version-audit.yml' 'Version 2|2\.0\.[0-9]+|hana-shell-v[0-9]+' . || true
+          echo '=== version constants / display labels ==='
+          grep -RInE --exclude-dir=.git 'HANA_APP_VERSION|Version [0-9]+|app-version|release|update' app.js index.html manifest.json service-worker.js .github/workflows/hana-runtime-smoke.yml | head -n 500 || true
