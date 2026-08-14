@@ -1,0 +1,69 @@
+name: Hana browser runtime smoke
+
+on:
+  push:
+    paths:
+      - app.js
+      - index.html
+      - style.css
+      - service-worker.js
+      - .github/workflows/hana-runtime-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  iphone-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JavaScript syntax
+        run: node --check app.js
+
+      - name: Install lightweight browser driver
+        run: npm install --prefix /tmp/hana-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone-sized startup and core navigation smoke
+        env:
+          NODE_PATH: /tmp/hana-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright-core');
+          const fs = require('fs');
+          const executablePath = ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if (!executablePath) throw new Error('No browser executable found');
+          (async()=>{
+            const browser = await chromium.launch({headless:true, executablePath, args:['--no-sandbox']});
+            const context = await browser.newContext({
+              viewport:{width:430,height:932},
+              deviceScaleFactor:3,
+              isMobile:true,
+              hasTouch:true,
+              userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
+            });
+            const page = await context.newPage();
+            const errors = [];
+            page.on('pageerror', error => errors.push(String(error.stack || error)));
+            await page.goto('http://127.0.0.1:4173/', {waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(900);
+            let text = await page.locator('#pageContent').innerText();
+            if (!/Focus Bouquet|Nothing urgent|active/i.test(text)) throw new Error('Today failed to render');
+            const pages = [['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];
+            for (const [name, marker] of pages) {
+              await page.evaluate(pageName => changePage(pageName), name);
+              await page.waitForTimeout(80);
+              text = await page.locator('#pageContent').innerText();
+              if (!text.includes(marker)) throw new Error(`${name} failed to render`);
+            }
+            if (errors.length) throw new Error('Browser runtime errors: ' + errors.join(' | '));
+            await browser.close();
+            console.log('Hana iPhone runtime smoke passed');
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
