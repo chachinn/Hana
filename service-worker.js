@@ -1,14 +1,16 @@
 /* =====================================================
-   HANA 🌸 Service Worker v1 · Hana Version 1 release
+   HANA 🌸 Service Worker v1.1 · Smart Template Garden
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v1";
+const CACHE_NAME = "hana-shell-v1-1";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=1.0.0",
-  "./app.js?v=1.0.0",
-  "./firebase-bridge.js?v=1.0.0"
+  "./style.css?v=1.1.0",
+  "./smart-templates.css?v=1.1.0",
+  "./app.js?v=1.1.0",
+  "./firebase-bridge.js?v=1.0.0",
+  "./smart-templates.js?v=1.1.0"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",

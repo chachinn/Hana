@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Version 1 · release 1.0.0
+   HANA 🌸 Version 1.1 · Smart Template Garden 1.1.0
    Smarter editable packing categories + local learning
    Local-first PWA with optional Firebase sharing
    ===================================================== */
@@ -1120,21 +1120,20 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "1.0.0";
-const HANA_DISPLAY_VERSION = "1";
+const HANA_APP_VERSION = "1.1.0";
+const HANA_DISPLAY_VERSION = "1.1";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 15, 2026",
-  title: "Welcome to Hana v1 🌸",
-  intro: "This is Hana’s first complete release baseline. Everything built during pre-release development now belongs to Version 1, with the full planner, notes, routines, Smart Sort, packing, customization, safety and optional cloud features included from day one.",
+  title: "Smart Template Garden 🌸✨",
+  intro: "Hana can now understand many more kinds of real-life pasted content, and a new Smart Paste Guide teaches you what to paste without filling your app with sample data.",
   items: [
-    { icon:"🌷", title:"Plan your days your way", text:"Today, Tasks, Focus Bouquet, Calendar, Agenda, Reminders, Time Pockets, Rescue My Day, Daily Close, recurring tasks and projects work together without forcing you into one planning style." },
-    { icon:"📝", title:"Notes, lists, trackers & templates", text:"Build flexible notes, meeting records, checklists, living tables and reusable templates with blank-friendly defaults, custom fields, custom columns and project connections." },
-    { icon:"✨", title:"Smart Capture & Smart Sort", text:"Drop in messy text or structured content and Hana can recognize tasks, notes, meetings, projects, trackers, groceries, packing lists and skincare routines while keeping larger documents together when needed." },
-    { icon:"🧳", title:"Packing that gets smarter", text:"Packing uses 21 travel categories, editable category choices, custom categories and a local learning dictionary that remembers the corrections you make for future lists." },
-    { icon:"🧴", title:"Weekly skincare planning", text:"Paste natural AM/PM routines, grouped weekdays, daily routines and exceptions; Hana turns them into a weekly skincare planner with a time-aware Today shortcut." },
-    { icon:"☁️", title:"Private first, cloud when you want it", text:"Hana stays local-first with autosave, safety snapshots, Trash and JSON backup. Optional sign-in adds Firebase cloud backup and selective Partner sharing without making an account mandatory." },
-    { icon:"🎀", title:"Made to be yours", text:"Customize themes, wallpaper, spaces, Quick Access, bottom navigation, categories, fields and practical defaults while keeping the interface calm and iPhone-friendly." }
+    { icon:"🌸", title:"Smart Paste Guide", text:"Browse and search a large library of smart formats with short examples. Examples stay as placeholders only and are never saved automatically." },
+    { icon:"✨", title:"More life formats", text:"Hana now understands specialized travel prep, home maintenance, budgets, bills, cleaning, events, birthdays, weddings, gifts, moving, self-care, haircare, health logs, medical prep, pet and plant care, wishlists, game backlogs, requirements, wardrobes, brainstorms, decisions and schedules in addition to the existing Smart Sort library." },
+    { icon:"🧠", title:"Choose or auto-detect", text:"Use automatic Smart Sort when you want Hana to decide, or pick a Smart Template first when you already know the structure you want." },
+    { icon:"📝", title:"Review-first by design", text:"Choosing a Smart Template sends you to Brain Dump with a helpful placeholder. Your own pasted text stays reviewable before Hana creates anything." },
+    { icon:"🧩", title:"Specialized structures", text:"New smart formats create useful trackers or categorized checklists with editable columns instead of flattening everything into generic notes." },
+    { icon:"🧳", title:"Existing smart favorites preserved", text:"Weekly Skincare, Smart Packing, recipes, meals, workouts, study plans, itineraries, meetings, subscriptions, applications, deliveries, inventory and the rest of the existing Smart Sort library continue to work." }
   ]
 };
 
