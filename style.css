@@ -4915,3 +4915,13 @@ body.modal-open{overflow:hidden}
 .skincare-period-switch button{min-width:0;padding:9px 7px;border-radius:12px;background:transparent;color:var(--text-soft);font-size:9px;font-weight:850;white-space:nowrap}.skincare-period-switch button.active{background:var(--surface);color:var(--pink-dark);box-shadow:var(--shadow-sm);border:1px solid var(--border)}
 .skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr 1fr}
 @media(max-width:520px){.skincare-period-switch button{font-size:8px;padding-inline:5px}.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr}}
+
+
+/* ================= HANA 2.0.34 · CONTEXT SHORTCUTS + PACKING ================= */
+.packing-quick-header-button{position:relative;background:linear-gradient(145deg,var(--pink-50),var(--white));border-color:var(--pink-150)}
+.packing-quick-header-button>span{font-size:18px;line-height:1}
+.packing-quick-header-button>small{position:absolute;right:-4px;bottom:-4px;min-width:19px;height:18px;padding:0 4px;display:grid;place-items:center;border-radius:999px;background:var(--white);border:1px solid var(--pink-150);box-shadow:var(--shadow-sm);font-size:9px;font-weight:800;line-height:1;color:var(--pink-700)}
+.packing-trip-timing{margin:10px 0 14px;padding:13px;border:1px solid var(--pink-150);border-radius:17px;background:rgba(255,248,251,.72)}
+.packing-trip-timing-copy{display:flex;gap:10px;align-items:flex-start;margin-bottom:11px}.packing-trip-timing-copy>span{font-size:21px}.packing-trip-timing-copy strong,.packing-trip-timing-copy small{display:block}.packing-trip-timing-copy small{margin-top:3px;color:var(--muted);line-height:1.4}
+.packing-trip-summary{display:flex;align-items:flex-start;gap:7px;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.35}.packing-trip-summary strong{color:var(--text-soft);font-weight:700}
+@media (max-width:430px){.header-actions{gap:5px}.skincare-quick-header-button,.packing-quick-header-button{width:39px;height:39px;min-width:39px}.packing-quick-header-button>small{right:-3px}.packing-trip-timing{padding:11px}}

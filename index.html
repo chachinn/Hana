@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Hana 🌸</title>
   <meta name="description" content="Hana (花) means flower. Take care of your ideas, notes, and tasks one bloom at a time." />
-  <meta name="hana-app-version" content="2.0.33" />
+  <meta name="hana-app-version" content="2.0.34" />
   <meta name="theme-color" content="#fff7fa" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.33" />
+  <link rel="stylesheet" href="style.css?v=2.0.34" />
 </head>
 <body>
   <div id="app">
@@ -31,6 +31,7 @@
       <div class="header-actions">
         <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>
         <button id="skincareQuickButton" class="icon-button skincare-quick-header-button hidden" type="button" data-open-today-skincare aria-label="Open today's skincare routine" title="Today's skincare routine"><span aria-hidden="true">🧴</span><small id="skincareQuickPeriodIcon" aria-hidden="true">☀️</small></button>
+        <button id="packingQuickButton" class="icon-button packing-quick-header-button hidden" type="button" data-open-trip-packing aria-label="Open upcoming trip packing list" title="Upcoming trip packing"><span aria-hidden="true">🧳</span><small id="packingQuickCountdown" aria-hidden="true">7d</small></button>
         <button id="headerQuickAccessButton" class="icon-button quick-access-header-button" aria-label="Open Quick Access" title="Quick Access" aria-controls="headerQuickAccessPopover" aria-expanded="false">✨</button>
         <button id="menuButton" class="icon-button hamburger-button" aria-label="Open Hana menu" title="Menu" aria-controls="navDrawer" aria-expanded="false">
           <span></span><span></span><span></span>
@@ -644,11 +645,16 @@
         <button class="modal-close" data-close-modal="listModal">×</button>
       </div>
       <input id="listEditId" type="hidden" />
+      <input id="listTemplateType" type="hidden" />
       <div class="form-row">
         <div class="form-group"><label for="listIcon">Icon</label><input id="listIcon" type="text" maxlength="4" placeholder="🛒" /></div>
         <div class="form-group"><label for="listName">List name</label><input id="listName" type="text" placeholder="Groceries" /></div>
       </div>
       <div class="form-group"><label for="listSpace">Space</label><select id="listSpace" data-space-select></select></div>
+      <div id="listTripTimingWrap" class="packing-trip-timing hidden">
+        <div class="packing-trip-timing-copy"><span>🧳</span><div><strong>Trip timing</strong><small>Optional. When set, Hana shows this Packing List beside Search exactly 7 days before the trip and hides it at the exact start time.</small></div></div>
+        <div class="form-group"><label for="listTripStartAt">Trip starts <span class="optional-label">optional</span></label><input id="listTripStartAt" type="datetime-local" /></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label for="listQuantityLabel">Extra field 1 label <span class="optional-label">optional</span></label><input id="listQuantityLabel" type="text" placeholder="Quantity" /></div>
         <div class="form-group"><label for="listDetailLabel">Extra field 2 label <span class="optional-label">optional</span></label><input id="listDetailLabel" type="text" placeholder="Detail" /></div>
@@ -1003,6 +1009,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.33"></script>
+  <script src="app.js?v=2.0.34"></script>
 </body>
 </html>
