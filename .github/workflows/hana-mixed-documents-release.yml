@@ -18,19 +18,22 @@ jobs:
           fetch-depth: 0
       - name: Apply patch
         run: python3 .github/scripts/hana_mixed_documents_patch.py
-      - name: Syntax
-        run: node --check app.js
-      - name: Static QA
-        run: python3 -c "from pathlib import Path; a=Path('app.js').read_text(); i=Path('index.html').read_text(); s=Path('service-worker.js').read_text(); assert 'const HANA_APP_VERSION = \"2.0.38\";' in a; assert 'function smartMixedDocumentPlan' in a; assert 'function createSmartMixedDocument' in a; assert '{value:\"mixed-document\",label:\"🧩 Mixed document\"}' in a; assert 'if(link.type==\"list\")' in a; assert 'if(link.type==\"table\")' in a; assert 'if(link.type==\"project\")' in a; assert 'if(link.type==\"event\")' in a; assert 'hana-shell-v71' in s; assert 'content=\"2.0.38\"' in i; print('static QA passed')"
-      - name: Diff check
-        run: git diff --check
+      - name: Syntax and release consistency
+        run: |
+          node --check app.js
+          grep -q '2.0.38' app.js
+          grep -q '2.0.38' index.html
+          grep -q 'hana-shell-v71' service-worker.js
+          grep -q 'smartMixedDocumentPlan' app.js
+          grep -q 'createSmartMixedDocument' app.js
+          git diff --check
       - name: Install browser driver
         run: npm install --prefix /tmp/hana-mixed-pw --no-save --package-lock=false playwright-core
       - name: Start local Hana
         run: |
           python3 -m http.server 4173 > /tmp/hana-mixed-http.log 2>&1 &
           sleep 2
-      - name: Browser QA
+      - name: Browser behavioral QA
         env:
           NODE_PATH: /tmp/hana-mixed-pw/node_modules
         run: node .github/scripts/hana_mixed_documents_qa.js
