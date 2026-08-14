@@ -1,0 +1,180 @@
+name: Hana Mixed Documents production release
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hana-mixed-documents-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply Mixed Documents patch
+        run: python3 .github/scripts/hana_mixed_documents_patch.py
+
+      - name: JavaScript syntax and repository checks
+        run: |
+          node --check app.js
+          git diff --check
+          grep -q 'const HANA_APP_VERSION = "2.0.38"' app.js
+          grep -q 'const MIXED_DOCUMENT_TYPE = "mixed-document"' app.js
+          grep -q 'hana-shell-v71' service-worker.js
+          grep -q 'content="2.0.38"' index.html
+          grep -q 'app.js?v=2.0.38' index.html
+          ! grep -q 'SMART_PRESET_TRACKERS' app.js
+
+      - name: Targeted Mixed Documents static QA
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          app=Path('app.js').read_text()
+          checks={
+            'mixed destination':'{value:"mixed-document",label:"🧩 Mixed document"}' in app,
+            'mixed parser':'function smartMixedDocumentPlan' in app,
+            'mixed creator':'function createSmartMixedDocument' in app,
+            'section cap':'MIXED_DOCUMENT_MAX_SECTIONS = 12' in app,
+            'line cap':'MIXED_DOCUMENT_MAX_LINES = 400' in app,
+            'quick capture mixed':'const mixedPlan=smartMixedDocumentPlan(text);if(mixedPlan)' in app,
+            'brain dump mixed':'forcedMixed=destination===MIXED_DOCUMENT_TYPE' in app,
+            'file preview mixed':'const mixedPlan=smartMixedDocumentPlan(raw);if(mixedPlan)return{icon:"🧩"' in app,
+            'thread list root':'if(link.type==="list")' in app,
+            'thread table root':'if(link.type==="table")' in app,
+            'thread project root':'if(link.type==="project")' in app,
+            'thread event root':'if(link.type==="event")' in app,
+            'skincare preserved':'skincareTextLooksStructured(raw,{allowSingleDay:false})' in app,
+            'packing preserved':'refreshPackingQuickButton' in app,
+            'runtime recovery preserved':'Hana startup state recovery activated' in app,
+          }
+          failed=[name for name,ok in checks.items() if not ok]
+          if failed: raise SystemExit('FAILED: '+', '.join(failed))
+          print('Static Mixed Documents QA passed')
+          PY
+
+      - name: Install lightweight browser driver
+        run: npm install --prefix /tmp/hana-mixed-pw --no-save --package-lock=false playwright-core
+
+      - name: Start patched Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-mixed-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone startup + Mixed Documents behavioral QA
+        env:
+          NODE_PATH: /tmp/hana-mixed-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium }=require('playwright-core');
+          const fs=require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if(!executablePath)throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage();const errors=[];
+            page.on('pageerror',e=>{errors.push(String(e.stack||e));console.error('PAGEERROR',e.stack||e)});
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(900);
+            let today=await page.locator('#pageContent').innerText();if(!/Focus Bouquet|Nothing urgent|active/i.test(today))throw new Error('Today failed startup render');
+
+            const result=await page.evaluate(()=>{
+              state=normalizeState(clone(defaultState));
+              state.settings.tutorialCompleted=true;
+              state.settings.accountPromptSeen=true;
+              const sample=`Japan Trip Planning
+
+Meeting Minutes
+Attendees: Cha, Martin
+Discussion:
+Book hotel and confirm airport transfer.
+Action Items:
+Confirm hotel
+Check airport transfer
+
+Expenses
+Hotel deposit - ₱5000
+Airport transfer - ₱1200
+
+Packing List
+Passport
+Chargers
+Skincare pouch`;
+              const plan=smartMixedDocumentPlan(sample);
+              if(!plan)throw new Error('Mixed plan not detected');
+              const kinds=plan.parts.map(part=>part.kind);
+              if(JSON.stringify(kinds)!==JSON.stringify(['meeting-minutes','expenses','packing']))throw new Error('Unexpected mixed parts: '+kinds.join(','));
+              if(plan.parts.some(part=>part.kind==='task-section'))throw new Error('Meeting Action Items incorrectly split from meeting');
+              if(predictCapture(sample).type!==MIXED_DOCUMENT_TYPE)throw new Error('PredictCapture missed mixed document');
+              const created=createSmartMixedDocument(sample,preferredSpace(),{quiet:true,open:false});
+              if(created!==MIXED_DOCUMENT_TYPE)throw new Error('Mixed document creation failed: '+created);
+              if(state.notes.filter(n=>n.type==='meeting').length!==1)throw new Error('Meeting note not created');
+              if(state.tables.filter(t=>t.name==='Expense Tracker').length!==1)throw new Error('Expense tracker not created');
+              if(state.lists.filter(l=>l.templateType==='packing').length!==1)throw new Error('Packing list not created');
+              const thread=state.threads[state.threads.length-1];
+              if(!thread||thread.emoji!=='🧩')throw new Error('Mixed Memory Thread missing');
+              const rootTypes=new Set(thread.links.map(link=>link.type));
+              for(const type of ['note','table','list'])if(!rootTypes.has(type))throw new Error('Thread missing '+type+' root');
+              if(thread.links.some(link=>!resolveThreadItem(link)))throw new Error('Mixed thread contains unresolved root');
+
+              const projectPlan=smartMixedDocumentPlan(`Project Plan
+Launch Hana update
+Tasks
+Fix startup
+Run QA
+
+Decision Log
+Ship only after browser QA`);
+              if(!projectPlan||projectPlan.parts.length!==2||projectPlan.parts[0].kind!=='project'||projectPlan.parts[1].kind!=='decision-log')throw new Error('Project internal tasks were split incorrectly');
+
+              const singleRecipe=`Recipe: Pancakes
+Ingredients
+Flour
+Milk
+Method
+Mix
+Cook`;
+              if(smartMixedDocumentPlan(singleRecipe))throw new Error('Single recipe incorrectly detected as mixed');
+
+              const skincare=`Morning Routine ☀️
+(Daily)
+Cleanser → Gentle Cleanser
+Sunscreen → Daily SPF
+
+Night Routine 🌙
+Monday / Wednesday / Friday
+Cleanser → Night Cleanser
+Moisturizer → Night Cream`;
+              if(smartMixedDocumentPlan(skincare))throw new Error('Skincare-only routine incorrectly detected as mixed');
+
+              const forcedBad=smartMixedDocumentPlan('Packing List\nPassport',{forced:true});
+              if(forcedBad)throw new Error('Forced mixed accepted only one section');
+              return {parts:plan.parts.length,links:thread.links.length,threadId:thread.id,listId:state.lists.find(l=>l.templateType==='packing').id,tableId:state.tables.find(t=>t.name==='Expense Tracker').id};
+            });
+            console.log('MIXED_RESULT',JSON.stringify(result));
+
+            await page.evaluate(()=>changePage('threads'));await page.waitForTimeout(100);
+            const threadText=await page.locator('#pageContent').innerText();if(!threadText.includes('Japan Trip Planning'))throw new Error('Mixed Memory Thread not rendered');
+            await page.evaluate(id=>openThreadLinkedItem('list',id),result.listId);await page.waitForTimeout(100);if((await page.locator('#pageContent').innerText()).indexOf('Packing List')<0)throw new Error('Thread list root did not open');
+            await page.evaluate(id=>openThreadLinkedItem('table',id),result.tableId);await page.waitForTimeout(100);if((await page.locator('#pageContent').innerText()).indexOf('Expense Tracker')<0)throw new Error('Thread table root did not open');
+
+            for(const [name,marker] of [['today','Focus'],['tasks','Tasks'],['notes','Notes'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']]){
+              await page.evaluate(p=>changePage(p),name);await page.waitForTimeout(70);const text=await page.locator('#pageContent').innerText();if(!text.trim()||(name!=='today'&&!text.includes(marker)))throw new Error(`${name} regression render failed`);
+            }
+            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
+            await browser.close();console.log('Mixed Documents behavioral QA passed');
+          })().catch(error=>{console.error(error);process.exit(1)});
+          NODE
+
+      - name: Commit production files
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js index.html service-worker.js
+          git commit -m "Hana: add connected Mixed Documents Smart Sort"
+          git push origin main
