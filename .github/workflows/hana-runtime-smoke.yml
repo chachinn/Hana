@@ -62,6 +62,18 @@ jobs:
               text = await page.locator('#pageContent').innerText();
               if (!text.includes(marker)) throw new Error(`${name} failed to render`);
             }
+            const packing = await page.evaluate(() => {
+              const sample = ['Travel packing','Top','Shoes','Charger','Deo'].join('\n');
+              const items = smartListItemsFromText(sample, 'packing');
+              return {
+                kind: smartStructuredCaptureKind(sample),
+                titles: items.map(item => item.title),
+                categories: Object.fromEntries(items.map(item => [item.title, item.detail]))
+              };
+            });
+            if (packing.kind !== 'packing') throw new Error('Named packing block detection regressed');
+            if (!packing.titles.includes('Deodorant')) throw new Error('Packing canonicalization regressed');
+            if (packing.categories.Top !== '👗 Clothes' || packing.categories.Shoes !== '👟 Footwear' || packing.categories.Charger !== '🔌 Tech & travel gear') throw new Error('Packing categorization regressed');
             if (errors.length) throw new Error('Browser runtime errors: ' + errors.join(' | '));
             await browser.close();
             console.log('Hana iPhone runtime smoke passed');
