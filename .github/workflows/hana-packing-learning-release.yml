@@ -45,7 +45,18 @@ jobs:
       - name: iPhone runtime and packing learning QA
         env:
           NODE_PATH: /tmp/hana-packing-learning-pw/node_modules
-        run: node .github/scripts/hana_packing_learning_qa.js
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('.github/scripts/hana_packing_learning_qa.js')
+          text=path.read_text()
+          marker="  await page.waitForTimeout(900);"
+          insert="  await page.waitForTimeout(900);\n  await page.evaluate(()=>{try{closeModal('accountWelcomeModal');}catch(_error){document.getElementById('accountWelcomeModal')?.classList.add('hidden');}});"
+          if marker not in text:
+              raise SystemExit('QA first-run marker missing')
+          path.write_text(text.replace(marker,insert,1))
+          PY
+          node .github/scripts/hana_packing_learning_qa.js
 
       - name: Commit production files
         run: |
