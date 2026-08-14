@@ -75,7 +75,6 @@ const STARTER_TEMPLATES = [
   { id:"meeting-agenda", icon:"📋", title:"Meeting Agenda", description:"Plan meeting details, purpose, attendees, topics, owners, time boxes and preparation.", kind:"note", category:"Meetings" },
   { id:"meeting-minutes", icon:"📝", title:"Minutes of the Meeting", description:"Record attendance, discussion, decisions, actions and next-meeting details.", kind:"note", category:"Meetings" },
   { id:"skincare-routine-note", icon:"🧴", title:"Weekly Skincare Planner", description:"Build main and optional alternate AM/PM routines for each day of the week.", kind:"note", category:"Personal & routines" },
-  { id:"professional-bionote", icon:"👤", title:"Professional Bionote", description:"A blank structured profile for role, experience, education, training and achievements.", kind:"note", category:"Work & reference" },
   { id:"strategy-outline-note", icon:"🧭", title:"Strategy Plan", description:"A customizable structure for objectives, approaches, evidence, risks, decisions and ways forward.", kind:"note", category:"Work & reference" },
   { id:"measurement-profile-note", icon:"📏", title:"Measurement Profile", description:"A customizable measurement sheet with blank values and removable fields.", kind:"note", category:"Personal & routines" },
   { id:"grocery-list", icon:"🛒", title:"Grocery List", description:"A blank grocery checklist with optional customizable columns.", kind:"list", category:"Personal & routines" },
@@ -376,6 +375,9 @@ function normalizeMeetingData(data = {}) {
     decisionsNeeded: String(data.decisionsNeeded || ""),
     discussion: String(data.discussion || ""),
     decisions: String(data.decisions || ""),
+    decisionItems: Array.isArray(data.decisionItems) && data.decisionItems.length
+      ? data.decisionItems.map(normalizeMeetingDecisionItem).filter(item => item.topic || item.discussion || item.decision || item.action || item.owner || item.dueDate)
+      : ((data.discussion || data.decisions) ? [normalizeMeetingDecisionItem({ topic:"Meeting discussion", discussion:data.discussion, decision:data.decisions })] : []),
     nextMeetingDate: String(data.nextMeetingDate || ""),
     nextMeetingTime: String(data.nextMeetingTime || ""),
     preparedBy: String(data.preparedBy || "")
@@ -840,18 +842,20 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.29";
+const HANA_APP_VERSION = "2.0.30";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
-  date: "August 13, 2026",
-  title: "Cleaner tracker cleanup 🌸",
-  intro: "Hana Version 2 makes large trackers easier to clean without mistaking default values for real row content.",
+  date: "August 14, 2026",
+  title: "Smarter capture & calmer focus 🌸",
+  intro: "Hana Version 2 gets smarter about where thoughts belong, makes meeting records more structured, and adds a compact focus timer without cluttering your day.",
   items: [
-    { icon:"☑️", title:"Select and delete many rows", text:"Use More → Select / edit rows, tick any rows you want, then delete the whole selection together." },
-    { icon:"🧹", title:"Delete empty rows", text:"One cleanup action removes rows that contain only blanks and default-looking values such as 0% progress, the default status, and unchecked boxes." },
-    { icon:"🛡️", title:"Real zeroes stay safe", text:"A deliberate 0 in a normal Number or Money column still counts as data and will not be treated as an empty row." },
-    { icon:"🗑️", title:"Cleanup still uses Trash", text:"Bulk and empty-row cleanup create a safety snapshot and move rows to Trash instead of permanently erasing them." }
+    { icon:"🧠", title:"Smarter Brain Dump", text:"Use Smart sort or choose a destination yourself. Every inbox line can be redirected before you plant it." },
+    { icon:"📝", title:"One topic, one meeting record", text:"Minutes can now keep separate topic, discussion, decision, action, owner and due-date entries instead of one oversized decision box." },
+    { icon:"🍅", title:"Pomodoro focus timer", text:"A compact 25/5 focus timer now lives beside your Focus Bouquet, with adjustable focus and break lengths." },
+    { icon:"↩️", title:"Quick optional undo", text:"Deleted items still use Trash, with a brief two-second Undo action you can tap or simply ignore." },
+    { icon:"📒", title:"More reliable tracker editing", text:"Double-tap editing on touch devices now tolerates natural finger movement and a slightly wider tap interval." },
+    { icon:"🧴", title:"Skincare editor fits iPhone", text:"Routine cards and controls stay inside the modal while the product table scrolls only within its own area." }
   ]
 };
 
@@ -1217,7 +1221,7 @@ function showUndoToast(message, undoAction) {
     toast.classList.add("hidden");
     toast.classList.remove("toast-action");
     lastUndoAction = null;
-  }, 6000);
+  }, 2100);
 }
 
 function trashLabel(type) {
@@ -1630,6 +1634,25 @@ function attentionItems() {
   return list.slice(0, 3);
 }
 
+const POMODORO_STORAGE_KEY = "hana-pomodoro-v1";
+function pomodoroDefaults(){return{mode:"focus",focusMinutes:25,breakMinutes:5,remainingSeconds:25*60,running:false,endAt:0};}
+function loadPomodoro(){try{const parsed=JSON.parse(localStorage.getItem(POMODORO_STORAGE_KEY)||"null")||{};const base=pomodoroDefaults(),mode=parsed.mode==="break"?"break":"focus",focusMinutes=Math.max(1,Math.min(120,Number(parsed.focusMinutes)||25)),breakMinutes=Math.max(1,Math.min(60,Number(parsed.breakMinutes)||5));let remainingSeconds=Math.max(0,Number(parsed.remainingSeconds));if(!Number.isFinite(remainingSeconds)||remainingSeconds<=0)remainingSeconds=(mode==="focus"?focusMinutes:breakMinutes)*60;return{...base,...parsed,mode,focusMinutes,breakMinutes,remainingSeconds,running:Boolean(parsed.running),endAt:Number(parsed.endAt)||0};}catch(error){return pomodoroDefaults();}}
+let pomodoroState=loadPomodoro();
+function savePomodoro(){try{localStorage.setItem(POMODORO_STORAGE_KEY,JSON.stringify(pomodoroState));}catch(error){console.warn("Pomodoro state could not be saved",error);}}
+function pomodoroDurationSeconds(mode=pomodoroState.mode){return(mode==="break"?pomodoroState.breakMinutes:pomodoroState.focusMinutes)*60;}
+function pomodoroSecondsLeft(){return pomodoroState.running?Math.max(0,Math.ceil((pomodoroState.endAt-Date.now())/1000)):Math.max(0,Number(pomodoroState.remainingSeconds)||0);}
+function pomodoroClockText(seconds=pomodoroSecondsLeft()){const mins=Math.floor(seconds/60),secs=seconds%60;return`${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;}
+function pomodoroProgress(){const duration=Math.max(1,pomodoroDurationSeconds()),left=Math.min(duration,pomodoroSecondsLeft());return Math.max(0,Math.min(100,((duration-left)/duration)*100));}
+function pomodoroCardHTML(){const mode=pomodoroState.mode,left=pomodoroSecondsLeft();return `<details class="section pomodoro-card"><summary class="pomodoro-summary"><div><p class="eyebrow">FOCUS TIMER</p><h2>🍅 Pomodoro</h2><small>${mode==="focus"?"Focus round":"Break"} · ${pomodoroClockText(left)}</small></div><span class="focus-bouquet-chevron">⌄</span></summary><div class="pomodoro-body"><div class="pomodoro-mode-switch" role="group" aria-label="Pomodoro mode"><button type="button" data-pomodoro-mode="focus" class="${mode==="focus"?"active":""}">Focus</button><button type="button" data-pomodoro-mode="break" class="${mode==="break"?"active":""}">Break</button></div><div class="pomodoro-clock" id="pomodoroClock">${pomodoroClockText(left)}</div><div class="pomodoro-progress" aria-hidden="true"><span id="pomodoroProgressFill" style="width:${pomodoroProgress()}%"></span></div><div class="pomodoro-actions"><button type="button" class="primary-button" data-pomodoro-toggle>${pomodoroState.running?"Pause":"Start"}</button><button type="button" class="secondary-button" data-pomodoro-reset>Reset</button></div><details class="pomodoro-settings"><summary>Timer lengths</summary><div><label>Focus <span><input type="number" min="1" max="120" inputmode="numeric" value="${pomodoroState.focusMinutes}" data-pomodoro-minutes="focus" /> min</span></label><label>Break <span><input type="number" min="1" max="60" inputmode="numeric" value="${pomodoroState.breakMinutes}" data-pomodoro-minutes="break" /> min</span></label></div></details></div></details>`;}
+function updatePomodoroUI(){const clock=document.getElementById("pomodoroClock"),fill=document.getElementById("pomodoroProgressFill");if(clock)clock.textContent=pomodoroClockText();if(fill)fill.style.width=`${pomodoroProgress()}%`;const summary=document.querySelector(".pomodoro-summary small");if(summary)summary.textContent=`${pomodoroState.mode==="focus"?"Focus round":"Break"} · ${pomodoroClockText()}`;const toggle=document.querySelector("[data-pomodoro-toggle]");if(toggle)toggle.textContent=pomodoroState.running?"Pause":"Start";}
+function finishPomodoroRound(){const completedMode=pomodoroState.mode;pomodoroState.mode=completedMode==="focus"?"break":"focus";pomodoroState.running=false;pomodoroState.endAt=0;pomodoroState.remainingSeconds=pomodoroDurationSeconds(pomodoroState.mode);savePomodoro();navigator.vibrate?.(20);showToast(completedMode==="focus"?"Focus complete · break ready 🌿":"Break complete · ready to focus 🍅");if(state.currentPage==="today")render();}
+function tickPomodoro(){if(pomodoroState.running&&pomodoroSecondsLeft()<=0){finishPomodoroRound();return;}if(pomodoroState.running)pomodoroState.remainingSeconds=pomodoroSecondsLeft();updatePomodoroUI();}
+function togglePomodoro(){if(pomodoroState.running){pomodoroState.remainingSeconds=pomodoroSecondsLeft();pomodoroState.running=false;pomodoroState.endAt=0;}else{if(pomodoroState.remainingSeconds<=0)pomodoroState.remainingSeconds=pomodoroDurationSeconds();pomodoroState.running=true;pomodoroState.endAt=Date.now()+pomodoroState.remainingSeconds*1000;}savePomodoro();updatePomodoroUI();}
+function resetPomodoro(){pomodoroState.running=false;pomodoroState.endAt=0;pomodoroState.remainingSeconds=pomodoroDurationSeconds();savePomodoro();updatePomodoroUI();}
+function setPomodoroMode(mode){const next=mode==="break"?"break":"focus";if(next===pomodoroState.mode)return;pomodoroState.mode=next;pomodoroState.running=false;pomodoroState.endAt=0;pomodoroState.remainingSeconds=pomodoroDurationSeconds(next);savePomodoro();if(state.currentPage==="today")render();}
+function setPomodoroMinutes(mode,value){const max=mode==="break"?60:120,minutes=Math.max(1,Math.min(max,Number(value)|| (mode==="break"?5:25)));if(mode==="break")pomodoroState.breakMinutes=minutes;else pomodoroState.focusMinutes=minutes;if(!pomodoroState.running&&pomodoroState.mode===mode)pomodoroState.remainingSeconds=minutes*60;savePomodoro();updatePomodoroUI();}
+if(!window.hanaPomodoroTicker)window.hanaPomodoroTicker=setInterval(tickPomodoro,1000);
+
 function renderToday() {
   if (state.todayViewMode === "do") return renderDoMode();
   const container = document.getElementById("pageContent");
@@ -1653,6 +1676,8 @@ function renderToday() {
     ${(futureDue.length || waitingDue.length) ? `<section class="life-flow-strip compact-life-flow">${futureDue.length ? `<button data-goto="future-notes"><span>💌</span><strong>${futureDue.length} Future Me</strong></button>` : ""}${waitingDue.length ? `<button data-goto="waiting-garden"><span>⏳</span><strong>${waitingDue.length} follow-up${waitingDue.length===1?"":"s"}</strong></button>` : ""}</section>` : ""}
     ${futureDue.length ? `<section class="future-morning-card compact-future-card"><p class="eyebrow">FROM PAST YOU</p><h2>💌 ${escapeHTML(futureDue[0].title)}</h2><p>${escapeHTML(futureDue[0].content)}</p><div class="future-note-actions"><button data-future-note-task="${futureDue[0].id}">Make task</button><button data-archive-future-note="${futureDue[0].id}">Archive</button></div></section>` : ""}
     <details class="section focus-section-simple focus-bouquet-card"><summary class="focus-bouquet-summary"><div><p class="eyebrow">TODAY · TOP 3</p><h2>Focus Bouquet</h2><small>${bouquetSelected}/3 selected · ${completedFocus.length} bloomed</small></div><div class="focus-summary-blooms" aria-hidden="true">${Array.from({length:FOCUS_BOUQUET_LIMIT},(_,index)=>`<span>${index<completedFocus.length?"🌸":index<bouquetSelected?"🌷":"○"}</span>`).join("")}</div><span class="focus-bouquet-chevron">⌄</span></summary><div class="focus-bouquet-body focus-bouquet-body-clean">${focusTasks.length?`<div class="focus-clean-list">${focusTasks.map(task=>`<div class="focus-clean-row"><button class="task-checkbox" data-toggle-task="${task.id}" aria-label="Complete ${escapeHTML(task.title)}"></button><button class="focus-clean-title" data-edit-task="${task.id}"><strong>${escapeHTML(task.title)}</strong><small>${formatDuration(task.durationMinutes)} · ${energyLabel(task.energy)} · ${modeLabel(task.space)}</small></button><button class="focus-clean-remove" data-focus-task="${task.id}" aria-label="Remove ${escapeHTML(task.title)} from focus">×</button></div>`).join("")}</div>`:completedFocus.length?`<div class="bouquet-complete-message"><strong>Today’s focus bloomed 🌸</strong><span>${bouquetSelected<FOCUS_BOUQUET_LIMIT?"You still have an open focus slot if something else truly matters.":"Your Top 3 is complete."}</span></div>`:`<div class="bouquet-empty-copy"><strong>No focus tasks yet</strong><span>Choose up to three things that matter most today.</span></div>`}${bouquetSelected<FOCUS_BOUQUET_LIMIT?`<button class="focus-clean-add" type="button" data-open-bouquet-picker>+ Add focus task</button>`:""}<div class="bouquet-actions bouquet-actions-clean"><button class="secondary-button" type="button" data-open-bouquet-picker>${bouquetSelected?"Edit focus":"Choose tasks"}</button><button class="text-button" type="button" data-goto="bloom">Bloom view</button></div></div></details>
+
+    ${pomodoroCardHTML()}
 
     <details class="today-planning-details"><summary><span>Plan my day</span><small>Intention, capacity &amp; suggestions</small></summary><div class="today-planning-body"><section class="intention-card simplified-inner-card"><div><p class="eyebrow">DAY INTENTION</p><h2>How should today feel?</h2></div><div class="intention-input-row"><input id="dayIntentionInput" type="text" maxlength="120" value="${escapeHTML(intention)}" placeholder="Keep today light..." /><button class="primary-button" data-save-intention>Save</button></div></section><section class="capacity-card capacity-${capacity.level} simplified-inner-card"><div class="capacity-heading"><div><p class="eyebrow">CAPACITY</p><h2>${capacityLabel(capacity.level)}</h2></div><strong>${formatDuration(capacity.minutes)} / ${formatDuration(capacity.capacity)}</strong></div><div class="capacity-track"><div class="capacity-fill" style="width:${capacityWidth}%"></div></div><div class="capacity-actions"><button class="secondary-button" data-goto="time-pockets">Time Pockets</button><button class="secondary-button" data-goto="rescue">Rescue My Day</button></div></section><section class="section recommendation-section simplified-inner-card"><div class="section-header"><div><p class="eyebrow">SUGGESTIONS</p><h2>What fits next</h2></div>${recommendations.length?`<button data-apply-recommendations>Add all</button>`:""}</div>${recommendations.length ? `<div class="recommendation-list">${recommendations.map(task=>`<div class="recommendation-card"><div><strong>${escapeHTML(task.title)}</strong>${sharedBadgeHTML(task,true)}<small>${formatDuration(taskPlanningMinutes(task))} · ${energyLabel(task.energy)}</small></div><button class="focus-add" data-focus-task="${task.id}">+ Add</button></div>`).join("")}</div>` : `<div class="card soft-card"><strong>Nothing else needs today 🌿</strong></div>`}</section></div></details>
     <section class="section compact-more-section"><div class="more-grid"><button class="more-card" data-goto="inbox"><span class="more-icon">🧠</span><strong>Brain Dump</strong></button><button class="more-card" data-goto="daily-close"><span class="more-icon">🌙</span><strong>Daily Close</strong></button></div></section>
@@ -2141,12 +2166,11 @@ function renderNotes() {
     <div class="page-heading"><p class="eyebrow">THOUGHTS &amp; REFERENCES WORTH KEEPING</p><h1>Notes</h1><p>Jot something down instantly, or use detailed notes and reusable templates when you need more structure.</p></div>
     <div class="notes-quick-actions"><button type="button" class="primary-button" data-open-quick-note>📝 Quick Note</button><button type="button" class="secondary-button" data-open="noteModal">Detailed note</button></div>
     <details class="note-template-launcher">
-      <summary><span>🧩 Start from a note template</span><small>Meetings · Weekly skincare · Bionote · Strategy · Measurements</small></summary>
+      <summary><span>🧩 Start from a note template</span><small>Meetings · Weekly skincare · Strategy · Measurements</small></summary>
       <div class="note-template-chip-grid">
         <button type="button" data-use-template="meeting-agenda">📋 Meeting Agenda</button>
         <button type="button" data-use-template="meeting-minutes">📝 Minutes of the Meeting</button>
         <button type="button" data-use-template="skincare-routine-note">🧴 Weekly Skincare</button>
-        <button type="button" data-use-template="professional-bionote">👤 Professional Bionote</button>
         <button type="button" data-use-template="strategy-outline-note">🧭 Strategy Plan</button>
         <button type="button" data-use-template="measurement-profile-note">📏 Measurement Profile</button>
       </div>
@@ -2205,7 +2229,63 @@ function removeMeetingAgendaItem(button) {
   if(!document.querySelector("#meetingAgendaItems [data-meeting-agenda-row]"))renderMeetingAgendaItems([]);
 }
 
+
+function normalizeMeetingDecisionItem(item = {}) {
+  return {
+    id: item.id || createId(),
+    topic: String(item.topic || ""),
+    discussion: String(item.discussion || ""),
+    decision: String(item.decision || ""),
+    action: String(item.action || ""),
+    owner: String(item.owner || ""),
+    dueDate: String(item.dueDate || "")
+  };
+}
+
+function meetingDecisionItemRowHTML(item = {}) {
+  const normalized=normalizeMeetingDecisionItem(item);
+  return `<article class="meeting-decision-card" data-meeting-decision-row data-meeting-decision-id="${escapeHTML(normalized.id)}">
+    <div class="meeting-decision-card-head"><div><small>TOPIC / DECISION</small><strong>Keep this item separate</strong></div><button type="button" class="meeting-agenda-remove" data-remove-meeting-decision-item aria-label="Remove topic or decision">×</button></div>
+    <div class="form-group"><label>Topic / discussion item</label><input type="text" data-meeting-decision-topic value="${escapeHTML(normalized.topic)}" placeholder="What was discussed?" /></div>
+    <div class="form-group"><label>Discussion summary <span class="optional-label">optional</span></label><textarea data-meeting-decision-discussion placeholder="Key context, viewpoints, or points raised...">${escapeHTML(normalized.discussion)}</textarea></div>
+    <div class="form-group"><label>Decision / agreed outcome</label><textarea data-meeting-decision-outcome placeholder="What was agreed or decided?">${escapeHTML(normalized.decision)}</textarea></div>
+    <div class="form-group"><label>Action / next step <span class="optional-label">optional</span></label><input type="text" data-meeting-decision-action value="${escapeHTML(normalized.action)}" placeholder="What needs to happen next?" /></div>
+    <div class="form-row meeting-decision-meta"><div class="form-group"><label>Owner <span class="optional-label">optional</span></label><input type="text" data-meeting-decision-owner value="${escapeHTML(normalized.owner)}" placeholder="Person / team" /></div><div class="form-group"><label>Due <span class="optional-label">optional</span></label><input type="date" data-meeting-decision-due value="${escapeHTML(normalized.dueDate)}" /></div></div>
+  </article>`;
+}
+
+function renderMeetingDecisionItems(items = []) {
+  const container=document.getElementById("meetingDecisionItems");if(!container)return;
+  const rows=Array.isArray(items)&&items.length?items:[{id:createId(),topic:"",discussion:"",decision:"",action:"",owner:"",dueDate:""}];
+  container.innerHTML=rows.map(meetingDecisionItemRowHTML).join("");
+}
+
+function readMeetingDecisionItems() {
+  return [...document.querySelectorAll("#meetingDecisionItems [data-meeting-decision-row]")].map(row=>normalizeMeetingDecisionItem({
+    id:row.dataset.meetingDecisionId||createId(),
+    topic:row.querySelector("[data-meeting-decision-topic]")?.value.trim()||"",
+    discussion:row.querySelector("[data-meeting-decision-discussion]")?.value.trim()||"",
+    decision:row.querySelector("[data-meeting-decision-outcome]")?.value.trim()||"",
+    action:row.querySelector("[data-meeting-decision-action]")?.value.trim()||"",
+    owner:row.querySelector("[data-meeting-decision-owner]")?.value.trim()||"",
+    dueDate:row.querySelector("[data-meeting-decision-due]")?.value||""
+  })).filter(item=>item.topic||item.discussion||item.decision||item.action||item.owner||item.dueDate);
+}
+
+function addMeetingDecisionItem() {
+  const container=document.getElementById("meetingDecisionItems");if(!container)return;
+  container.insertAdjacentHTML("beforeend",meetingDecisionItemRowHTML({id:createId()}));
+  const rows=container.querySelectorAll("[data-meeting-decision-row]");rows[rows.length-1]?.querySelector("[data-meeting-decision-topic]")?.focus();
+}
+
+function removeMeetingDecisionItem(button) {
+  const row=button?.closest?.("[data-meeting-decision-row]");if(!row)return;
+  row.remove();
+  if(!document.querySelector("#meetingDecisionItems [data-meeting-decision-row]"))renderMeetingDecisionItems([]);
+}
+
 function readMeetingData() {
+  const decisionItems=readMeetingDecisionItems();
   return normalizeMeetingData({
     kind:document.getElementById("meetingKind")?.value||"agenda",
     date:document.getElementById("meetingDate")?.value||"",
@@ -2219,8 +2299,9 @@ function readMeetingData() {
     agendaItems:readMeetingAgendaItems(),
     prepMaterials:document.getElementById("meetingPrepMaterials")?.value.trim()||"",
     decisionsNeeded:document.getElementById("meetingDecisionsNeeded")?.value.trim()||"",
-    discussion:document.getElementById("meetingDiscussion")?.value.trim()||"",
-    decisions:document.getElementById("meetingDecisions")?.value.trim()||"",
+    decisionItems,
+    discussion:decisionItems.map(item=>item.discussion).filter(Boolean).join("\n\n"),
+    decisions:decisionItems.map(item=>item.decision).filter(Boolean).join("\n"),
     nextMeetingDate:document.getElementById("meetingNextDate")?.value||"",
     nextMeetingTime:document.getElementById("meetingNextTime")?.value||"",
     preparedBy:document.getElementById("meetingPreparedBy")?.value.trim()||""
@@ -2232,6 +2313,7 @@ function populateMeetingData(note = null) {
   const values={meetingKind:data.kind,meetingDate:data.date,meetingStartTime:data.startTime,meetingEndTime:data.endTime,meetingLocation:data.location,meetingFacilitator:data.facilitator,meetingAttendees:data.attendees,meetingAbsent:data.absent,meetingObjective:data.objective,meetingPrepMaterials:data.prepMaterials,meetingDecisionsNeeded:data.decisionsNeeded,meetingDiscussion:data.discussion,meetingDecisions:data.decisions,meetingNextDate:data.nextMeetingDate,meetingNextTime:data.nextMeetingTime,meetingPreparedBy:data.preparedBy};
   Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value||"";});
   renderMeetingAgendaItems(data.agendaItems);
+  renderMeetingDecisionItems(data.decisionItems);
   updateMeetingKindFields();
 }
 
@@ -3698,12 +3780,34 @@ function parseCaptureMeta(text,defaultSpace=preferredSpace()){
 
 /* ================= BRAIN DUMP / INBOX ================= */
 
-function predictCapture(text){const value=text.trim().toLowerCase();if(!value)return{type:"unknown",label:"🌱 Something new"};if(value.startsWith("event:")||value.startsWith("appointment:"))return{type:"event",label:"📅 Event"};if(value.startsWith("list:")||value.startsWith("groceries:"))return{type:"list",label:"☑️ Checklist"};if(/\b(remind|due|tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}:\d{2}|\d+\s?(am|pm)|\d+\s?(min|mins|m|h|hr|hrs))\b/.test(value))return{type:"task",label:"✅ Smart task · Hana sees planning details"};if(value.includes("|")||value.startsWith("table:"))return{type:"table",label:"📋 Table item"};if(/\b(maybe|someday|one day|want to|learn|visit|try)\b/.test(value))return{type:"someday",label:"🌱 Someday"};if(/^(buy|send|finish|submit|call|email|book|pay|check|clean|prepare|review|ask|follow up)\b/.test(value))return{type:"task",label:"✅ Task"};return{type:"note",label:"📝 Note"};}
+function predictCapture(text){
+  const raw=String(text||"").trim(),value=raw.toLowerCase();
+  if(!value)return{type:"unknown",label:"🌱 Something new"};
+  if(/^(event|appointment|calendar):\s*/i.test(raw)||(/\b(meeting|appointment|reservation|flight|dinner|lunch|doctor|dentist|interview)\b/i.test(raw)&&/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}:\d{2}|\d+\s?(am|pm))\b/i.test(raw)))return{type:"event",label:"📅 Event · date/time detected"};
+  if(/^(list|checklist|groceries|shopping):\s*/i.test(raw))return{type:"list",label:"☑️ Checklist"};
+  if(/^(someday|maybe|one day):\s*/i.test(raw)||/\b(someday|one day|would like to|want to learn|want to visit|want to try)\b/i.test(raw))return{type:"someday",label:"🌱 Someday"};
+  if(/^(tracker|table):\s*/i.test(raw)||raw.includes("|"))return{type:"table",label:"📋 Tracker row · current tracker"};
+  if(/^(task|todo|to-do):\s*/i.test(raw)||/^[-*]?\s*\[[ x]?\]\s*/i.test(raw)||/\b(remind me|need to|have to|must|due|deadline|tomorrow|today)\b/i.test(raw)||/^(buy|send|finish|submit|call|email|book|pay|check|clean|prepare|review|ask|follow up|schedule|renew|pick up|drop off|wash|fix|order|return|cancel|confirm)\b/i.test(raw))return{type:"task",label:"✅ Task · action detected"};
+  if(/^(note|idea|thought|journal|remember):\s*/i.test(raw)||raw.length>110)return{type:"note",label:"📝 Note · context to keep"};
+  return{type:"note",label:"📝 Note · you can redirect it"};
+}
+
+const BRAIN_DUMP_DESTINATIONS = [
+  {value:"auto",label:"✨ Smart sort"},
+  {value:"task",label:"✅ Task"},
+  {value:"note",label:"📝 Note"},
+  {value:"event",label:"📅 Event"},
+  {value:"list",label:"☑️ Checklist"},
+  {value:"someday",label:"🌱 Someday"}
+];
+function brainDumpDestinationOptions(selected="auto"){const value=BRAIN_DUMP_DESTINATIONS.some(item=>item.value===selected)?selected:"auto";return BRAIN_DUMP_DESTINATIONS.map(item=>`<option value="${item.value}" ${item.value===value?"selected":""}>${item.label}</option>`).join("");}
+function brainDumpDestinationLabel(destination,text){if(!destination||destination==="auto")return predictCapture(text).label;return BRAIN_DUMP_DESTINATIONS.find(item=>item.value===destination)?.label||predictCapture(text).label;}
 
 function updateCapturePrediction(){const input=document.getElementById("quickCaptureInput");const p=document.getElementById("capturePrediction");if(!input||!p)return;const lines=parseLines(input.value);p.textContent=lines.length>1?`🧠 ${lines.length} items · Hana can organize these` : predictCapture(input.value).label;}
 function extractDate(text){const lower=text.toLowerCase();if(lower.includes("tomorrow"))return addDaysISO(todayISO(),1);if(lower.includes("today"))return todayISO();const days={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};for(const [name,day] of Object.entries(days)){if(lower.includes(name)){const d=new Date();let diff=(day-d.getDay()+7)%7;if(diff===0)diff=7;d.setDate(d.getDate()+diff);return localDateISO(d);}}return"";}
-function plantText(text,space=preferredSpace()){
-  const pred=predictCapture(text),meta=parseCaptureMeta(text,space);
+function plantText(text,space=preferredSpace(),forcedType="auto"){
+  const suggested=predictCapture(text),forced=BRAIN_DUMP_DESTINATIONS.some(item=>item.value===forcedType)&&forcedType!=="auto"?forcedType:"";
+  const pred=forced?{type:forced,label:brainDumpDestinationLabel(forced,text)}:suggested,meta=parseCaptureMeta(text,space);
   if(pred.type==="event"){
     const raw=text.replace(/^\s*(event|appointment):\s*/i,"");const m=parseCaptureMeta(raw,space);const e=normalizeEvent({title:m.title,space:m.space,date:m.date||todayISO(),startTime:m.time||"09:00",endTime:addMinutesToTime(m.time||"09:00",60),createdAt:Date.now()});state.events.push(e);return"event";
   }
@@ -3714,17 +3818,17 @@ function plantText(text,space=preferredSpace()){
     const task=normalizeTask({title:meta.title,space:meta.space,priority:"medium",status:"todo",dueDate:meta.date,dueTime:meta.time,durationMinutes:meta.duration,energy:meta.energy,deadlineType:meta.deadlineType,project:meta.project,tags:meta.tags,reminderEnabled:Boolean(meta.date&&meta.time),createdAt:Date.now()});state.tasks.push(task);if(task.reminderEnabled)syncTaskReminder(task);return"task";
   }
   if(pred.type==="someday"){state.someday.push({id:createId(),title:meta.title,category:"ideas",notes:"",createdAt:Date.now()});return"someday";}
-  if(pred.type==="table"){const table=state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);}return"table";}
+  if(pred.type==="table"){const table=state.tables.find(t=>t.id===state.activeTableId)||state.tables[0];if(table){const row={id:createId(),values:{},createdAt:Date.now()};const textCol=table.columns.find(c=>c.type==="text");if(textCol)row.values[textCol.id]=text;table.rows.push(row);return"table";}state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";}
   state.notes.push(normalizeNote({title:text.slice(0,55),content:text,space,pinned:false,createdAt:Date.now()}));return"note";
 }
 function saveQuickCapture(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>plantText(line,space));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
 function sendQuickCaptureToInbox(){const text=document.getElementById("quickCaptureInput").value.trim();const space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));document.getElementById("quickCaptureInput").value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
 
-function renderInbox(){const container=document.getElementById("pageContent");const defaultSpace=preferredSpace();container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Dump first. Decide what things are later.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste or type one thing per line..."></textarea><div class="form-row brain-dump-controls" style="margin-top:9px;"><select id="brainDumpSpace">${spaceOptionsHTML(defaultSpace," default")}</select><button class="primary-button" id="brainDumpAddButton">Organize lines ✨</button></div></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
-function inboxCard(item){const p=predictCapture(item.text);return `<div class="inbox-item"><div><strong style="font-size:12px;">${escapeHTML(item.text)}</strong><div class="inbox-prediction">${p.label}</div><div class="task-meta" style="margin-top:6px;">${modeLabel(item.space)}</div></div><div class="inbox-actions"><button class="mini-icon-button" data-plant-inbox="${item.id}">🌱</button><button class="mini-icon-button" data-delete-inbox="${item.id}">×</button></div></div>`;}
-function addBrainDump(){const text=document.getElementById("brainDumpText")?.value.trim();const space=document.getElementById("brainDumpSpace")?.value||preferredSpace();if(!text)return showToast("Add a few thoughts first 🌸");parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));showToast("Brain dump organized into the Inbox 🧠");render();}
-function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;plantText(item.text,item.space);state.inbox=state.inbox.filter(i=>i.id!==id);showToast("Planted 🌱");render();}
-function plantAllInbox(){const items=[...state.inbox];items.forEach(i=>plantText(i.text,i.space));state.inbox=[];showToast(`${items.length} items planted 🌸`);render();}
+function renderInbox(){const container=document.getElementById("pageContent");const defaultSpace=preferredSpace();container.innerHTML=`<div class="page-heading"><p class="eyebrow">MESSY BRAIN, CLEAN GARDEN</p><h1>Brain Dump</h1><p>Drop the thoughts first. Hana can suggest where each one belongs, and you stay in control.</p></div><div class="inbox-compose"><textarea id="brainDumpText" class="large-textarea" placeholder="Paste or type one thing per line..."></textarea><div class="brain-dump-controls" style="margin-top:9px;"><label><span>Where should these go?</span><select id="brainDumpDestination">${brainDumpDestinationOptions("auto")}</select></label><label><span>Space</span><select id="brainDumpSpace">${spaceOptionsHTML(defaultSpace," default")}</select></label><button class="primary-button" id="brainDumpAddButton">Organize lines ✨</button></div><small class="brain-dump-help">Smart sort reads each line separately. You can change any destination in the Inbox before planting it.</small></div><section class="section"><div class="section-header"><h2>Inbox <span class="brain-dump-count">${state.inbox.length}</span></h2>${state.inbox.length?`<button data-plant-all-inbox>Plant all</button>`:""}</div>${state.inbox.length?state.inbox.map(inboxCard).join(""):emptyState("🧠","Inbox zero","Nothing is waiting to be organized.","","")}</section>`;}
+function inboxCard(item){const destination=BRAIN_DUMP_DESTINATIONS.some(option=>option.value===item.destination)?item.destination:"auto";return `<div class="inbox-item"><div class="inbox-item-main"><strong>${escapeHTML(item.text)}</strong><div class="inbox-prediction">${escapeHTML(brainDumpDestinationLabel(destination,item.text))}</div><div class="task-meta">${modeLabel(item.space)}</div><label class="inbox-destination-control"><span>Send to</span><select data-inbox-destination="${item.id}">${brainDumpDestinationOptions(destination)}</select></label></div><div class="inbox-actions"><button class="mini-icon-button" data-plant-inbox="${item.id}" aria-label="Plant this item">🌱</button><button class="mini-icon-button" data-delete-inbox="${item.id}" aria-label="Move this inbox item to Trash">×</button></div></div>`;}
+function addBrainDump(){const text=document.getElementById("brainDumpText")?.value.trim();const space=document.getElementById("brainDumpSpace")?.value||preferredSpace();const destination=document.getElementById("brainDumpDestination")?.value||"auto";if(!text)return showToast("Add a few thoughts first 🌸");parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,destination:BRAIN_DUMP_DESTINATIONS.some(item=>item.value===destination)?destination:"auto",createdAt:Date.now()}));showToast("Brain dump sorted into the Inbox 🧠");render();}
+function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;plantText(item.text,item.space,item.destination||"auto");state.inbox=state.inbox.filter(i=>i.id!==id);showToast("Planted 🌱");render();}
+function plantAllInbox(){const items=[...state.inbox];items.forEach(i=>plantText(i.text,i.space,i.destination||"auto"));state.inbox=[];showToast(`${items.length} items planted 🌸`);render();}
 
 /* ================= HANA LIFE FLOW ================= */
 
@@ -5810,6 +5914,9 @@ document.addEventListener("click", event => {
   const rescheduleAction=event.target.closest("[data-reschedule-action]");if(rescheduleAction){rescheduleReflectionAction(rescheduleAction.dataset.rescheduleAction);return;}
   if(event.target.closest("[data-save-intention]")){saveDayIntention();return;}
   if(event.target.closest("[data-apply-recommendations]")){applyBouquetRecommendations();return;}
+  const pomodoroMode=event.target.closest("[data-pomodoro-mode]");if(pomodoroMode){setPomodoroMode(pomodoroMode.dataset.pomodoroMode);return;}
+  if(event.target.closest("[data-pomodoro-toggle]")){togglePomodoro();return;}
+  if(event.target.closest("[data-pomodoro-reset]")){resetPomodoro();return;}
 
   const waitingFollow=event.target.closest("[data-follow-up-today]");if(waitingFollow){followUpToday(waitingFollow.dataset.followUpToday);return;}
   const waitingResolved=event.target.closest("[data-waiting-resolved]");if(waitingResolved){resolveWaiting(waitingResolved.dataset.waitingResolved);return;}
@@ -5853,6 +5960,8 @@ document.addEventListener("click", event => {
 
   if(event.target.closest("[data-add-meeting-agenda-item]")){addMeetingAgendaItem();return;}
   const removeMeetingAgenda=event.target.closest("[data-remove-meeting-agenda-item]");if(removeMeetingAgenda){removeMeetingAgendaItem(removeMeetingAgenda);return;}
+  if(event.target.closest("[data-add-meeting-decision-item]")){addMeetingDecisionItem();return;}
+  const removeMeetingDecision=event.target.closest("[data-remove-meeting-decision-item]");if(removeMeetingDecision){removeMeetingDecisionItem(removeMeetingDecision);return;}
 
   if(event.target.closest("[data-open-quick-note]")){openQuickNoteModal();return;}
   if(event.target.closest("[data-save-quick-note]")){saveQuickNote();return;}
@@ -5961,6 +6070,14 @@ document.addEventListener("input",event=>{if(event.target.id==="taskProject")ref
 
 document.addEventListener("change",event=>{if(event.target.id==="listColumnMode"||event.target.id==="listColumnCount")updateListColumnSettingsVisibility();if(event.target.id==="taskProjectFilter"){state.taskProjectFilter=event.target.value;render();}if(event.target.id==="taskRecurrenceType")updateTaskConditionalFields();if(event.target.id==="noteType")updateNoteConditionalFields();if(event.target.id==="meetingKind")updateMeetingKindFields();if(event.target.id==="reminderRepeat")updateReminderConditionalFields();if(event.target.id==="tableTemplate")applyTableTemplate(event.target.value,true);if(event.target.id==="tableSortMode")updateTableSortFields();if(event.target.id==="wallpaperEnabled"){if(event.target.checked&&!hanaWallpaperData){event.target.checked=false;document.getElementById("wallpaperInput").click();}else{state.appearance.wallpaperEnabled=event.target.checked;saveState();applyAppearance();}}if(event.target.id==="birthdayPerson")syncBirthdayPresetFromPerson();if(event.target.id==="wallpaperPosition"){state.appearance.wallpaperPosition=event.target.value;saveState();applyAppearance();}if(event.target.matches("[data-bulk-row-toggle]")){const tableId=event.target.dataset.tableId,rowId=event.target.dataset.bulkRowToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedRows.add(rowId);else tableBulkState.selectedRows.delete(rowId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-col-toggle]")){const tableId=event.target.dataset.tableId,colId=event.target.dataset.bulkColToggle,table=state.tables.find(t=>t.id===tableId);if(table){ensureTableBulkState(table);if(event.target.checked)tableBulkState.selectedCols.add(colId);else tableBulkState.selectedCols.delete(colId);refreshBulkControls(tableId);}return;}if(event.target.matches("[data-bulk-select-all-rows]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllRows);if(table){ensureTableBulkState(table);tableBulkState.selectedRows=new Set(event.target.checked?getSortedTableRows(table).map(row=>row.id):[]);document.querySelectorAll(`[data-bulk-row-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-bulk-select-all-cols]")){const table=state.tables.find(t=>t.id===event.target.dataset.bulkSelectAllCols);if(table){ensureTableBulkState(table);tableBulkState.selectedCols=new Set(event.target.checked?table.columns.map(col=>col.id):[]);document.querySelectorAll(`[data-bulk-col-toggle][data-table-id="${table.id}"]`).forEach(input=>input.checked=event.target.checked);refreshBulkControls(table.id);}return;}if(event.target.matches("[data-table-check]")){const t=state.tables.find(t=>t.id===event.target.dataset.tableCheck),r=t?.rows.find(r=>r.id===event.target.dataset.rowId);if(r){r.values[event.target.dataset.colId]=event.target.checked;saveState();if(t?.sortMode==="auto"&&t.sortColumnId===event.target.dataset.colId)render();}}});
 
+
+document.addEventListener("change",event=>{
+  const inboxDestination=event.target.closest?.("[data-inbox-destination]");
+  if(inboxDestination){const item=state.inbox.find(entry=>entry.id===inboxDestination.dataset.inboxDestination);if(item){item.destination=inboxDestination.value;item.prediction=predictCapture(item.text).type;saveState();const card=inboxDestination.closest(".inbox-item"),label=card?.querySelector(".inbox-prediction");if(label)label.textContent=brainDumpDestinationLabel(item.destination,item.text);}return;}
+  const pomodoroMinutes=event.target.closest?.("[data-pomodoro-minutes]");
+  if(pomodoroMinutes){setPomodoroMinutes(pomodoroMinutes.dataset.pomodoroMinutes,pomodoroMinutes.value);pomodoroMinutes.value=pomodoroMinutes.dataset.pomodoroMinutes==="break"?pomodoroState.breakMinutes:pomodoroState.focusMinutes;return;}
+});
+
 let tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
 let lastTableTap={tableId:"",rowId:"",time:0};
 function openRowActionMenu(tableId,rowId){
@@ -5981,13 +6098,13 @@ document.addEventListener("touchstart",event=>{
   tableGesture={row,tableId,rowId,startX:t.clientX,startY:t.clientY,timer:null,moved:false,longPressed:false};
   tableGesture.timer=setTimeout(async()=>{if(!tableGesture.row||tableGesture.moved)return;tableGesture.longPressed=true;lastTableTap={tableId:"",rowId:"",time:0};navigator.vibrate?.(18);await copyTrackerRow(tableId,rowId);},560);
 },{passive:true});
-document.addEventListener("touchmove",event=>{if(!tableGesture.row)return;const t=event.touches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;if(Math.abs(dx)>10||Math.abs(dy)>10){tableGesture.moved=true;clearTimeout(tableGesture.timer);}},{passive:true});
+document.addEventListener("touchmove",event=>{if(!tableGesture.row)return;const t=event.touches[0],dx=t.clientX-tableGesture.startX,dy=t.clientY-tableGesture.startY;if(Math.abs(dx)>18||Math.abs(dy)>18){tableGesture.moved=true;clearTimeout(tableGesture.timer);}},{passive:true});
 document.addEventListener("touchend",event=>{
   if(!tableGesture.row)return;clearTimeout(tableGesture.timer);
   const {row,tableId,rowId,startX,startY,moved,longPressed}=tableGesture;const t=event.changedTouches[0],dx=t.clientX-startX,dy=t.clientY-startY;tableGesture={row:null,tableId:"",rowId:"",startX:0,startY:0,timer:null,moved:false,longPressed:false};
   if(longPressed)return;
   if(Math.abs(dx)>=65&&Math.abs(dx)>Math.abs(dy)*1.3){if(dx>0)openTableRowModal(tableId,rowId);return;}
-  if(!moved){const now=Date.now();if(lastTableTap.tableId===tableId&&lastTableTap.rowId===rowId&&now-lastTableTap.time<=340){lastTableTap={tableId:"",rowId:"",time:0};openTableRowModal(tableId,rowId);}else lastTableTap={tableId,rowId,time:now};}
+  if(!moved){const now=Date.now();if(lastTableTap.tableId===tableId&&lastTableTap.rowId===rowId&&now-lastTableTap.time<=480){lastTableTap={tableId:"",rowId:"",time:0};openTableRowModal(tableId,rowId);}else lastTableTap={tableId,rowId,time:now};}
 },{passive:true});
 
 let listGesture={card:null,listId:"",itemId:"",startX:0,startY:0,lastX:0,lastY:0};

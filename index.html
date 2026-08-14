@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.29" />
+  <link rel="stylesheet" href="style.css?v=2.0.30" />
 </head>
 <body>
   <div id="app">
@@ -354,8 +354,9 @@
 
         <section id="meetingMinutesOnlyWrap" class="meeting-form-section hidden">
           <div class="meeting-form-section-head"><div><small>MEETING RECORD</small><strong>What happened?</strong></div></div>
-          <div class="form-group"><label for="meetingDiscussion">Discussion summary</label><textarea id="meetingDiscussion" class="large-textarea" placeholder="Key points discussed under the agenda..."></textarea></div>
-          <div class="form-group"><label for="meetingDecisions">Decisions made</label><textarea id="meetingDecisions" placeholder="Record agreed decisions and outcomes clearly"></textarea></div>
+          <p class="meeting-record-intro">Keep each topic or decision in its own entry so the discussion, outcome and follow-up stay easy to scan later.</p>
+<div id="meetingDecisionItems" class="meeting-decision-items"></div>
+<button type="button" class="secondary-button meeting-decision-add" data-add-meeting-decision-item>+ Add topic / decision</button>
           <div class="form-row">
             <div class="form-group"><label for="meetingNextDate">Next meeting <span class="optional-label">optional</span></label><input id="meetingNextDate" type="date" /></div>
             <div class="form-group"><label for="meetingNextTime">Time <span class="optional-label">optional</span></label><input id="meetingNextTime" type="time" /></div>
@@ -991,6 +992,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.29"></script>
+  <script src="app.js?v=2.0.30"></script>
 </body>
 </html>
