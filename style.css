@@ -4888,3 +4888,22 @@ body.modal-open{overflow:hidden}
 #skincareRoutineModal .skincare-routine-table{display:block;width:100%;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;box-sizing:border-box;-webkit-overflow-scrolling:touch}
 #skincareRoutineModal .skincare-batch-add,#skincareRoutineModal .skincare-add-alternate-routine{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;text-align:center}
 @media(max-width:520px){.brain-dump-controls{grid-template-columns:1fr 1fr}.brain-dump-controls .primary-button{grid-column:1/-1;width:100%}.meeting-decision-meta{grid-template-columns:1fr}.pomodoro-clock{font-size:33px}#skincareRoutineModal .skincare-time-pair{padding:7px}#skincareRoutineModal .skincare-routine-batch{padding:9px;border-radius:17px}}
+
+/* ================= FORMATTED SKINCARE IMPORT v2.0.31 ================= */
+.skincare-import-card{margin:12px 0;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--surface) 96%,var(--blush));overflow:hidden}
+.skincare-import-card>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;cursor:pointer}
+.skincare-import-card>summary::-webkit-details-marker{display:none}
+.skincare-import-card>summary span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.skincare-import-card>summary strong{font-size:11px}
+.skincare-import-card>summary small{font-size:8px;color:var(--text-soft);font-weight:650}
+.skincare-import-card>summary b{font-size:12px;color:var(--pink-dark);transition:transform .18s ease}
+.skincare-import-card[open]>summary b{transform:rotate(180deg)}
+.skincare-import-body{padding:0 12px 12px}
+.skincare-import-body textarea{width:100%;min-height:190px;resize:vertical;font-size:10px;line-height:1.5;white-space:pre-wrap}
+.skincare-import-status{margin:7px 2px 10px;font-size:8px;line-height:1.45;color:var(--text-soft)}
+.skincare-import-status[data-state="success"]{font-weight:750;color:var(--pink-dark)}
+.skincare-import-status[data-state="error"]{font-weight:750;color:var(--danger)}
+.skincare-day-label-group{margin:9px 2px 10px}
+.skincare-day-label-group input{width:100%}
+.skincare-routine-badge{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:390px){.skincare-import-body textarea{min-height:165px}.skincare-import-card>summary{padding:11px 12px}}

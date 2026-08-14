@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="style.css?v=2.0.30" />
+  <link rel="stylesheet" href="style.css?v=2.0.31" />
 </head>
 <body>
   <div id="app">
@@ -440,11 +440,21 @@
         </div>
         <div class="form-group"><label for="skincareFocus">Focus / skin goals <span class="optional-label">optional</span></label><textarea id="skincareFocus" placeholder="Acne control, barrier care, brightening, sensitivity notes..."></textarea></div>
 
+        <details class="skincare-import-card">
+          <summary><span>✨ <strong>Paste a full routine</strong><small>Monday–Sunday · AM/PM · Week A/B supported</small></span><b>⌄</b></summary>
+          <div class="skincare-import-body">
+            <textarea id="skincareImportText" placeholder="📅 Monday – Acne Control&#10;&#10;AM&#10;* Cleanser: Product name&#10;* Serum: Product name&#10;&#10;PM (Week A)&#10;* Cleanser: Product name&#10;&#10;PM (Week B)&#10;* Treatment: Product name"></textarea>
+            <p id="skincareImportStatus" class="skincare-import-status">Hana will read each weekday, AM/PM section, product type and product name, then build the tables for you.</p>
+            <button type="button" class="primary-button full-width" data-skincare-import-text>Generate planner ✨</button>
+          </div>
+        </details>
+
         <div class="skincare-week-editor-nav">
           <button type="button" class="secondary-button compact-button" data-skincare-edit-prev>‹ Previous</button>
           <div><small id="skincareEditProgress">Day 1 of 7</small><strong id="skincareEditDayTitle">Monday</strong></div>
           <button type="button" class="secondary-button compact-button" data-skincare-edit-next>Next ›</button>
         </div>
+        <div class="form-group skincare-day-label-group"><label for="skincareDayLabel">Day focus / label <span class="optional-label">optional</span></label><input id="skincareDayLabel" type="text" placeholder="Acne Control, Exfoliation Night, Gentle Recovery..." /></div>
         <div class="skincare-edit-intro"><div><strong>Edit this day</strong><p>Each day has a main AM and PM table, plus an optional Alternate AM and Alternate PM. Add products directly inside the routine you want to use.</p></div></div>
         <div id="skincareStepsEditor" class="skincare-steps-editor"></div>
         <p class="skincare-batch-help">Use <strong>+ Add product</strong> inside the main or alternate AM/PM routine you want.</p>
@@ -992,6 +1002,6 @@
   <input id="importBackupInput" type="file" accept="application/json,.json" class="hidden" />
   <input id="wallpaperInput" type="file" accept="image/*" class="hidden" />
   <script src="firebase-bridge.js?v=2.0.17"></script>
-  <script src="app.js?v=2.0.30"></script>
+  <script src="app.js?v=2.0.31"></script>
 </body>
 </html>
