@@ -54,7 +54,12 @@ jobs:
           insert="  await page.waitForTimeout(900);\n  await page.evaluate(()=>{try{closeModal('accountWelcomeModal');}catch(_error){document.getElementById('accountWelcomeModal')?.classList.add('hidden');}});"
           if marker not in text:
               raise SystemExit('QA first-run marker missing')
-          path.write_text(text.replace(marker,insert,1))
+          text=text.replace(marker,insert,1)
+          close_marker="  await page.locator('[data-close-modal=\"listItemModal\"]').click();"
+          close_insert="  await page.evaluate(()=>closeModal('listItemModal'));"
+          if close_marker not in text:
+              raise SystemExit('QA modal-close marker missing')
+          path.write_text(text.replace(close_marker,close_insert,1))
           PY
           node .github/scripts/hana_packing_learning_qa.js
 
