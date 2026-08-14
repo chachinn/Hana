@@ -1,5 +1,5 @@
 /* =====================================================
-   HANA 🌸 Service Worker v65
+   HANA 🌸 Service Worker v65 · skincare shortcut release
    ===================================================== */
 
 const CACHE_NAME = "hana-shell-v65";
