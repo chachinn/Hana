@@ -63,10 +63,14 @@ jobs:
               display:HANA_DISPLAY_VERSION,
               release:HANA_RELEASE_NOTES.version,
               meta:document.querySelector('meta[name="hana-app-version"]')?.content || '',
+              storage:STORAGE_KEY,
+              backupDb:BACKUP_DB_NAME,
+              backupMeta:BACKUP_META_KEY,
               catalog:window.HANA_SMART_TEMPLATE_CATALOG?.length || 0,
               profiles:Object.keys(window.HANA_EXPANDED_SMART_PROFILES || {}).length
             }));
-            if (identity.app !== '1.1.0' || identity.display !== '1.1' || identity.release !== '1.1' || identity.meta !== '1.1.0') throw new Error('Hana v1.1 identity regressed: '+JSON.stringify(identity));
+            if (identity.app !== '1.0.0' || identity.display !== '1' || identity.release !== '1' || identity.meta !== '1.0.0') throw new Error('Hana Version 1 identity regressed: '+JSON.stringify(identity));
+            if (identity.storage !== 'hana_app_v1' || identity.backupDb !== 'hana_safety_backups_v1' || identity.backupMeta !== 'hana_backup_meta_v1') throw new Error('Hana Version 1 storage identity regressed: '+JSON.stringify(identity));
             if (identity.catalog < 45 || identity.profiles < 20) throw new Error('Smart Template Garden regressed: '+JSON.stringify(identity));
             if (!/Focus Bouquet|Nothing urgent|active/i.test(text)) throw new Error('Today failed to render');
 
@@ -127,6 +131,6 @@ jobs:
 
             if (errors.length) throw new Error('Browser runtime errors: '+errors.join(' | '));
             await browser.close();
-            console.log('Hana v1.1 iPhone Smart Template smoke passed', JSON.stringify({identity,smart,guide}));
+            console.log('Hana Version 1 iPhone Smart Template smoke passed', JSON.stringify({identity,smart,guide}));
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
