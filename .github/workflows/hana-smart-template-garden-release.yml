@@ -1,0 +1,182 @@
+name: Hana Smart Template Garden release
+
+on:
+  push:
+    paths:
+      - .github/workflows/hana-smart-template-garden-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch Hana 1.1 Smart Template Garden
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          app=Path('app.js')
+          text=app.read_text()
+          text=text.replace('HANA 🌸 Version 1 · release 1.0.0','HANA 🌸 Version 1.1 · Smart Template Garden 1.1.0',1)
+          text=text.replace('const HANA_APP_VERSION = "1.0.0";','const HANA_APP_VERSION = "1.1.0";',1)
+          text=text.replace('const HANA_DISPLAY_VERSION = "1";','const HANA_DISPLAY_VERSION = "1.1";',1)
+          release='''const HANA_RELEASE_NOTES = {
+            version: HANA_DISPLAY_VERSION,
+            date: "August 15, 2026",
+            title: "Smart Template Garden 🌸✨",
+            intro: "Hana can now understand many more kinds of real-life pasted content, and a new Smart Paste Guide teaches you what to paste without filling your app with sample data.",
+            items: [
+              { icon:"🌸", title:"Smart Paste Guide", text:"Browse and search a large library of smart formats with short examples. Examples stay as placeholders only and are never saved automatically." },
+              { icon:"✨", title:"More life formats", text:"Hana now understands specialized travel prep, home maintenance, budgets, bills, cleaning, events, birthdays, weddings, gifts, moving, self-care, haircare, health logs, medical prep, pet and plant care, wishlists, game backlogs, requirements, wardrobes, brainstorms, decisions and schedules in addition to the existing Smart Sort library." },
+              { icon:"🧠", title:"Choose or auto-detect", text:"Use automatic Smart Sort when you want Hana to decide, or pick a Smart Template first when you already know the structure you want." },
+              { icon:"📝", title:"Review-first by design", text:"Choosing a Smart Template sends you to Brain Dump with a helpful placeholder. Your own pasted text stays reviewable before Hana creates anything." },
+              { icon:"🧩", title:"Specialized structures", text:"New smart formats create useful trackers or categorized checklists with editable columns instead of flattening everything into generic notes." },
+              { icon:"🧳", title:"Existing smart favorites preserved", text:"Weekly Skincare, Smart Packing, recipes, meals, workouts, study plans, itineraries, meetings, subscriptions, applications, deliveries, inventory and the rest of the existing Smart Sort library continue to work." }
+            ]
+          };'''
+          pattern=r'const HANA_RELEASE_NOTES = \{.*?\n\};\n\nlet hanaAccountState'
+          if not re.search(pattern,text,flags=re.S): raise SystemExit('Release note block not found')
+          text=re.sub(pattern,lambda _m:release+'\n\nlet hanaAccountState',text,count=1,flags=re.S)
+          app.write_text(text)
+
+          index=Path('index.html')
+          text=index.read_text()
+          text=text.replace('hana-app-version" content="1.0.0"','hana-app-version" content="1.1.0"',1)
+          text=text.replace('<link rel="stylesheet" href="style.css?v=1.0.0" />','<link rel="stylesheet" href="style.css?v=1.1.0" />\n  <link rel="stylesheet" href="smart-templates.css?v=1.1.0" />',1)
+          text=text.replace('<span>Version <span data-hana-version>2</span></span>','<span>Version <span data-hana-version>1.1</span></span>',1)
+          text=text.replace('<script src="app.js?v=1.0.0"></script>','<script src="app.js?v=1.1.0"></script>\n  <script src="smart-templates.js?v=1.1.0"></script>',1)
+          index.write_text(text)
+
+          style=Path('style.css')
+          text=style.read_text()
+          text=text.replace('HANA 🌸\n   v0.2 — Light Pink Productivity PWA','HANA 🌸\n   Version 1.1 — Smart Template Garden',1)
+          style.write_text(text)
+
+          sw=Path('service-worker.js')
+          text=sw.read_text()
+          text=text.replace('HANA 🌸 Service Worker v1 · Hana Version 1 release','HANA 🌸 Service Worker v1.1 · Smart Template Garden',1)
+          text=text.replace('const CACHE_NAME = "hana-shell-v1";','const CACHE_NAME = "hana-shell-v1-1";',1)
+          text=text.replace('"./style.css?v=1.0.0",\n  "./app.js?v=1.0.0",\n  "./firebase-bridge.js?v=1.0.0"','"./style.css?v=1.1.0",\n  "./smart-templates.css?v=1.1.0",\n  "./app.js?v=1.1.0",\n  "./firebase-bridge.js?v=1.0.0",\n  "./smart-templates.js?v=1.1.0"',1)
+          sw.write_text(text)
+          PY
+
+      - name: Static QA
+        run: |
+          node --check app.js
+          node --check smart-templates.js
+          grep -q 'const HANA_APP_VERSION = "1.1.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1.1"' app.js
+          grep -q 'Smart Template Garden' app.js
+          grep -q 'hana-app-version" content="1.1.0"' index.html
+          grep -q 'smart-templates.css?v=1.1.0' index.html
+          grep -q 'smart-templates.js?v=1.1.0' index.html
+          grep -q 'app.js?v=1.1.0' index.html
+          grep -q 'hana-shell-v1-1' service-worker.js
+          grep -q 'smart-templates.js?v=1.1.0' service-worker.js
+          grep -q 'smart-templates.css?v=1.1.0' service-worker.js
+          grep -q 'Wedding Planner' smart-templates.js
+          grep -q 'Medical / Lab Prep' smart-templates.js
+          grep -q 'Smart Checklist Generator' smart-templates.js
+          git diff --check
+
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-smart-template-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-smart-template-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone-sized Smart Template behavioral QA
+        env:
+          NODE_PATH: /tmp/hana-smart-template-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright-core');
+          const fs = require('fs');
+          const executablePath = ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if (!executablePath) throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage(),errors=[];
+            page.on('pageerror',error=>errors.push(String(error.stack||error)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(1000);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+            const identity=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,meta:document.querySelector('meta[name="hana-app-version"]')?.content||'',catalog:window.HANA_SMART_TEMPLATE_CATALOG?.length||0,profiles:Object.keys(window.HANA_EXPANDED_SMART_PROFILES||{}).length}));
+            if(identity.app!=='1.1.0'||identity.display!=='1.1'||identity.meta!=='1.1.0')throw new Error('Version identity failed '+JSON.stringify(identity));
+            if(identity.catalog<45||identity.profiles<20)throw new Error('Smart Template library too small '+JSON.stringify(identity));
+
+            const detected=await page.evaluate(()=>({
+              wedding:smartStructuredCaptureKind('Wedding Planner\nVenue:\nBook venue'),
+              hair:smartStructuredCaptureKind('Haircare Schedule\nMonday:\nShampoo | Test'),
+              trip:smartStructuredCaptureKind('Trip Prep\nDocuments:\nPassport'),
+              bills:smartStructuredCaptureKind('Bills Schedule\nInternet | 1000 | 2026-08-25'),
+              weekly:smartStructuredCaptureKind('Weekly Schedule\nMonday | 08:00 | Work'),
+              wish:smartStructuredCaptureKind('Wishlist\nCamera | shop | 5000'),
+              medical:smartStructuredCaptureKind('Medical Appointment Prep\nQuestions:\nAsk about test'),
+              packing:smartStructuredCaptureKind('Travel packing\nTop\nShoes\nPassport\nCharger'),
+              skincare:skincareTextLooksStructured('Morning Routine\nDaily\nCleanser → Sample\nToner → Sample\nMoisturizer → Sample\nSunscreen → Sample',{allowSingleDay:false})
+            }));
+            const expected={wedding:'wedding-planner',hair:'haircare',trip:'trip-prep',bills:'bills-schedule',weekly:'weekly-schedule',wish:'wishlist',medical:'medical-prep',packing:'packing'};
+            for(const [key,value] of Object.entries(expected))if(detected[key]!==value)throw new Error(`Detection ${key} -> ${detected[key]} expected ${value}`);
+            if(!detected.skincare)throw new Error('Existing skincare recognition regressed');
+
+            const created=await page.evaluate(()=>{
+              const before=state.tables.length;
+              const result=createSmartStructuredCapture('Wedding Planner\nVenue:\nBook ceremony venue\nDocuments:\nMarriage license','personal','wedding-planner',{open:false,quiet:true});
+              const table=state.tables[state.tables.length-1];
+              return{result,before,after:state.tables.length,name:table?.name||'',rows:table?.rows?.length||0,columns:table?.columns?.map(c=>c.name)||[]};
+            });
+            if(created.result!=='wedding-planner'||created.after!==created.before+1||created.rows!==2||!created.columns.includes('Vendor / Person'))throw new Error('Wedding creator failed '+JSON.stringify(created));
+
+            await page.evaluate(()=>openSmartTemplateTutorial());
+            await page.waitForTimeout(100);
+            const tutorial=await page.evaluate(()=>({visible:!document.getElementById('smartTemplateTutorialModal')?.classList.contains('hidden'),cards:document.querySelectorAll('[data-smart-paste-card]').length,exampleValues:[...document.querySelectorAll('#smartTemplateTutorialModal input, #smartTemplateTutorialModal textarea')].map(el=>el.value).filter(Boolean)}));
+            if(!tutorial.visible||tutorial.cards<45||tutorial.exampleValues.length)throw new Error('Tutorial behavior failed '+JSON.stringify(tutorial));
+            await page.fill('#smartPasteSearch','wedding');
+            await page.waitForTimeout(30);
+            const visibleWedding=await page.locator('[data-smart-paste-card]:not(.hidden)').count();
+            if(visibleWedding<1||visibleWedding>4)throw new Error('Tutorial search failed '+visibleWedding);
+            await page.fill('#smartPasteSearch','');
+
+            await page.click('[data-use-smart-template-kind="wedding-planner"]');
+            await page.waitForTimeout(180);
+            const brain=await page.evaluate(()=>({page:state.currentPage,destination:document.getElementById('brainDumpDestination')?.value,value:document.getElementById('brainDumpText')?.value,placeholder:document.getElementById('brainDumpText')?.placeholder,chip:Boolean(document.querySelector('[data-smart-template-active-chip]'))}));
+            if(brain.page!=='inbox'||brain.destination!=='wedding-planner'||brain.value!==''||!brain.placeholder.includes('Wedding Planner')||!brain.chip)throw new Error('Tutorial to Brain Dump failed '+JSON.stringify(brain));
+
+            await page.fill('#brainDumpText','Wedding Planner\nVenue:\nConfirm venue\nGuests:\nFinalize guest list');
+            await page.click('#brainDumpAddButton');
+            await page.waitForTimeout(120);
+            const createdViaUI=await page.evaluate(()=>({page:state.currentPage,last:state.tables[state.tables.length-1]?.name||'',rows:state.tables[state.tables.length-1]?.rows?.length||0}));
+            if(createdViaUI.page!=='tables'||createdViaUI.rows<2||!createdViaUI.last.includes('Wedding Planner'))throw new Error('Brain Dump smart template creation failed '+JSON.stringify(createdViaUI));
+
+            const pages=[['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['templates','Templates'],['settings','Settings']];
+            for(const [name,marker] of pages){await page.evaluate(p=>changePage(p),name);await page.waitForTimeout(70);const text=await page.locator('#pageContent').innerText();if(!text.includes(marker))throw new Error(`${name} failed to render`);}
+            await page.evaluate(()=>changePage('templates'));await page.waitForTimeout(50);
+            if(await page.locator('.smart-template-library-hero').count()!==1)throw new Error('Templates Smart Paste Guide entry missing');
+            await page.evaluate(()=>changePage('inbox'));await page.waitForTimeout(50);
+            if(await page.locator('.brain-dump-smart-guide-link').count()!==1)throw new Error('Brain Dump Smart Paste Guide entry missing');
+            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
+            await browser.close();
+            console.log('Hana Smart Template Garden QA passed',JSON.stringify({identity,detected,created,createdViaUI}));
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+
+      - name: Commit Hana 1.1 production wiring
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js index.html style.css service-worker.js
+          git diff --check --cached
+          git commit -m "Hana: release Smart Template Garden v1.1"
+          git push origin main
