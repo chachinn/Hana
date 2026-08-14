@@ -29,6 +29,11 @@ jobs:
           end = source.index(end_marker, start)
           lines = source[start:end].splitlines()
           code = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          old = "new_text, count = re.subn(pattern, repl, text, count=1, flags=flags)"
+          new = "new_text, count = re.subn(pattern, repl if '\\\\g<' in repl else (lambda _match: repl), text, count=1, flags=flags)"
+          if old not in code:
+              raise SystemExit('Could not patch regex replacement helper')
+          code = code.replace(old, new, 1)
           Path('/tmp/hana_patch.py').write_text(code, encoding='utf-8')
           PY
           python /tmp/hana_patch.py
