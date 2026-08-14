@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v71 · Mixed Documents
+   HANA 🌸 Service Worker v72 · Daily cloud backup
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v71";
+const CACHE_NAME = "hana-shell-v72";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.38",
-  "./app.js?v=2.0.38",
+  "./style.css?v=2.0.39",
+  "./app.js?v=2.0.39",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
