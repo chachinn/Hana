@@ -40,7 +40,8 @@ jobs:
         run: |
           git config user.name "Hana Release Bot"
           git config user.email "actions@users.noreply.github.com"
-          git rm .github/workflows/hana-skincare-today-shortcut.yml .github/scripts/hana_skincare_today_patch.py .github/scripts/hana_skincare_today_qa.py
+          git rm .github/workflows/hana-skincare-today-shortcut.yml .github/scripts/hana_skincare_today_qa.py
+          git rm -f .github/scripts/hana_skincare_today_patch.py
           git add app.js index.html style.css service-worker.js
           git commit -m "Hana: add time-aware skincare shortcut"
           git push origin HEAD:main
