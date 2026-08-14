@@ -4943,3 +4943,9 @@ body.modal-open{overflow:hidden}
 .packing-category-items .list-swipe-shell:last-child .standalone-check-item{border-bottom:0;}
 .packing-grouped-checklist{display:block;}
 @media(max-width:560px){.packing-category-stack{gap:10px}.packing-category-heading{padding:11px 12px 8px}.packing-category-items{padding:3px 6px 6px}}
+
+
+/* SMART PACKING CATEGORY LEARNING v2.0.41 */
+#listItemPackingCategory{width:100%;min-height:44px;}
+.packing-category-hint{display:block;margin-top:6px;color:var(--text-soft);font-size:11px;line-height:1.45;}
+.packing-category-hint.hidden{display:none;}
