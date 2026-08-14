@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.36
-   Smart Library + file-aware Smart Sort
+   HANA 🌸 Version 2 · internal build 2.0.37
+   Startup stability + browser runtime QA
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -1113,18 +1113,18 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.36";
+const HANA_APP_VERSION = "2.0.37";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 14, 2026",
-  title: "A much smarter Hana library ✨🧩",
-  intro: "Smart Sort can now recognize many more real-life structures, read text-friendly files locally, and turn them into useful Hana notes, lists and trackers. The template library is much bigger too — without adding demo data.",
+  title: "A sturdier Hana 🌸",
+  intro: "This update fixes a startup regression from the Smart Library release and strengthens Hana’s release checks so browser-runtime failures are caught before deployment.",
   items: [
-    { icon:"✨", title:"More structured Smart Sort", text:"Recipes, itineraries, workouts, study plans, medication schedules, meal plans, habits, media lists, subscriptions, applications, deliveries, inventories, content plans, decisions, bookmarks and ordinary routines can stay together instead of becoming loose notes." },
-    { icon:"📄", title:"Import a file into Brain Dump", text:"Load TXT, Markdown, CSV, TSV, JSON or HTML locally on your device, review the extracted text, then let Smart Sort organize it. Hana does not upload the file just to read it." },
-    { icon:"🧩", title:"A bigger template library", text:"New blank-first templates cover routines, home, travel, health, study, work, reference and many practical trackers. Templates still create nothing until you save them." },
-    { icon:"🔎", title:"Templates are searchable", text:"Search the larger library by name or purpose and filter by note, list or tracker so the extra options do not make the page harder to use." }
+    { icon:"🛠️", title:"Blank startup fixed", text:"The template expansion no longer references a later JavaScript constant during startup, so Today can render normally again." },
+    { icon:"📱", title:"Browser-runtime QA", text:"Hana is now tested in an iPhone-sized browser in addition to JavaScript syntax checks." },
+    { icon:"🧩", title:"Smart Library preserved", text:"Expanded Smart Sort, file import and templates remain intact." },
+    { icon:"🌿", title:"Data-safe repair", text:"No saved Hana data is cleared or replaced by this repair." }
   ]
 };
 
@@ -4511,13 +4511,14 @@ function createSmartProjectFromText(text,space,options={}) {
 
 
 
-const SMART_PRESET_TRACKERS = {
-  "travel-itinerary": EXTRA_TABLE_TEMPLATE_DEFINITIONS["travel-itinerary"], workout: EXTRA_TABLE_TEMPLATE_DEFINITIONS["workout-plan"], "study-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["study-plan"],
-  medication: EXTRA_TABLE_TEMPLATE_DEFINITIONS["medication-schedule"], "meal-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["meal-planner"], "habit-tracker": EXTRA_TABLE_TEMPLATE_DEFINITIONS["habit-tracker"],
-  "reading-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["reading-list"], "watch-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["watch-list"], subscriptions: EXTRA_TABLE_TEMPLATE_DEFINITIONS["subscription-tracker"],
-  applications: EXTRA_TABLE_TEMPLATE_DEFINITIONS["application-tracker"], deliveries: EXTRA_TABLE_TEMPLATE_DEFINITIONS["delivery-tracker"], inventory: EXTRA_TABLE_TEMPLATE_DEFINITIONS["home-inventory"],
-  "content-calendar": EXTRA_TABLE_TEMPLATE_DEFINITIONS["content-calendar"], "decision-log": EXTRA_TABLE_TEMPLATE_DEFINITIONS["decision-log"], bookmarks: EXTRA_TABLE_TEMPLATE_DEFINITIONS["bookmark-library"]
+const SMART_PRESET_TEMPLATE_IDS = {
+  "travel-itinerary":"travel-itinerary", workout:"workout-plan", "study-plan":"study-plan",
+  medication:"medication-schedule", "meal-plan":"meal-planner", "habit-tracker":"habit-tracker",
+  "reading-list":"reading-list", "watch-list":"watch-list", subscriptions:"subscription-tracker",
+  applications:"application-tracker", deliveries:"delivery-tracker", inventory:"home-inventory",
+  "content-calendar":"content-calendar", "decision-log":"decision-log", bookmarks:"bookmark-library"
 };
+function smartPresetTrackerDefinition(kind){const templateId=SMART_PRESET_TEMPLATE_IDS[kind];return templateId?EXTRA_TABLE_TEMPLATE_DEFINITIONS[templateId]:null;}
 function smartMeaningfulLines(text){
   return String(text||"").replace(/\r/g,"").split("\n").map(smartCleanBullet).map(line=>line.replace(/^#{1,6}\s*/,"").trim()).filter(line=>line&&!/^[\s⸻━─—–-]+$/.test(line));
 }
@@ -4532,7 +4533,7 @@ function smartSplitLooseRow(line){
 function smartPresetRecords(text,kind){
   let lines=smartMeaningfulLines(text).filter((line,index)=>{
     if(index>1)return true;
-    return !new RegExp(`^(?:${kind.replace(/[-]/g,"[ -]")}|${String(SMART_PRESET_TRACKERS[kind]?.name||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")})\\s*:?$`,"i").test(line);
+    return !new RegExp(`^(?:${kind.replace(/[-]/g,"[ -]")}|${String(smartPresetTrackerDefinition(kind)?.name||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")})\\s*:?$`,"i").test(line);
   });
   const records=[];
   for(const line of lines){
@@ -4552,7 +4553,7 @@ function smartPresetRecords(text,kind){
   return records.filter(row=>row.some(value=>String(value||"").trim()));
 }
 function createSmartPresetTracker(text,space,kind,options={}){
-  const definition=SMART_PRESET_TRACKERS[kind];if(!definition)return `invalid-${kind}`;
+  const definition=smartPresetTrackerDefinition(kind);if(!definition)return `invalid-${kind}`;
   const records=smartPresetRecords(text,kind);if(!records.length)return `invalid-${kind}`;
   const columns=definition.columns.map(column=>({id:createId(),name:column.name,type:column.type}));
   const rows=records.map(record=>({id:createId(),values:Object.fromEntries(columns.map((column,index)=>[column.id,String(record[index]??"").trim()])),createdAt:Date.now(),updatedAt:Date.now()}));
@@ -4593,7 +4594,7 @@ function createSmartStructuredCapture(text,space,kind,options={}) {
   if(kind==="project")return createSmartProjectFromText(text,space,options);
   if(kind==="recipe")return createSmartRecipe(text,space,options);
   if(kind==="routine")return createSmartPlainList(text,space,kind,options);
-  if(SMART_PRESET_TRACKERS[kind])return createSmartPresetTracker(text,space,kind,options);
+  if(smartPresetTrackerDefinition(kind))return createSmartPresetTracker(text,space,kind,options);
   return "";
 }
 

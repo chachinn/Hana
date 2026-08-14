@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v69 · Smart Library release
+   HANA 🌸 Service Worker v70 · startup stability hotfix
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v69";
+const CACHE_NAME = "hana-shell-v70";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.36",
-  "./app.js?v=2.0.36",
+  "./style.css?v=2.0.37",
+  "./app.js?v=2.0.37",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
