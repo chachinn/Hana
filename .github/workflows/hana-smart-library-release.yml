@@ -17,6 +17,19 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Harden patch helper for literal JavaScript regexes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/hana_smart_library_patch.py')
+          text=p.read_text()
+          old='out, count = re.subn(pattern, replacement, text, count=1, flags=flags)'
+          new='out, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)'
+          if old not in text:
+              raise SystemExit('regex helper anchor not found')
+          p.write_text(text.replace(old,new,1))
+          PY
+
       - name: Apply Smart Library patch
         run: python .github/scripts/hana_smart_library_patch.py
 
@@ -56,12 +69,10 @@ jobs:
           failed=[name for name,ok in checks.items() if not ok]
           if failed: raise SystemExit('FAILED: '+', '.join(failed))
 
-          # Every added template card must be routed by an extended definition.
           ids=['daily-routine-list','cleaning-checklist','travel-day-checklist','event-planning-checklist','recipe-card','project-brief','event-brief','travel-itinerary','workout-plan','study-plan','medication-schedule','meal-planner','habit-tracker','reading-list','watch-list','subscription-tracker','application-tracker','delivery-tracker','home-inventory','content-calendar','decision-log','contact-list','bookmark-library']
           missing=[x for x in ids if f'id:"{x}"' not in app or f'"{x}"' not in app]
           if missing: raise SystemExit('Missing template routing: '+', '.join(missing))
 
-          # File import is intentionally bounded for mobile stability.
           assert 'file.size>1500000' in app
           assert '.txt,.md,.csv,.tsv,.json,.html,.htm' in app
           print('Targeted Smart Library QA passed')
