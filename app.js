@@ -1,6 +1,6 @@
 /* =====================================================
-   HANA 🌸 Version 2 · internal build 2.0.32
-   Skincare Today shortcut + time-aware AM/PM view
+   HANA 🌸 Version 2 · internal build 2.0.33
+   Skincare Today shortcut + 2 AM morning cutoff
    Local-first PWA with optional Firebase sharing
    ===================================================== */
 
@@ -971,7 +971,7 @@ let safetySnapshotTimer = null;
 let storageErrorShown = false;
 let safetyRecoveryPending = ["missing", "corrupt", "storage-unavailable"].includes(stateLoadStatus);
 
-const HANA_APP_VERSION = "2.0.32";
+const HANA_APP_VERSION = "2.0.33";
 const HANA_DISPLAY_VERSION = "2";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
@@ -980,7 +980,7 @@ const HANA_RELEASE_NOTES = {
   intro: "When a Weekly Skincare Planner exists in Notes, Hana now gives it a tiny home-screen shortcut and opens the part of the routine that fits the time of day.",
   items: [
     { icon:"🧴", title:"Skincare shortcut in the header", text:"A skincare button appears beside Search whenever you have a saved Weekly Skincare Planner." },
-    { icon:"☀️", title:"Morning through afternoon", text:"From 4:00 AM through 5:59 PM, the shortcut opens today’s morning routine first." },
+    { icon:"☀️", title:"Morning through afternoon", text:"From 2:00 AM through 5:59 PM, the shortcut opens today’s morning routine first." },
     { icon:"🌙", title:"Night routine after 6 PM", text:"From 6:00 PM through 3:59 AM, the shortcut opens today’s night routine first." },
     { icon:"↕️", title:"Switch anytime", text:"Inside the routine you can jump between Morning, Night, or Full day without leaving today’s weekday." }
   ]
@@ -2660,7 +2660,7 @@ function searchNotes(query) {
 
 function skincarePeriodForTime(date = new Date()) {
   const hour = date.getHours();
-  return hour >= 18 || hour < 4 ? "pm" : "am";
+  return hour >= 18 || hour < 2 ? "pm" : "am";
 }
 
 function savedSkincareNotes() {

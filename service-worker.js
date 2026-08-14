@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v65 · skincare shortcut release
+   HANA 🌸 Service Worker v66 · skincare shortcut release
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v65";
+const CACHE_NAME = "hana-shell-v66";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.32",
-  "./app.js?v=2.0.32",
+  "./style.css?v=2.0.33",
+  "./app.js?v=2.0.33",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
