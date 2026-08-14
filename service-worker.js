@@ -1,13 +1,13 @@
 /* =====================================================
-   HANA 🌸 Service Worker v70 · startup stability hotfix
+   HANA 🌸 Service Worker v71 · Mixed Documents
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v70";
+const CACHE_NAME = "hana-shell-v71";
 const CORE_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.37",
-  "./app.js?v=2.0.37",
+  "./style.css?v=2.0.38",
+  "./app.js?v=2.0.38",
   "./firebase-bridge.js?v=2.0.17"
 ];
 const OPTIONAL_SHELL = [
