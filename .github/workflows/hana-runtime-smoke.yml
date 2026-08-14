@@ -54,6 +54,13 @@ jobs:
             await page.goto('http://127.0.0.1:4173/', {waitUntil:'domcontentloaded'});
             await page.waitForTimeout(900);
             let text = await page.locator('#pageContent').innerText();
+            const version = await page.evaluate(() => ({
+              app:HANA_APP_VERSION,
+              display:HANA_DISPLAY_VERSION,
+              release:HANA_RELEASE_NOTES.version,
+              meta:document.querySelector('meta[name="hana-app-version"]')?.content||''
+            }));
+            if (version.app !== '1.0.0' || version.display !== '1' || version.release !== '1' || version.meta !== '1.0.0') throw new Error('Hana v1 release identity regressed');
             if (!/Focus Bouquet|Nothing urgent|active/i.test(text)) throw new Error('Today failed to render');
             const pages = [['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];
             for (const [name, marker] of pages) {
