@@ -4907,3 +4907,11 @@ body.modal-open{overflow:hidden}
 .skincare-day-label-group input{width:100%}
 .skincare-routine-badge{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:390px){.skincare-import-body textarea{min-height:165px}.skincare-import-card>summary{padding:11px 12px}}
+
+/* ================= SKINCARE TODAY SHORTCUT v2.0.32 ================= */
+.skincare-quick-header-button{position:relative;background:linear-gradient(145deg,var(--pink-50),var(--white));border-color:var(--pink-150)}
+.skincare-quick-header-button>span{font-size:18px;line-height:1}.skincare-quick-header-button>small{position:absolute;right:-3px;bottom:-4px;width:18px;height:18px;display:grid;place-items:center;border-radius:999px;background:var(--white);border:1px solid var(--pink-150);box-shadow:var(--shadow-sm);font-size:10px;line-height:1}
+.skincare-period-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;margin:2px 0 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface-soft)}
+.skincare-period-switch button{min-width:0;padding:9px 7px;border-radius:12px;background:transparent;color:var(--text-soft);font-size:9px;font-weight:850;white-space:nowrap}.skincare-period-switch button.active{background:var(--surface);color:var(--pink-dark);box-shadow:var(--shadow-sm);border:1px solid var(--border)}
+.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr 1fr}
+@media(max-width:520px){.skincare-period-switch button{font-size:8px;padding-inline:5px}.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr}}
