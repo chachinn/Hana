@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: contains(github.event.head_commit.message, 'Prepare Hana formatted skincare import release')
+    if: contains(github.event.head_commit.message, 'Run Hana formatted skincare import release')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,490 +18,37 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply Hana 2.0.31 skincare import update
+      - name: Recover and apply release patch
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
-
-          def read(path):
-              return Path(path).read_text(encoding='utf-8')
-
-          def write(path, text):
-              Path(path).write_text(text, encoding='utf-8')
-
-          def replace_once(path, old, new, label):
-              text = read(path)
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
-              write(path, text.replace(old, new, 1))
-
-          def regex_once(path, pattern, repl, label, flags=re.S):
-              text = read(path)
-              if callable(repl):
-                  new_text, count = re.subn(pattern, repl, text, count=1, flags=flags)
-              else:
-                  new_text, count = re.subn(pattern, lambda _m: repl, text, count=1, flags=flags)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly 1 regex match, found {count}')
-              write(path, new_text)
-
-          # ---------- Version / release notes ----------
-          replace_once('app.js', 'const HANA_APP_VERSION = "2.0.30";', 'const HANA_APP_VERSION = "2.0.31";', 'app version')
-          replace_once('app.js', 'HANA 🌸 Version 2 · internal build 2.0.26\n   List shopping columns + update prompt + Partner Link stability', 'HANA 🌸 Version 2 · internal build 2.0.31\n   Formatted skincare import + smart routine capture', 'header build marker')
-          regex_once(
-              'app.js',
-              r'const HANA_RELEASE_NOTES = \{.*?\n\};',
-              '''const HANA_RELEASE_NOTES = {
-  version: HANA_DISPLAY_VERSION,
-  date: "August 14, 2026",
-  title: "Paste a routine, get a planner 🧴",
-  intro: "Hana Version 2 can now understand a written weekly skincare routine and turn it into the structured skincare planner instead of making you enter every product by hand.",
-  items: [
-    { icon:"✨", title:"Formatted routine import", text:"Paste a Monday–Sunday routine with AM, PM and product-type lines, then Hana builds the week automatically." },
-    { icon:"🅰️", title:"Week A / Week B understood", text:"Sections such as PM (Week A) and PM (Week B) become the main and alternate routines while keeping their labels visible." },
-    { icon:"📅", title:"Day focuses stay attached", text:"Labels such as Acne Control, Exfoliation Night or Gentle Recovery stay with the correct weekday." },
-    { icon:"🧠", title:"Smart Capture recognizes skincare", text:"Paste a complete formatted routine into Quick Capture or Brain Dump and Hana can recognize it as a Weekly Skincare Planner instead of splitting it into dozens of notes." }
-  ]
-};''',
-              'release notes'
-          )
-
-          # ---------- Structured skincare text parser ----------
-          parser_code = r'''function canonicalSkincareImportCategory(label="") {
-  const clean=String(label||"").trim().replace(/\s+/g," ");
-  if(!clean)return "Other";
-  const exact=SKINCARE_PRODUCT_TYPES.find(type=>type.toLowerCase()===clean.toLowerCase());
-  if(exact)return exact;
-  const normalized=clean.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-  const rules=[
-    [/spot treatment|spot cream|acne spot/,"Spot Treatment"],
-    [/eye cream|eye serum|eye care/,"Eye Serum / Cream"],
-    [/sunscreen|sun screen|sunblock|\bspf\b/,"Sunscreen"],
-    [/cleansing oil|cleansing balm|oil cleanser/,"Cleansing Oil / Balm"],
-    [/micellar/,"Micellar Water"],
-    [/enzyme cleanser|powder cleanser|enzyme wash/,"Powder / Enzyme Cleanser"],
-    [/cleanser|face wash|facial wash|cleansing foam/,"Cleanser"],
-    [/exfoliating toner|acid toner/,"Exfoliating Toner"],
-    [/toner/,"Toner"],
-    [/first treatment essence/,"First Treatment Essence"],
-    [/essence/,"Essence"],
-    [/booster/,"Booster"],
-    [/ampoule/,"Ampoule"],
-    [/serum/,"Serum"],
-    [/moisturi[sz]er|moisturi[sz]ing cream/,"Moisturizer"],
-    [/\bcream\b/,"Moisturizer / Cream"],
-    [/sheet mask/,"Sheet Mask"],
-    [/wash off mask|washoff mask/,"Wash-Off Mask"],
-    [/clay mask/,"Clay Mask"],
-    [/sleeping mask/,"Sleeping Mask"],
-    [/\bmask\b/,"Mask"],
-    [/prescription/,"Prescription Treatment"],
-    [/treatment|active/,"Treatment / Active"],
-    [/exfoliant|exfoliator/,"Exfoliant"],
-    [/face oil|facial oil/,"Face Oil"],
-    [/\bmist\b/,"Mist"],
-    [/lip balm|lip mask/,"Lip Balm / Lip Mask"],
-    [/lip care/,"Lip Care"]
-  ];
-  const rule=rules.find(([pattern])=>pattern.test(normalized));
-  return rule?rule[1]:clean;
-}
-
-function splitSkincareImportProduct(value="") {
-  let product=String(value||"").trim(),notes="";
-  const trailing=product.match(/\s*\(([^()]*)\)\s*$/);
-  if(trailing&&/active pimples?|as needed|if needed|when needed|optional|spot(?:s)? only|affected areas?|problem areas?|use only|night only|morning only/i.test(trailing[1])){
-    notes=trailing[1].trim();
-    product=product.slice(0,trailing.index).trim();
-  }
-  return {product,notes};
-}
-
-function parseSkincareRoutineText(text,{allowSingleDay=true}={}) {
-  const raw=String(text||"").replace(/\r/g,"").trim();
-  if(!raw)return null;
-  const dayNumber={monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6,sunday:0};
-  const days={0:[],1:[],2:[],3:[],4:[],5:[],6:[]},dayLabels={0:"",1:"",2:"",3:"",4:"",5:"",6:""};
-  let currentDay=null,currentTime="",currentVariant="primary",currentRoutineLabel="",order=0,firstDay=null;
-  const seenDays=new Set();
-  for(const sourceLine of raw.split("\n")){
-    let line=String(sourceLine||"").trim();
-    if(!line||/^[\s⸻━─—–-]+$/.test(line))continue;
-    const header=line.replace(/^#{1,6}\s*/,"").replace(/^📅\s*/,"").trim();
-    const dayMatch=header.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b(?:\s*(?:[-–—:|])\s*(.+))?\s*$/i);
-    if(dayMatch){
-      currentDay=dayNumber[dayMatch[1].toLowerCase()];
-      if(firstDay===null)firstDay=currentDay;
-      seenDays.add(currentDay);
-      dayLabels[currentDay]=String(dayMatch[2]||"").trim();
-      currentTime="";currentVariant="primary";currentRoutineLabel="";
-      continue;
-    }
-    const section=line.replace(/^#{1,6}\s*/,"").replace(/^[-*•▪◦‣]+\s*/,"").trim();
-    const sectionMatch=section.match(/^(AM|PM|Morning|Evening)\s*(?:\(([^)]+)\))?\s*:?[\s]*$/i);
-    if(sectionMatch&&currentDay!==null){
-      currentTime=/^(pm|evening)$/i.test(sectionMatch[1])?"pm":"am";
-      currentRoutineLabel=String(sectionMatch[2]||"").trim();
-      currentVariant=/\bweek\s*b\b|\balternate\b|\balt\s*b\b/i.test(currentRoutineLabel)?"alternate":"primary";
-      continue;
-    }
-    if(currentDay===null||!currentTime)continue;
-    line=line.replace(/^[-*•▪◦‣]+\s*/,"").replace(/^\d+[.)]\s*/,"").trim();
-    const productMatch=line.match(/^([^:]{1,48}):\s*(.+)$/);
-    if(!productMatch)continue;
-    const category=canonicalSkincareImportCategory(productMatch[1]);
-    const split=splitSkincareImportProduct(productMatch[2]);
-    if(!split.product)continue;
-    days[currentDay].push({
-      category,
-      product:split.product,
-      times:[currentTime],
-      variant:currentVariant,
-      routineLabel:currentRoutineLabel,
-      notes:split.notes,
-      order:order++
-    });
-  }
-  const dayCount=[...seenDays].filter(day=>days[day].length).length;
-  const stepCount=Object.values(days).reduce((sum,items)=>sum+items.length,0);
-  const minimumDays=allowSingleDay?1:2,minimumSteps=allowSingleDay?1:4;
-  if(dayCount<minimumDays||stepCount<minimumSteps)return null;
-  return {title:"Weekly Skincare Routine",focus:"",days,dayLabels,firstDay:firstDay??1,dayCount,stepCount};
-}
-
-function skincareTextLooksStructured(text,{allowSingleDay=false}={}) {
-  return Boolean(parseSkincareRoutineText(text,{allowSingleDay}));
-}
-
-function createSkincareRoutineNoteFromText(text,space=preferredSpace(),options={}) {
-  const parsed=parseSkincareRoutineText(text,{allowSingleDay:Boolean(options.allowSingleDay)});
-  if(!parsed)return null;
-  const steps=[];
-  SKINCARE_WEEKDAYS.forEach(meta=>(parsed.days[meta.day]||[]).forEach(step=>steps.push({
-    id:createId(),category:step.category||"Other",product:step.product||"",days:[meta.day],times:[...(step.times||[])],variant:step.variant==="alternate"?"alternate":"primary",routineLabel:step.routineLabel||"",notes:step.notes||"",order:steps.length
-  })));
-  const note=normalizeNote({
-    id:createId(),title:options.title||parsed.title,type:"note",space,tags:["reference","skincare","routine"],content:"",checklist:[],resettable:false,structuredType:"skincare-weekly",
-    skincareRoutine:{focus:parsed.focus||"",dayLabels:parsed.dayLabels,steps},createdAt:Date.now(),updatedAt:Date.now()
-  });
-  state.notes.push(note);saveState();
-  if(options.render!==false)render();
-  if(options.open!==false)openSkincareRoutineModal(note.id,{edit:false,day:parsed.firstDay});
-  if(!options.quiet)showToast(`Skincare planner created · ${parsed.dayCount} day${parsed.dayCount===1?"":"s"} · ${parsed.stepCount} products 🧴`);
-  return note;
-}
-
-'''
-          app=read('app.js')
-          marker='function normalizeSkincareRoutine(routine = {}) {'
-          if app.count(marker)!=1:
-              raise SystemExit('skincare parser insert marker was not unique')
-          app=app.replace(marker,parser_code+marker,1)
-          write('app.js',app)
-
-          regex_once(
-              'app.js',
-              r'function normalizeSkincareRoutine\(routine = \{\}\) \{.*?\n\}\n\nfunction isSkincarePlanner',
-              '''function normalizeSkincareRoutine(routine = {}) {
-  const validDays = new Set([0,1,2,3,4,5,6]);
-  const rawDayLabels=routine.dayLabels&&typeof routine.dayLabels==="object"&&!Array.isArray(routine.dayLabels)?routine.dayLabels:{};
-  const dayLabels={0:"",1:"",2:"",3:"",4:"",5:"",6:""};
-  validDays.forEach(day=>{dayLabels[day]=String(rawDayLabels[day]??rawDayLabels[String(day)]??"");});
-  return {
-    focus: String(routine.focus || ""),
-    dayLabels,
-    steps: Array.isArray(routine.steps) ? routine.steps.map((step,index) => {
-      const rawDays = Array.isArray(step.days) ? [...new Set(step.days.map(Number).filter(day => validDays.has(day)))] : [];
-      const rawTimes = Array.isArray(step.times) ? [...new Set(step.times.map(String).filter(time => ["am","pm"].includes(time)))] : [];
-      const category = String(step.category || "").trim() || "Other";
-      const variant = step.variant === "alternate" ? "alternate" : "primary";
-      return {
-        id: step.id || createId(),
-        category,
-        product: String(step.product || ""),
-        days: rawDays.length ? rawDays : [1,2,3,4,5,6,0],
-        times: rawTimes.length ? rawTimes : ["am","pm"],
-        variant,
-        routineLabel: String(step.routineLabel || ""),
-        notes: String(step.notes || ""),
-        order: Number.isFinite(Number(step.order)) ? Number(step.order) : index
-      };
-    }).sort((a,b)=>a.order-b.order) : []
-  };
-}
-
-function isSkincarePlanner''',
-              'skincare routine schema'
-          )
-
-          # ---------- Skincare editor: labels, import, and alternate names ----------
-          regex_once(
-              'app.js',
-              r'function skincareEditorRow\(step = \{\}, routine = "am", variant = "primary"\) \{.*?\n\}\nfunction skincareRoutineBatchEditor',
-              '''function skincareEditorRow(step = {}, routine = "am", variant = "primary") {
-  const meta=skincareRoutineBatchMeta(routine,variant),category=String(step.category||""),product=String(step.product||""),notes=String(step.notes||""),routineLabel=String(step.routineLabel||"");
-  return `<div class="skincare-table-row" data-skincare-step-row data-step-id="${escapeHTML(String(step.id||createId()))}" data-skincare-routine="${meta.routine}" data-skincare-variant="${meta.variant}" data-skincare-routine-label="${escapeHTML(routineLabel)}">
-    <label class="skincare-table-cell skincare-type-cell"><span class="skincare-table-cell-label">Product type</span><select data-skincare-category aria-label="${meta.short} product type">${skincareCategoryOptions(category)}</select></label>
-    <label class="skincare-table-cell skincare-product-cell"><span class="skincare-table-cell-label">Product</span><input data-skincare-product type="text" value="${escapeHTML(product)}" placeholder="Product name" aria-label="${meta.short} product" /></label>
-    <label class="skincare-table-cell skincare-notes-cell"><span class="skincare-table-cell-label">Notes</span><input data-skincare-notes type="text" value="${escapeHTML(notes)}" placeholder="Optional notes" aria-label="${meta.short} notes" /></label>
-    <button type="button" class="skincare-table-remove" data-skincare-remove-step aria-label="Remove this ${meta.short} product" title="Remove">×</button>
-  </div>`;
-}
-function skincareRoutineBatchEditor''',
-              'skincare editor row'
-          )
-          regex_once(
-              'app.js',
-              r'function skincareRoutineBatchEditor\(routine="am", variant="primary", rows=\[\]\) \{.*?\n\}\nfunction skincareOptionalAlternateEditor',
-              '''function skincareRoutineBatchEditor(routine="am", variant="primary", rows=[]) {
-  const meta=skincareRoutineBatchMeta(routine,variant),items=rows.filter(step=>(step.times||[]).includes(meta.routine)&&(step.variant==="alternate"?"alternate":"primary")===meta.variant);
-  const routineLabels=[...new Set(items.map(step=>String(step.routineLabel||"").trim()).filter(Boolean))];
-  const displayLabel=routineLabels.length===1?`${meta.routine.toUpperCase()} · ${routineLabels[0]}`:meta.label;
-  const badgeLabel=routineLabels.length===1?routineLabels[0]:meta.short;
-  return `<section class="skincare-routine-batch skincare-routine-batch-${meta.routine} ${meta.variant==="alternate"?"skincare-routine-batch-alternate":""}" data-skincare-batch="${meta.key}">
-    <div class="skincare-routine-batch-head"><div class="skincare-routine-batch-title"><span>${meta.icon}</span><div><strong>${escapeHTML(displayLabel)}</strong><small>${items.length} product${items.length===1?"":"s"}${meta.variant==="alternate"?" · optional":""}</small></div></div><span class="skincare-routine-badge ${meta.variant==="alternate"?"alternate":""}">${escapeHTML(badgeLabel)}</span></div>
-    <div class="skincare-routine-table">
-      <div class="skincare-routine-table-head" aria-hidden="true"><span>Product type</span><span>Product</span><span>Notes</span><span></span></div>
-      <div class="skincare-routine-table-body">${items.length?items.map(step=>skincareEditorRow(step,meta.routine,meta.variant)).join(""):`<div class="skincare-routine-empty"><span>${meta.icon}</span><p>${meta.empty}</p></div>`}</div>
-    </div>
-    <button type="button" class="secondary-button skincare-batch-add" data-skincare-add-batch-step="${meta.routine}" data-skincare-add-variant="${meta.variant}">+ Add product to ${escapeHTML(displayLabel)}</button>
-  </section>`;
-}
-function skincareOptionalAlternateEditor''',
-              'skincare batch labels'
-          )
-          regex_once(
-              'app.js',
-              r'function skincareDraftFromNote\(note = null\) \{.*?\n\}\nfunction skincareEditDayIndex',
-              '''function skincareDraftFromNote(note = null) {
-  const routine=normalizeSkincareRoutine(note?.skincareRoutine||{}),days={0:[],1:[],2:[],3:[],4:[],5:[],6:[]};
-  SKINCARE_WEEKDAYS.forEach(meta=>{days[meta.day]=routine.steps.filter(step=>step.days.includes(meta.day)).map((step,index)=>({id:createId(),category:step.category,product:step.product,times:[...step.times],variant:step.variant==="alternate"?"alternate":"primary",routineLabel:step.routineLabel||"",notes:step.notes,order:index}));});
-  return {days,dayLabels:{...routine.dayLabels},focus:routine.focus,title:note?.title||"",space:note?.space||preferredSpace()};
-}
-function skincareEditDayIndex''',
-              'skincare draft labels'
-          )
-          replace_once(
-              'app.js',
-              '    const notes=row.querySelector("[data-skincare-notes]")?.value.trim()||"";\n    if(!category&&!product&&!notes)return;\n    steps.push({\n      id:row.dataset.stepId||createId(),\n      category:category||"Other",\n      product,\n      times:[routine],\n      variant,\n      notes,',
-              '    const notes=row.querySelector("[data-skincare-notes]")?.value.trim()||"";\n    const routineLabel=row.dataset.skincareRoutineLabel||"";\n    if(!category&&!product&&!notes)return;\n    steps.push({\n      id:row.dataset.stepId||createId(),\n      category:category||"Other",\n      product,\n      times:[routine],\n      variant,\n      routineLabel,\n      notes,',
-              'read skincare routine label'
-          )
-          regex_once(
-              'app.js',
-              r'function commitSkincareEditorPage\(\) \{.*?\n\}\nfunction renderSkincareSyncChoices',
-              '''function commitSkincareEditorPage() {
-  if(!skincareEditorDraft)return true;const steps=readSkincareEditorPage();if(steps===null)return false;
-  skincareEditorDraft.days[activeSkincareEditDay]=steps;
-  skincareEditorDraft.dayLabels=skincareEditorDraft.dayLabels||{0:"",1:"",2:"",3:"",4:"",5:"",6:""};
-  skincareEditorDraft.dayLabels[activeSkincareEditDay]=document.getElementById("skincareDayLabel")?.value.trim()||"";
-  skincareEditorDraft.title=document.getElementById("skincareTitle")?.value.trim()||"Skincare Routine";skincareEditorDraft.focus=document.getElementById("skincareFocus")?.value.trim()||"";skincareEditorDraft.space=document.getElementById("skincareSpace")?.value||preferredSpace();return true;
-}
-function renderSkincareSyncChoices''',
-              'commit skincare day label'
-          )
-          regex_once(
-              'app.js',
-              r'function renderSkincareEditorDay\(\) \{.*?\n\}\nfunction populateSkincareEditor',
-              '''function renderSkincareEditorDay() {
-  if(!skincareEditorDraft)return;
-  const meta=skincareDayMeta(activeSkincareEditDay),index=skincareEditDayIndex(activeSkincareEditDay),rows=skincareEditorDraft.days[activeSkincareEditDay]||[];
-  const title=document.getElementById("skincareEditDayTitle");if(title)title.textContent=meta.label;
-  const progress=document.getElementById("skincareEditProgress");if(progress)progress.textContent=`Day ${index+1} of 7`;
-  const dayLabel=document.getElementById("skincareDayLabel");if(dayLabel)dayLabel.value=skincareEditorDraft.dayLabels?.[activeSkincareEditDay]||"";
-  const prev=document.querySelector("[data-skincare-edit-prev]");if(prev)prev.disabled=index===0;
-  const next=document.querySelector("[data-skincare-edit-next]");if(next){next.disabled=index===6;next.textContent=index===6?"Sunday ✓":"Next ›";}
-  const container=document.getElementById("skincareStepsEditor");
-  if(container)container.innerHTML=`<div class="skincare-batch-stack"><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>☀️ Morning</span><small>AM routine</small></div>${skincareRoutineBatchEditor("am","primary",rows)}${skincareOptionalAlternateEditor("am",rows)}</div><div class="skincare-time-pair"><div class="skincare-time-pair-head"><span>🌙 Evening</span><small>PM routine</small></div>${skincareRoutineBatchEditor("pm","primary",rows)}${skincareOptionalAlternateEditor("pm",rows)}</div></div>`;
-  renderSkincareSyncChoices();
-}
-function populateSkincareEditor''',
-              'render skincare day label'
-          )
-          populate_line='function populateSkincareEditor(note = null, day = new Date().getDay()) {skincareEditorDraft=skincareDraftFromNote(note);activeSkincareEditDay=SKINCARE_WEEKDAYS.some(meta=>meta.day===Number(day))?Number(day):1;document.getElementById("skincareEditId").value=note?.id||"";document.getElementById("skincareTitle").value=skincareEditorDraft.title;document.getElementById("skincareFocus").value=skincareEditorDraft.focus;refreshSpaceSelects();document.getElementById("skincareSpace").value=skincareEditorDraft.space;renderSkincareEditorDay();}'
-          import_fn = r'''
-function importSkincareTextIntoEditor() {
-  const input=document.getElementById("skincareImportText"),status=document.getElementById("skincareImportStatus");
-  const text=input?.value.trim()||"";
-  if(!text){if(status){status.textContent="Paste a routine first.";status.dataset.state="error";}return;}
-  const parsed=parseSkincareRoutineText(text,{allowSingleDay:true});
-  if(!parsed){if(status){status.textContent="I couldn't find a day + AM/PM + Product type: Product pattern yet.";status.dataset.state="error";}return;}
-  const existingCount=skincareEditorDraft?Object.values(skincareEditorDraft.days||{}).reduce((sum,items)=>sum+(items?.length||0),0):0;
-  if(existingCount&&!confirm(`Replace the current ${existingCount}-product week with the pasted routine?`))return;
-  const title=document.getElementById("skincareTitle")?.value.trim()||"";
-  const focus=document.getElementById("skincareFocus")?.value.trim()||"";
-  const space=document.getElementById("skincareSpace")?.value||preferredSpace();
-  skincareEditorDraft={days:parsed.days,dayLabels:{...parsed.dayLabels},focus,title:title||parsed.title,space};
-  activeSkincareEditDay=parsed.firstDay;
-  document.getElementById("skincareTitle").value=skincareEditorDraft.title;
-  input.value="";
-  if(status){status.textContent=`Generated ${parsed.stepCount} products across ${parsed.dayCount} day${parsed.dayCount===1?"":"s"}. Review anything you want, then Save whole week.`;status.dataset.state="success";}
-  renderSkincareEditorDay();
-  document.querySelector(".skincare-planner-modal")?.scrollTo({top:0,behavior:"smooth"});
-}
-'''
-          replace_once('app.js', populate_line, populate_line+import_fn, 'skincare import editor function')
-
-          regex_once(
-              'app.js',
-              r'function renderSkincareRoutineView\(note, day = activeSkincareViewDay\) \{.*?\n\}\nfunction openSkincareRoutineModal',
-              '''function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
-  const body=document.getElementById("skincareViewBody");if(!body||!note)return;
-  const meta=skincareDayMeta(day),today=new Date().getDay(),normalized=normalizeSkincareRoutine(note.skincareRoutine||{}),dayLabel=normalized.dayLabels?.[Number(day)]||"";
-  const am=skincareStepsForDay(note,day,"am","primary"),amAlt=skincareStepsForDay(note,day,"am","alternate");
-  const pm=skincareStepsForDay(note,day,"pm","primary"),pmAlt=skincareStepsForDay(note,day,"pm","alternate");
-  const routineSection=(icon,label,steps,{alternate=false,hideIfEmpty=false}={})=>{
-    if(hideIfEmpty&&!steps.length)return "";
-    const labels=[...new Set(steps.map(step=>String(step.routineLabel||"").trim()).filter(Boolean))];
-    const displayLabel=labels.length===1?`${label.startsWith("AM")||label.includes("AM")?"AM":"PM"} · ${labels[0]}`:label;
-    return `<section class="skincare-routine-period ${alternate?"skincare-routine-period-alternate":""}"><div class="skincare-period-title"><span>${icon}</span><div><strong>${escapeHTML(displayLabel)}</strong><small>${steps.length} step${steps.length===1?"":"s"}${alternate?" · optional alternate":""}</small></div></div>${steps.length?`<div class="skincare-view-step-list">${steps.map(skincareViewStepHTML).join("")}</div>`:`<div class="skincare-empty-period">Nothing planned for ${label.toLowerCase()}.</div>`}</section>`;
-  };
-  body.innerHTML=`${note.skincareRoutine?.focus?`<div class="skincare-focus-card"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:""}<div class="skincare-day-tabs" role="tablist" aria-label="Skincare day">${SKINCARE_WEEKDAYS.map(item=>`<button type="button" role="tab" data-skincare-view-day="${item.day}" class="${Number(day)===item.day?"active":""} ${today===item.day?"today":""}" aria-selected="${Number(day)===item.day}"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:""}</button>`).join("")}</div><div class="skincare-selected-day"><span>${meta.label}${dayLabel?` · ${escapeHTML(dayLabel)}`:""}</span>${today===Number(day)?`<strong>Today</strong>`:""}</div><div class="skincare-period-grid">${routineSection("☀️","AM Routine",am)}${routineSection("☀️","Alternate AM",amAlt,{alternate:true,hideIfEmpty:true})}${routineSection("🌙","PM Routine",pm)}${routineSection("🌙","Alternate PM",pmAlt,{alternate:true,hideIfEmpty:true})}</div>`;
-}
-function openSkincareRoutineModal''',
-              'skincare view labels'
-          )
-          regex_once(
-              'app.js',
-              r'function saveSkincareRoutine\(\) \{.*?\nfunction addSkincareEditorStep',
-              '''function saveSkincareRoutine() {if(!commitSkincareEditorPage())return;const id=document.getElementById("skincareEditId").value,old=id?state.notes.find(note=>note.id===id):null,steps=[];SKINCARE_WEEKDAYS.forEach(meta=>(skincareEditorDraft?.days?.[meta.day]||[]).forEach(step=>steps.push({id:createId(),category:step.category||"Other",product:step.product||"",days:[meta.day],times:[...(step.times||[])],variant:step.variant==="alternate"?"alternate":"primary",routineLabel:step.routineLabel||"",notes:step.notes||"",order:steps.length})));const note=normalizeNote({...(old||{}),id:id||createId(),title:skincareEditorDraft?.title||"Skincare Routine",type:"note",space:skincareEditorDraft?.space||preferredSpace(),tags:old?.tags?.length?old.tags:["reference","skincare","routine"],content:"",checklist:[],resettable:false,structuredType:"skincare-weekly",skincareRoutine:{focus:skincareEditorDraft?.focus||"",dayLabels:{...(skincareEditorDraft?.dayLabels||{})},steps},createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});if(old)state.notes[state.notes.findIndex(item=>item.id===id)]=note;else state.notes.push(note);saveState();showToast(old?"Weekly skincare updated 🧴":"Weekly skincare planner created 🧴");document.getElementById("skincareRoutineModal").dataset.noteId=note.id;document.getElementById("skincarePlannerTitle").textContent=note.title;document.getElementById("skincareViewMode").classList.remove("hidden");document.getElementById("skincareEditMode").classList.add("hidden");document.getElementById("skincarePlannerEditButton").classList.remove("hidden");document.getElementById("skincarePlannerSettingsButton").classList.remove("hidden");document.getElementById("skincarePlannerBackToView").classList.add("hidden");activeSkincareViewDay=new Date().getDay();skincareEditorDraft=null;renderSkincareRoutineView(note,activeSkincareViewDay);render();}
-function addSkincareEditorStep''',
-              'save skincare labels'
-          )
-          regex_once(
-              'app.js',
-              r'function addSkincareEditorStep\(routine="pm", variant="primary"\) \{.*?\n\}\nfunction removeSkincareEditorStep',
-              '''function addSkincareEditorStep(routine="pm", variant="primary") {
-  if(!skincareEditorDraft)return;
-  const normalizedRoutine=routine==="am"?"am":"pm",normalizedVariant=variant==="alternate"?"alternate":"primary",current=readSkincareEditorPage();
-  skincareEditorDraft.days[activeSkincareEditDay]=current;
-  const routineLabel=current.find(step=>(step.times||[]).includes(normalizedRoutine)&&(step.variant==="alternate"?"alternate":"primary")===normalizedVariant&&step.routineLabel)?.routineLabel||"";
-  skincareEditorDraft.days[activeSkincareEditDay].push({id:createId(),category:"",product:"",times:[normalizedRoutine],variant:normalizedVariant,routineLabel,notes:"",order:current.length});
-  renderSkincareEditorDay();
-  requestAnimationFrame(()=>{
-    const rows=[...document.querySelectorAll(`#skincareStepsEditor [data-skincare-routine="${normalizedRoutine}"][data-skincare-variant="${normalizedVariant}"]`)],row=rows[rows.length-1];
-    row?.querySelector("[data-skincare-category]")?.focus();
-    row?.scrollIntoView({behavior:"smooth",block:"nearest"});
-  });
-}
-function removeSkincareEditorStep''',
-              'add skincare step label'
-          )
-
-          # ---------- Smart Capture / Brain Dump integration ----------
-          replace_once(
-              'app.js',
-              '  if(!value)return{type:"unknown",label:"🌱 Something new"};\n  if(/^(event|appointment|calendar):\\s*/i.test(raw)',
-              '  if(!value)return{type:"unknown",label:"🌱 Something new"};\n  if(skincareTextLooksStructured(raw,{allowSingleDay:false}))return{type:"skincare",label:"🧴 Weekly Skincare Planner"};\n  if(/^(event|appointment|calendar):\\s*/i.test(raw)',
-              'skincare capture prediction'
-          )
-          replace_once(
-              'app.js',
-              '  {value:"list",label:"☑️ Checklist"},\n  {value:"someday",label:"🌱 Someday"}',
-              '  {value:"list",label:"☑️ Checklist"},\n  {value:"skincare",label:"🧴 Skincare planner"},\n  {value:"someday",label:"🌱 Someday"}',
-              'skincare capture destination'
-          )
-          regex_once(
-              'app.js',
-              r'function updateCapturePrediction\(\)\{.*?\}\nfunction extractDate',
-              '''function updateCapturePrediction(){const input=document.getElementById("quickCaptureInput");const p=document.getElementById("capturePrediction");if(!input||!p)return;const text=input.value;if(skincareTextLooksStructured(text,{allowSingleDay:false})){p.textContent="🧴 Weekly Skincare Planner · formatted routine detected";return;}const lines=parseLines(text);p.textContent=lines.length>1?`🧠 ${lines.length} items · Hana can organize these`:predictCapture(text).label;}
-function extractDate''',
-              'quick capture prediction'
-          )
-          replace_once(
-              'app.js',
-              '  const pred=forced?{type:forced,label:brainDumpDestinationLabel(forced,text)}:suggested,meta=parseCaptureMeta(text,space);\n  if(pred.type==="event"){',
-              '  const pred=forced?{type:forced,label:brainDumpDestinationLabel(forced,text)}:suggested,meta=parseCaptureMeta(text,space);\n  if(pred.type==="skincare"){const note=createSkincareRoutineNoteFromText(text,space,{allowSingleDay:Boolean(forced),open:false,render:false,quiet:true});return note?"skincare":"invalid-skincare";}\n  if(pred.type==="event"){',
-              'plant skincare text'
-          )
-          regex_once(
-              'app.js',
-              r'function saveQuickCapture\(\)\{.*?\}\nfunction sendQuickCaptureToInbox\(\)\{.*?\}\n\nfunction renderInbox',
-              '''function saveQuickCapture(){const input=document.getElementById("quickCaptureInput"),text=input.value.trim(),space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");if(skincareTextLooksStructured(text,{allowSingleDay:false})){input.value="";closeModal("quickCaptureModal");createSkincareRoutineNoteFromText(text,space,{open:true});return;}const lines=parseLines(text);lines.forEach(line=>plantText(line,space));input.value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} planted 🌱`);render();}
-function sendQuickCaptureToInbox(){const input=document.getElementById("quickCaptureInput"),text=input.value.trim(),space=document.getElementById("captureSpace").value;if(!text)return showToast("Write something first 🌸");if(skincareTextLooksStructured(text,{allowSingleDay:false})){state.inbox.push({id:createId(),text,space,prediction:"skincare",destination:"skincare",createdAt:Date.now()});input.value="";closeModal("quickCaptureModal");showToast("Weekly skincare routine kept together in Inbox 🧴");render();return;}const lines=parseLines(text);lines.forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,createdAt:Date.now()}));input.value="";closeModal("quickCaptureModal");showToast(`${lines.length} item${lines.length===1?"":"s"} sent to Inbox 🧠`);render();}
-
-function renderInbox''',
-              'quick capture skincare block handling'
-          )
-          regex_once(
-              'app.js',
-              r'function addBrainDump\(\)\{.*?\}\nfunction plantInboxItem\(id\)\{.*?\}\nfunction plantAllInbox\(\)\{.*?\}',
-              '''function addBrainDump(){const input=document.getElementById("brainDumpText"),text=input?.value.trim()||"",space=document.getElementById("brainDumpSpace")?.value||preferredSpace(),destination=document.getElementById("brainDumpDestination")?.value||"auto";if(!text)return showToast("Add a few thoughts first 🌸");const forcedSkincare=destination==="skincare",smartSkincare=destination==="auto"&&skincareTextLooksStructured(text,{allowSingleDay:false});if(forcedSkincare||smartSkincare){const parsed=parseSkincareRoutineText(text,{allowSingleDay:forcedSkincare});if(!parsed)return showToast("I couldn't find a skincare day + AM/PM + Product type: Product pattern yet.");input.value="";createSkincareRoutineNoteFromText(text,space,{allowSingleDay:forcedSkincare,open:true});return;}parseLines(text).forEach(line=>state.inbox.push({id:createId(),text:line,space,prediction:predictCapture(line).type,destination:BRAIN_DUMP_DESTINATIONS.some(item=>item.value===destination)?destination:"auto",createdAt:Date.now()}));showToast("Brain dump sorted into the Inbox 🧠");render();}
-function plantInboxItem(id){const item=state.inbox.find(i=>i.id===id);if(!item)return;const result=plantText(item.text,item.space,item.destination||"auto");if(result==="invalid-skincare")return showToast("That item needs a day + AM/PM + Product type: Product format before it can become a skincare planner.");state.inbox=state.inbox.filter(i=>i.id!==id);showToast(result==="skincare"?"Skincare planner created 🧴":"Planted 🌱");render();}
-function plantAllInbox(){const items=[...state.inbox],remaining=[];let planted=0;items.forEach(i=>{const result=plantText(i.text,i.space,i.destination||"auto");if(result==="invalid-skincare")remaining.push(i);else planted++;});state.inbox=remaining;showToast(`${planted} item${planted===1?"":"s"} planted${remaining.length?` · ${remaining.length} needs review`:""} 🌸`);render();}''',
-              'brain dump skincare handling'
-          )
-
-          # ---------- Skincare import UI ----------
-          focus_html='''        <div class="form-group"><label for="skincareFocus">Focus / skin goals <span class="optional-label">optional</span></label><textarea id="skincareFocus" placeholder="Acne control, barrier care, brightening, sensitivity notes..."></textarea></div>\n\n        <div class="skincare-week-editor-nav">'''
-          import_html='''        <div class="form-group"><label for="skincareFocus">Focus / skin goals <span class="optional-label">optional</span></label><textarea id="skincareFocus" placeholder="Acne control, barrier care, brightening, sensitivity notes..."></textarea></div>\n\n        <details class="skincare-import-card">\n          <summary><span>✨ <strong>Paste a full routine</strong><small>Monday–Sunday · AM/PM · Week A/B supported</small></span><b>⌄</b></summary>\n          <div class="skincare-import-body">\n            <textarea id="skincareImportText" placeholder="📅 Monday – Acne Control&#10;&#10;AM&#10;* Cleanser: Product name&#10;* Serum: Product name&#10;&#10;PM (Week A)&#10;* Cleanser: Product name&#10;&#10;PM (Week B)&#10;* Treatment: Product name"></textarea>\n            <p id="skincareImportStatus" class="skincare-import-status">Hana will read each weekday, AM/PM section, product type and product name, then build the tables for you.</p>\n            <button type="button" class="primary-button full-width" data-skincare-import-text>Generate planner ✨</button>\n          </div>\n        </details>\n\n        <div class="skincare-week-editor-nav">'''
-          replace_once('index.html',focus_html,import_html,'skincare paste UI')
-          replace_once(
-              'index.html',
-              '        </div>\n        <div class="skincare-edit-intro"><div><strong>Edit this day</strong>',
-              '        </div>\n        <div class="form-group skincare-day-label-group"><label for="skincareDayLabel">Day focus / label <span class="optional-label">optional</span></label><input id="skincareDayLabel" type="text" placeholder="Acne Control, Exfoliation Night, Gentle Recovery..." /></div>\n        <div class="skincare-edit-intro"><div><strong>Edit this day</strong>',
-              'skincare day label input'
-          )
-          replace_once(
-              'app.js',
-              '  const skincareBatchAdd=event.target.closest("[data-skincare-add-batch-step]");if(skincareBatchAdd){addSkincareEditorStep(skincareBatchAdd.dataset.skincareAddBatchStep,skincareBatchAdd.dataset.skincareAddVariant||"primary");return;}',
-              '  if(event.target.closest("[data-skincare-import-text]")){importSkincareTextIntoEditor();return;}\n  const skincareBatchAdd=event.target.closest("[data-skincare-add-batch-step]");if(skincareBatchAdd){addSkincareEditorStep(skincareBatchAdd.dataset.skincareAddBatchStep,skincareBatchAdd.dataset.skincareAddVariant||"primary");return;}',
-              'skincare import click handler'
-          )
-
-          # ---------- Styling ----------
-          css_append = r'''
-
-/* ================= FORMATTED SKINCARE IMPORT v2.0.31 ================= */
-.skincare-import-card{margin:12px 0;border:1px solid var(--border);border-radius:18px;background:color-mix(in srgb,var(--surface) 96%,var(--blush));overflow:hidden}
-.skincare-import-card>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;cursor:pointer}
-.skincare-import-card>summary::-webkit-details-marker{display:none}
-.skincare-import-card>summary span{display:flex;flex-direction:column;gap:2px;min-width:0}
-.skincare-import-card>summary strong{font-size:11px}
-.skincare-import-card>summary small{font-size:8px;color:var(--text-soft);font-weight:650}
-.skincare-import-card>summary b{font-size:12px;color:var(--pink-dark);transition:transform .18s ease}
-.skincare-import-card[open]>summary b{transform:rotate(180deg)}
-.skincare-import-body{padding:0 12px 12px}
-.skincare-import-body textarea{width:100%;min-height:190px;resize:vertical;font-size:10px;line-height:1.5;white-space:pre-wrap}
-.skincare-import-status{margin:7px 2px 10px;font-size:8px;line-height:1.45;color:var(--text-soft)}
-.skincare-import-status[data-state="success"]{font-weight:750;color:var(--pink-dark)}
-.skincare-import-status[data-state="error"]{font-weight:750;color:var(--danger)}
-.skincare-day-label-group{margin:9px 2px 10px}
-.skincare-day-label-group input{width:100%}
-.skincare-routine-badge{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:390px){.skincare-import-body textarea{min-height:165px}.skincare-import-card>summary{padding:11px 12px}}
-'''
-          style=read('style.css')
-          if 'FORMATTED SKINCARE IMPORT v2.0.31' in style:
-              raise SystemExit('skincare import CSS already exists unexpectedly')
-          write('style.css',style.rstrip()+css_append+'\n')
-
-          # ---------- Cache busting ----------
-          index=read('index.html')
-          index=index.replace('style.css?v=2.0.30','style.css?v=2.0.31').replace('app.js?v=2.0.30','app.js?v=2.0.31')
-          write('index.html',index)
-          sw=read('service-worker.js')
-          sw=sw.replace('HANA 🌸 Service Worker v62','HANA 🌸 Service Worker v64').replace('hana-shell-v62','hana-shell-v64').replace('hana-shell-v63','hana-shell-v64').replace('style.css?v=2.0.29','style.css?v=2.0.31').replace('app.js?v=2.0.29','app.js?v=2.0.31').replace('style.css?v=2.0.30','style.css?v=2.0.31').replace('app.js?v=2.0.30','app.js?v=2.0.31')
-          write('service-worker.js',sw)
+          import subprocess
+          path='.github/workflows/hana-skincare-text-import-release.yml'
+          source=subprocess.check_output(['git','show',f'HEAD^:{path}'],text=True)
+          start_marker="          python - <<'PY'\n"
+          end_marker="\n          PY\n"
+          start=source.index(start_marker)+len(start_marker)
+          end=source.index(end_marker,start)
+          lines=source[start:end].splitlines()
+          code='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)+'\n'
+          Path('/tmp/hana_skincare_patch.py').write_text(code,encoding='utf-8')
           PY
+          python /tmp/hana_skincare_patch.py
 
       - name: JavaScript syntax check
         run: node --check app.js
 
-      - name: Parser regression test
+      - name: Formatted skincare parser regression
         shell: bash
         run: |
-          node <<'NODE'
-          const fs=require('fs');
-          const vm=require('vm');
-          const source=fs.readFileSync('app.js','utf8');
-          const start=source.indexOf('const SKINCARE_WEEKDAYS =');
-          const end=source.indexOf('function normalizeSkincareRoutine');
-          if(start<0||end<=start)throw new Error('Unable to isolate skincare parser');
-          const sample=`📅 Monday – Acne Control (Azelaic)
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          source=Path('app.js').read_text(encoding='utf-8')
+          start=source.index('const SKINCARE_WEEKDAYS =')
+          end=source.index('function normalizeSkincareRoutine',start)
+          sample='''📅 Monday – Acne Control (Azelaic)
 
 AM
 * Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash
@@ -523,11 +70,25 @@ PM (Week A)
 
 PM (Week B)
 * Treatment: Dr. Melaxin Exfoliating White Rice Ampoule
-* Moisturizer: Centellian24 Madeca Mela Capture Ampoule Capsule Cream`;
-          const test=source.slice(start,end)+`\nconst __result=parseSkincareRoutineText(${JSON.stringify(sample)},{allowSingleDay:false});\nif(!__result)throw new Error('Parser returned null');\nif(__result.dayCount!==2)throw new Error('Expected 2 days, got '+__result.dayCount);\nif(__result.dayLabels[1]!=='Acne Control (Azelaic)')throw new Error('Monday label lost');\nif(__result.dayLabels[2]!=='Exfoliation Night')throw new Error('Tuesday label lost');\nconst tue=__result.days[2];\nif(!tue.some(x=>x.routineLabel==='Week A'&&x.variant==='primary'))throw new Error('Week A not mapped to primary');\nif(!tue.some(x=>x.routineLabel==='Week B'&&x.variant==='alternate'))throw new Error('Week B not mapped to alternate');\nconst spot=__result.days[1].find(x=>x.category==='Spot Treatment');\nif(!spot||spot.notes!=='active pimples only'||spot.product.includes('active pimples only'))throw new Error('Usage note extraction failed');\nconst cream=__result.days[1].find(x=>x.category==='Moisturizer / Cream');\nif(!cream||!cream.product.includes('(Niacinamide 5% + Yuja)'))throw new Error('Ingredient parentheses were stripped');\nif(!skincareTextLooksStructured(${JSON.stringify(sample)},{allowSingleDay:false}))throw new Error('Detection failed');`;
-          vm.runInNewContext(test,{console});
-          console.log('PASS formatted skincare parser');
-          NODE
+* Moisturizer: Centellian24 Madeca Mela Capture Ampoule Capsule Cream'''
+          block=source[start:end]
+          test=block+f'''\nconst __sample={json.dumps(sample)};
+          const __result=parseSkincareRoutineText(__sample,{{allowSingleDay:false}});
+          if(!__result)throw new Error('Parser returned null');
+          if(__result.dayCount!==2)throw new Error('Expected two days');
+          if(__result.dayLabels[1]!=='Acne Control (Azelaic)')throw new Error('Monday label lost');
+          if(__result.dayLabels[2]!=='Exfoliation Night')throw new Error('Tuesday label lost');
+          if(!__result.days[2].some(x=>x.routineLabel==='Week A'&&x.variant==='primary'))throw new Error('Week A mapping failed');
+          if(!__result.days[2].some(x=>x.routineLabel==='Week B'&&x.variant==='alternate'))throw new Error('Week B mapping failed');
+          const __spot=__result.days[1].find(x=>x.category==='Spot Treatment');
+          if(!__spot||__spot.notes!=='active pimples only'||__spot.product.includes('active pimples only'))throw new Error('Usage note extraction failed');
+          const __cream=__result.days[1].find(x=>x.category==='Moisturizer / Cream');
+          if(!__cream||!__cream.product.includes('(Niacinamide 5% + Yuja)'))throw new Error('Ingredient parentheses lost');
+          if(!skincareTextLooksStructured(__sample,{{allowSingleDay:false}}))throw new Error('Structured detection failed');
+          console.log('PASS formatted skincare parser');\n'''
+          Path('/tmp/hana_skincare_parser_test.js').write_text(test,encoding='utf-8')
+          PY
+          node /tmp/hana_skincare_parser_test.js
 
       - name: Targeted release QA
         shell: bash
@@ -550,7 +111,7 @@ PM (Week B)
             'CSS import card':'FORMATTED SKINCARE IMPORT v2.0.31' in css,
             'cache v64':'hana-shell-v64' in sw,
             'service worker app version':'app.js?v=2.0.31' in sw,
-            'index app version':'app.js?v=2.0.31' in html and 'style.css?v=2.0.31' in html,
+            'index cache bust':'app.js?v=2.0.31' in html and 'style.css?v=2.0.31' in html,
           }
           for name,ok in checks.items(): print(('PASS' if ok else 'FAIL'),name)
           failed=[name for name,ok in checks.items() if not ok]
