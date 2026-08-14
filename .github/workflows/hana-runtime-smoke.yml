@@ -63,17 +63,26 @@ jobs:
               if (!text.includes(marker)) throw new Error(`${name} failed to render`);
             }
             const packing = await page.evaluate(() => {
-              const sample = ['Travel packing','Top','Shoes','Charger','Deo'].join('\n');
+              const sample = ['Travel packing','Top','Shoes','Charger','Deo','Passport','Sunscreen'].join('\n');
               const items = smartListItemsFromText(sample, 'packing');
               return {
                 kind: smartStructuredCaptureKind(sample),
+                categoryCount: SMART_PACKING_CATEGORY_ORDER.length,
                 titles: items.map(item => item.title),
                 categories: Object.fromEntries(items.map(item => [item.title, item.detail]))
               };
             });
             if (packing.kind !== 'packing') throw new Error('Named packing block detection regressed');
+            if (packing.categoryCount !== 21) throw new Error('Standard packing taxonomy regressed');
             if (!packing.titles.includes('Deodorant')) throw new Error('Packing canonicalization regressed');
-            if (packing.categories.Top !== '👗 Clothes' || packing.categories.Shoes !== '👟 Footwear' || packing.categories.Charger !== '🔌 Tech & travel gear') throw new Error('Packing categorization regressed');
+            if (packing.categories.Top !== '👗 Clothing' || packing.categories.Shoes !== '👟 Footwear' || packing.categories.Charger !== '🔌 Chargers & Power' || packing.categories.Passport !== '🪪 Documents & Money' || packing.categories.Sunscreen !== '✨ Skincare & Sun Care') throw new Error('Packing categorization regressed');
+            const learned = await page.evaluate(() => {
+              state.settings.packingCategoryMemory = {};
+              const before = smartPackingCategory('Cloud Nine Wand');
+              rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');
+              return {before, exact:smartPackingCategory('Cloud Nine Wand'), variant:smartPackingCategory('Cloud Nine Wand (travel size)')};
+            });
+            if (learned.before !== '🧳 Other' || learned.exact !== '💇 Hair Care & Styling' || learned.variant !== '💇 Hair Care & Styling') throw new Error('Packing category memory regressed');
             if (errors.length) throw new Error('Browser runtime errors: ' + errors.join(' | '));
             await browser.close();
             console.log('Hana iPhone runtime smoke passed');
