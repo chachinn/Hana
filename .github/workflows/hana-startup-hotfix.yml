@@ -1,0 +1,141 @@
+name: Hana startup stability hotfix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hana-startup-hotfix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply startup hotfix
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              count=text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
+              return text.replace(old,new,1)
+
+          def regex_once(text, pattern, replacement, label, flags=0):
+              out,count=re.subn(pattern, lambda _m: replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
+              return out
+
+          app_path=Path('app.js'); index_path=Path('index.html'); sw_path=Path('service-worker.js')
+          app=app_path.read_text(encoding='utf-8')
+          index=index_path.read_text(encoding='utf-8')
+          sw=sw_path.read_text(encoding='utf-8')
+
+          app=replace_once(app,
+              'HANA 🌸 Version 2 · internal build 2.0.36\n   Smart Library + file-aware Smart Sort',
+              'HANA 🌸 Version 2 · internal build 2.0.37\n   Startup stability + browser runtime QA',
+              'app header')
+          app=replace_once(app,'const HANA_APP_VERSION = "2.0.36";','const HANA_APP_VERSION = "2.0.37";','runtime version')
+
+          release='''const HANA_RELEASE_NOTES = {
+            version: HANA_DISPLAY_VERSION,
+            date: "August 14, 2026",
+            title: "A sturdier Hana 🌸",
+            intro: "This update fixes a startup regression from the Smart Library release and strengthens Hana’s release checks so browser-runtime failures are caught before deployment.",
+            items: [
+              { icon:"🛠️", title:"Blank startup fixed", text:"The template expansion no longer references a later JavaScript constant during startup, so Today can render normally again." },
+              { icon:"📱", title:"Real browser smoke testing", text:"Hana releases now include an iPhone-sized browser runtime check, not only JavaScript syntax checks." },
+              { icon:"🧩", title:"Smart Library preserved", text:"The expanded Smart Sort, file import and new templates remain available; this hotfix changes initialization order without removing those features." },
+              { icon:"🌿", title:"Data-safe repair", text:"The fix does not migrate, clear or replace saved Hana data." }
+            ]
+          };'''
+          app=regex_once(app,r'const HANA_RELEASE_NOTES = \{.*?\n\};',release,'release notes',re.S)
+
+          old='''const SMART_PRESET_TRACKERS = {
+            "travel-itinerary": EXTRA_TABLE_TEMPLATE_DEFINITIONS["travel-itinerary"], workout: EXTRA_TABLE_TEMPLATE_DEFINITIONS["workout-plan"], "study-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["study-plan"],
+            medication: EXTRA_TABLE_TEMPLATE_DEFINITIONS["medication-schedule"], "meal-plan": EXTRA_TABLE_TEMPLATE_DEFINITIONS["meal-planner"], "habit-tracker": EXTRA_TABLE_TEMPLATE_DEFINITIONS["habit-tracker"],
+            "reading-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["reading-list"], "watch-list": EXTRA_TABLE_TEMPLATE_DEFINITIONS["watch-list"], subscriptions: EXTRA_TABLE_TEMPLATE_DEFINITIONS["subscription-tracker"],
+            applications: EXTRA_TABLE_TEMPLATE_DEFINITIONS["application-tracker"], deliveries: EXTRA_TABLE_TEMPLATE_DEFINITIONS["delivery-tracker"], inventory: EXTRA_TABLE_TEMPLATE_DEFINITIONS["home-inventory"],
+            "content-calendar": EXTRA_TABLE_TEMPLATE_DEFINITIONS["content-calendar"], "decision-log": EXTRA_TABLE_TEMPLATE_DEFINITIONS["decision-log"], bookmarks: EXTRA_TABLE_TEMPLATE_DEFINITIONS["bookmark-library"]
+          };'''
+          new='''const SMART_PRESET_TEMPLATE_IDS = {
+            "travel-itinerary":"travel-itinerary", workout:"workout-plan", "study-plan":"study-plan",
+            medication:"medication-schedule", "meal-plan":"meal-planner", "habit-tracker":"habit-tracker",
+            "reading-list":"reading-list", "watch-list":"watch-list", subscriptions:"subscription-tracker",
+            applications:"application-tracker", deliveries:"delivery-tracker", inventory:"home-inventory",
+            "content-calendar":"content-calendar", "decision-log":"decision-log", bookmarks:"bookmark-library"
+          };
+          function smartPresetTrackerDefinition(kind){
+            const templateId=SMART_PRESET_TEMPLATE_IDS[kind];
+            return templateId ? EXTRA_TABLE_TEMPLATE_DEFINITIONS[templateId] : null;
+          }'''
+          app=replace_once(app,old,new,'eager Smart preset map')
+          app=replace_once(app,'String(SMART_PRESET_TRACKERS[kind]?.name||"")','String(smartPresetTrackerDefinition(kind)?.name||"")','preset heading lookup')
+          app=replace_once(app,'const definition=SMART_PRESET_TRACKERS[kind];','const definition=smartPresetTrackerDefinition(kind);','preset create lookup')
+          app=replace_once(app,'if(SMART_PRESET_TRACKERS[kind])return createSmartPresetTracker(text,space,kind,options);','if(smartPresetTrackerDefinition(kind))return createSmartPresetTracker(text,space,kind,options);','preset route lookup')
+
+          index=index.replace('content="2.0.36"','content="2.0.37"').replace('style.css?v=2.0.36','style.css?v=2.0.37').replace('app.js?v=2.0.36','app.js?v=2.0.37')
+          sw=replace_once(sw,'HANA 🌸 Service Worker v69 · Smart Library release','HANA 🌸 Service Worker v70 · startup stability hotfix','service worker header')
+          sw=replace_once(sw,'const CACHE_NAME = "hana-shell-v69";','const CACHE_NAME = "hana-shell-v70";','cache version')
+          sw=sw.replace('style.css?v=2.0.36','style.css?v=2.0.37').replace('app.js?v=2.0.36','app.js?v=2.0.37')
+
+          app_path.write_text(app,encoding='utf-8')
+          index_path.write_text(index,encoding='utf-8')
+          sw_path.write_text(sw,encoding='utf-8')
+
+          smoke=Path('.github/workflows/hana-runtime-smoke.yml')
+          smoke.write_text('''name: Hana browser runtime smoke\n\non:\n  push:\n    paths:\n      - app.js\n      - index.html\n      - style.css\n      - service-worker.js\n      - .github/workflows/hana-runtime-smoke.yml\n  workflow_dispatch:\n\npermissions:\n  contents: read\n\njobs:\n  iphone-runtime:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: JavaScript syntax\n        run: node --check app.js\n      - name: Install lightweight browser driver\n        run: npm install --prefix /tmp/hana-pw --no-save --package-lock=false playwright-core\n      - name: Start Hana locally\n        run: |\n          python3 -m http.server 4173 > /tmp/hana-http.log 2>&1 &\n          sleep 2\n      - name: iPhone-sized startup and navigation smoke\n        env:\n          NODE_PATH: /tmp/hana-pw/node_modules\n        run: |\n          node <<'NODE'\n          const { chromium } = require('playwright-core');\n          const fs=require('fs');\n          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);\n          if(!executablePath)throw new Error('No browser executable found');\n          (async()=>{\n            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});\n            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});\n            const page=await context.newPage();const errors=[];\n            page.on('pageerror',e=>errors.push(String(e.stack||e)));\n            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(900);\n            const check=async(pageName,marker)=>{await page.evaluate(p=>changePage(p),pageName);await page.waitForTimeout(100);const text=await page.locator('#pageContent').innerText();if(!text.trim()||!text.includes(marker))throw new Error(`${pageName} failed to render`);};\n            let text=await page.locator('#pageContent').innerText();if(!/Focus Bouquet|Nothing urgent|active/i.test(text))throw new Error('Today failed to render');\n            for(const [p,m] of [['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['inbox','Brain Dump'],['templates','Templates']])await check(p,m);\n            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));\n            await browser.close();console.log('Hana iPhone runtime smoke passed');\n          })().catch(e=>{console.error(e);process.exit(1)});\n          NODE\n''',encoding='utf-8')
+          PY
+
+      - name: Static regression checks
+        run: |
+          node --check app.js
+          python3 <<'PY'
+          from pathlib import Path
+          app=Path('app.js').read_text(); index=Path('index.html').read_text(); sw=Path('service-worker.js').read_text()
+          assert 'const HANA_APP_VERSION = "2.0.37";' in app
+          assert 'SMART_PRESET_TEMPLATE_IDS' in app and 'smartPresetTrackerDefinition' in app
+          assert 'SMART_PRESET_TRACKERS' not in app
+          assert 'content="2.0.37"' in index and 'app.js?v=2.0.37' in index
+          assert 'hana-shell-v70' in sw and 'app.js?v=2.0.37' in sw
+          assert 'parseSkincareRoutineFirstText' in app
+          assert 'refreshPackingQuickButton' in app
+          assert 'brainDumpFileInput' in app
+          print('Static hotfix regression checks passed')
+          PY
+          git diff --check
+
+      - name: Browser runtime QA on patched build
+        run: npm install --prefix /tmp/hana-hotfix-pw --no-save --package-lock=false playwright-core
+      - name: Start patched Hana
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-hotfix-http.log 2>&1 &
+          sleep 2
+      - name: Full core-page smoke
+        env:
+          NODE_PATH: /tmp/hana-hotfix-pw/node_modules
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright-core');const fs=require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          (async()=>{const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>{errors.push(String(e.stack||e));console.error('PAGEERROR',e.stack||e)});await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(900);let text=await page.locator('#pageContent').innerText();if(!/Focus Bouquet|Nothing urgent|active/i.test(text))throw new Error('Today did not render');const pages=[['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];for(const [name,marker] of pages){await page.evaluate(p=>changePage(p),name);await page.waitForTimeout(80);text=await page.locator('#pageContent').innerText();if(!text.includes(marker))throw new Error(`${name} missing marker ${marker}`);}if(errors.length)throw new Error(errors.join('\n'));await browser.close();console.log('Core-page browser QA passed');})().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit and clean temporary diagnostics
+        run: |
+          rm -f .github/workflows/hana-runtime-diagnostic.yml
+          rm -f .github/workflows/hana-startup-hotfix.yml
+          git config user.name "Hana Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Hana: fix startup and add runtime smoke QA"
+          git push origin main
