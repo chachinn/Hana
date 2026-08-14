@@ -17,8 +17,19 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Apply production patch
-        run: python3 .github/scripts/hana_smart_packing_patch.py
+      - name: Fix patch helper and apply production patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('.github/scripts/hana_smart_packing_patch.py')
+          text=path.read_text()
+          old='new, count = re.subn(pattern, replacement, text, count=1, flags=flags)'
+          new='new, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)'
+          if old not in text:
+              raise SystemExit('regex helper marker missing')
+          path.write_text(text.replace(old,new,1))
+          PY
+          python3 .github/scripts/hana_smart_packing_patch.py
 
       - name: Syntax and consistency
         run: |
