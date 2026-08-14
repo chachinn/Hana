@@ -1,0 +1,90 @@
+name: Hana formatted skincare import repair
+
+on:
+  push:
+    paths:
+      - '.github/workflows/hana-skincare-text-import-repair.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply original release patch and repair generated code
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          path='.github/workflows/hana-skincare-text-import-release.yml'
+          source=subprocess.check_output(['git','show',f'8561f5dd963ab65376dc6566f3a6441381986ff7:{path}'],text=True)
+          start_marker="          python - <<'PY'\n"
+          end_marker="\n          PY\n"
+          start=source.index(start_marker)+len(start_marker)
+          end=source.index(end_marker,start)
+          lines=source[start:end].splitlines()
+          code='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)+'\n'
+          Path('/tmp/hana_skincare_patch.py').write_text(code,encoding='utf-8')
+          PY
+          python /tmp/hana_skincare_patch.py
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          path=Path('app.js')
+          text=path.read_text(encoding='utf-8')
+          desired='function plantAllInbox(){const items=[...state.inbox],remaining=[];let planted=0;items.forEach(i=>{const result=plantText(i.text,i.space,i.destination||"auto");if(result==="invalid-skincare")remaining.push(i);else planted++;});state.inbox=remaining;showToast(`${planted} item${planted===1?"":"s"} planted${remaining.length?` · ${remaining.length} needs review`:""} 🌸`);render();}'
+          text,count=re.subn(r'^function plantAllInbox\(\).*$',lambda _m:desired,text,count=1,flags=re.M)
+          if count!=1: raise SystemExit(f'plantAllInbox repair expected 1 line, got {count}')
+          path.write_text(text,encoding='utf-8')
+          PY
+
+      - name: JavaScript syntax check
+        run: node --check app.js
+
+      - name: Parser regression test
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          source=Path('app.js').read_text(encoding='utf-8')
+          start=source.index('const SKINCARE_WEEKDAYS =')
+          end=source.index('function normalizeSkincareRoutine',start)
+          sample="📅 Monday – Acne Control (Azelaic)\n\nAM\n* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash\n* Cream: SEOUL 1988 Capsule Cream (Niacinamide 5% + Yuja)\n\nPM\n* Spot Treatment: Lion Pair Acne Cream (active pimples only)\n\n⸻\n\n📅 Tuesday – Exfoliation Night\n\nAM\n* Cleanser: Melano CC Vitamin C Brightening Enzyme Face Wash\n\nPM (Week A)\n* Toner: Y.O.U. 7% Acid Deep Exfoliating Toner\n* Serum: COSRX The Alpha Arbutin 2 Discoloration Care Serum\n\nPM (Week B)\n* Treatment: Dr. Melaxin Exfoliating White Rice Ampoule\n* Moisturizer: Centellian24 Madeca Mela Capture Ampoule Capsule Cream"
+          assertions="const r=parseSkincareRoutineText(S,{allowSingleDay:false});if(!r||r.dayCount!==2)throw new Error('day parse');if(r.dayLabels[1]!=='Acne Control (Azelaic)'||r.dayLabels[2]!=='Exfoliation Night')throw new Error('labels');if(!r.days[2].some(x=>x.routineLabel==='Week A'&&x.variant==='primary'))throw new Error('week A');if(!r.days[2].some(x=>x.routineLabel==='Week B'&&x.variant==='alternate'))throw new Error('week B');const spot=r.days[1].find(x=>x.category==='Spot Treatment');if(!spot||spot.notes!=='active pimples only'||spot.product.includes('active pimples only'))throw new Error('usage notes');const cream=r.days[1].find(x=>x.category==='Moisturizer / Cream');if(!cream||!cream.product.includes('(Niacinamide 5% + Yuja)'))throw new Error('ingredients');if(!skincareTextLooksStructured(S,{allowSingleDay:false}))throw new Error('detection');console.log('PASS skincare parser');"
+          Path('/tmp/skincare-test.js').write_text(source[start:end]+'\nconst S='+json.dumps(sample)+';\n'+assertions+'\n',encoding='utf-8')
+          PY
+          node /tmp/skincare-test.js
+
+      - name: Targeted release QA
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          app=Path('app.js').read_text(encoding='utf-8')
+          html=Path('index.html').read_text(encoding='utf-8')
+          css=Path('style.css').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          checks={'version':'const HANA_APP_VERSION = "2.0.31";' in app,'public version':'const HANA_DISPLAY_VERSION = "2";' in app,'parser':'function parseSkincareRoutineText' in app,'day labels':'skincareDayLabel' in html and 'dayLabels' in app,'routine labels':'routineLabel' in app,'paste UI':'skincareImportText' in html and 'data-skincare-import-text' in html,'Brain Dump':'{value:"skincare",label:"🧴 Skincare planner"}' in app,'capture':'formatted routine detected' in app,'css':'FORMATTED SKINCARE IMPORT v2.0.31' in css,'cache':'hana-shell-v64' in sw and 'app.js?v=2.0.31' in sw,'index':'app.js?v=2.0.31' in html and 'style.css?v=2.0.31' in html}
+          for name,ok in checks.items(): print(('PASS' if ok else 'FAIL'),name)
+          failed=[name for name,ok in checks.items() if not ok]
+          if failed: raise SystemExit('QA failed: '+', '.join(failed))
+          PY
+          git diff --check
+
+      - name: Commit completed release
+        shell: bash
+        run: |
+          git config user.name "Hana Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/hana-skincare-text-import-release.yml .github/workflows/hana-skincare-text-import-repair.yml
+          git add app.js index.html style.css service-worker.js
+          git commit -m "Hana: import formatted skincare routines"
+          git push origin HEAD:main
