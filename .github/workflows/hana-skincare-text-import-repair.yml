@@ -43,6 +43,8 @@ jobs:
           text,count=re.subn(r'^function plantAllInbox\(\).*$',lambda _m:desired,text,count=1,flags=re.M)
           if count!=1: raise SystemExit(f'plantAllInbox repair expected 1 line, got {count}')
           path.write_text(text,encoding='utf-8')
+          css=Path('style.css')
+          css.write_text(css.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
           PY
 
       - name: JavaScript syntax check
