@@ -981,7 +981,7 @@ const HANA_RELEASE_NOTES = {
   items: [
     { icon:"🧴", title:"Skincare shortcut in the header", text:"A skincare button appears beside Search whenever you have a saved Weekly Skincare Planner." },
     { icon:"☀️", title:"Morning through afternoon", text:"From 2:00 AM through 5:59 PM, the shortcut opens today’s morning routine first." },
-    { icon:"🌙", title:"Night routine after 6 PM", text:"From 6:00 PM through 3:59 AM, the shortcut opens today’s night routine first." },
+    { icon:"🌙", title:"Night routine after 6 PM", text:"From 6:00 PM through 1:59 AM, the shortcut opens today’s night routine first." },
     { icon:"↕️", title:"Switch anytime", text:"Inside the routine you can jump between Morning, Night, or Full day without leaving today’s weekday." }
   ]
 };
