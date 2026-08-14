@@ -16,8 +16,23 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Apply release patch
-        run: python .github/scripts/hana_skincare_today_patch.py
+      - name: Repair patch target and apply release
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/hana_skincare_today_patch.py')
+          text=p.read_text(encoding='utf-8')
+          old='app = replace_once(app, "  renderQuickAccess();", "  renderQuickAccess();\\n  refreshSkincareQuickButton();", "render shortcut refresh")'
+          new='''render_pos = app.index("function render() {")
+          quick_target = "  renderQuickAccess();"
+          quick_pos = app.index(quick_target, render_pos)
+          app = app[:quick_pos] + "  renderQuickAccess();\\n  refreshSkincareQuickButton();" + app[quick_pos + len(quick_target):]'''
+          if old not in text:
+              raise SystemExit('Could not find renderQuickAccess patch line')
+          p.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          python .github/scripts/hana_skincare_today_patch.py
       - name: Run release QA
         run: python .github/scripts/hana_skincare_today_qa.py
       - name: Commit completed release
