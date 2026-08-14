@@ -1,0 +1,169 @@
+from pathlib import Path
+import re
+
+
+def replace_once(text, old, new, label):
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{label}: expected exactly 1 match, got {count}")
+    return text.replace(old, new, 1)
+
+
+app_path = Path("app.js")
+html_path = Path("index.html")
+css_path = Path("style.css")
+sw_path = Path("service-worker.js")
+app = app_path.read_text(encoding="utf-8")
+html = html_path.read_text(encoding="utf-8")
+css = css_path.read_text(encoding="utf-8")
+sw = sw_path.read_text(encoding="utf-8")
+
+app = replace_once(
+    app,
+    "HANA 🌸 Version 2 · internal build 2.0.31\n   Formatted skincare import + smart routine capture",
+    "HANA 🌸 Version 2 · internal build 2.0.32\n   Skincare Today shortcut + time-aware AM/PM view",
+    "header build",
+)
+app = replace_once(app, 'const HANA_APP_VERSION = "2.0.31";', 'const HANA_APP_VERSION = "2.0.32";', "app version")
+
+release_pattern = re.compile(r"const HANA_RELEASE_NOTES = \{.*?\n\};", re.S)
+release_new = """const HANA_RELEASE_NOTES = {
+  version: HANA_DISPLAY_VERSION,
+  date: \"August 14, 2026\",
+  title: \"Today’s skincare, one tap away 🧴\",
+  intro: \"When a Weekly Skincare Planner exists in Notes, Hana now gives it a tiny home-screen shortcut and opens the part of the routine that fits the time of day.\",
+  items: [
+    { icon:\"🧴\", title:\"Skincare shortcut in the header\", text:\"A skincare button appears beside Search whenever you have a saved Weekly Skincare Planner.\" },
+    { icon:\"☀️\", title:\"Morning through afternoon\", text:\"From 4:00 AM through 5:59 PM, the shortcut opens today’s morning routine first.\" },
+    { icon:\"🌙\", title:\"Night routine after 6 PM\", text:\"From 6:00 PM through 3:59 AM, the shortcut opens today’s night routine first.\" },
+    { icon:\"↕️\", title:\"Switch anytime\", text:\"Inside the routine you can jump between Morning, Night, or Full day without leaving today’s weekday.\" }
+  ]
+};"""
+app, count = release_pattern.subn(release_new, app, count=1)
+if count != 1:
+    raise SystemExit(f"release notes: expected 1 match, got {count}")
+
+shortcut_helpers = """/* ================= SKINCARE TODAY SHORTCUT ================= */
+
+function skincarePeriodForTime(date = new Date()) {
+  const hour = date.getHours();
+  return hour >= 18 || hour < 4 ? \"pm\" : \"am\";
+}
+
+function savedSkincareNotes() {
+  return (state.notes || [])
+    .filter(note => note?.structuredType === \"skincare-weekly\" && note?.skincareRoutine)
+    .sort((a,b) => Number(b.pinned)-Number(a.pinned) || Number(b.updatedAt||0)-Number(a.updatedAt||0));
+}
+
+function preferredSkincareNote() {
+  return savedSkincareNotes()[0] || null;
+}
+
+function refreshSkincareQuickButton() {
+  const button = document.getElementById(\"skincareQuickButton\");
+  if (!button) return;
+  const note = preferredSkincareNote();
+  button.classList.toggle(\"hidden\", !note);
+  if (!note) return;
+  const period = skincarePeriodForTime();
+  const periodLabel = period === \"pm\" ? \"night\" : \"morning\";
+  button.title = `Open today's ${periodLabel} skincare routine`;
+  button.setAttribute(\"aria-label\", `Open today's ${periodLabel} skincare routine`);
+  const badge = document.getElementById(\"skincareQuickPeriodIcon\");
+  if (badge) badge.textContent = period === \"pm\" ? \"🌙\" : \"☀️\";
+}
+
+function openTodaysSkincareRoutine() {
+  const note = preferredSkincareNote();
+  if (!note) return showToast(\"Save a Weekly Skincare Planner first 🧴\");
+  openSkincareRoutineModal(note.id,{edit:false,day:new Date().getDay(),period:skincarePeriodForTime()});
+}
+
+"""
+marker = "/* ================= WEEKLY SKINCARE PLANNER ================= */"
+app = replace_once(app, marker, shortcut_helpers + marker, "skincare shortcut helpers")
+app = replace_once(app, "let activeSkincareViewDay = new Date().getDay();", 'let activeSkincareViewDay = new Date().getDay();\nlet activeSkincareViewPeriod = "all";', "skincare period state")
+
+old_view_start = "function renderSkincareRoutineView(note, day = activeSkincareViewDay) {"
+view_start = app.find(old_view_start)
+view_end = app.find("\nfunction openSkincareRoutineModal", view_start)
+if view_start < 0 or view_end < 0:
+    raise SystemExit("skincare view function markers not found")
+new_view = """function renderSkincareRoutineView(note, day = activeSkincareViewDay) {
+  const body=document.getElementById(\"skincareViewBody\");if(!body||!note)return;
+  const meta=skincareDayMeta(day),today=new Date().getDay(),normalized=normalizeSkincareRoutine(note.skincareRoutine||{}),dayLabel=normalized.dayLabels?.[Number(day)]||\"\";
+  const am=skincareStepsForDay(note,day,\"am\",\"primary\"),amAlt=skincareStepsForDay(note,day,\"am\",\"alternate\");
+  const pm=skincareStepsForDay(note,day,\"pm\",\"primary\"),pmAlt=skincareStepsForDay(note,day,\"pm\",\"alternate\");
+  const period=[\"am\",\"pm\",\"all\"].includes(activeSkincareViewPeriod)?activeSkincareViewPeriod:\"all\";
+  const routineSection=(icon,label,steps,{alternate=false,hideIfEmpty=false}={})=>{
+    if(hideIfEmpty&&!steps.length)return \"\";
+    const labels=[...new Set(steps.map(step=>String(step.routineLabel||\"\").trim()).filter(Boolean))];
+    const displayLabel=labels.length===1?`${label.startsWith(\"AM\")||label.includes(\"AM\")?\"AM\":\"PM\"} · ${labels[0]}`:label;
+    return `<section class=\"skincare-routine-period ${alternate?\"skincare-routine-period-alternate\":\"\"}\"><div class=\"skincare-period-title\"><span>${icon}</span><div><strong>${escapeHTML(displayLabel)}</strong><small>${steps.length} step${steps.length===1?\"\":\"s\"}${alternate?\" · optional alternate\":\"\"}</small></div></div>${steps.length?`<div class=\"skincare-view-step-list\">${steps.map(skincareViewStepHTML).join(\"\")}</div>`:`<div class=\"skincare-empty-period\">Nothing planned for ${label.toLowerCase()}.</div>`}</section>`;
+  };
+  const periodSwitch=`<div class=\"skincare-period-switch\" role=\"group\" aria-label=\"Routine time\"><button type=\"button\" data-skincare-view-period=\"am\" class=\"${period===\"am\"?\"active\":\"\"}\" aria-pressed=\"${period===\"am\"}\">☀️ Morning</button><button type=\"button\" data-skincare-view-period=\"pm\" class=\"${period===\"pm\"?\"active\":\"\"}\" aria-pressed=\"${period===\"pm\"}\">🌙 Night</button><button type=\"button\" data-skincare-view-period=\"all\" class=\"${period===\"all\"?\"active\":\"\"}\" aria-pressed=\"${period===\"all\"}\">↕ Full day</button></div>`;
+  const amSections=`${routineSection(\"☀️\",\"AM Routine\",am)}${routineSection(\"☀️\",\"Alternate AM\",amAlt,{alternate:true,hideIfEmpty:true})}`;
+  const pmSections=`${routineSection(\"🌙\",\"PM Routine\",pm)}${routineSection(\"🌙\",\"Alternate PM\",pmAlt,{alternate:true,hideIfEmpty:true})}`;
+  const visibleSections=period===\"am\"?amSections:period===\"pm\"?pmSections:amSections+pmSections;
+  body.innerHTML=`${note.skincareRoutine?.focus?`<div class=\"skincare-focus-card\"><small>FOCUS / SKIN GOALS</small><p>${escapeHTML(note.skincareRoutine.focus)}</p></div>`:\"\"}<div class=\"skincare-day-tabs\" role=\"tablist\" aria-label=\"Skincare day\">${SKINCARE_WEEKDAYS.map(item=>`<button type=\"button\" role=\"tab\" data-skincare-view-day=\"${item.day}\" class=\"${Number(day)===item.day?\"active\":\"\"} ${today===item.day?\"today\":\"\"}\" aria-selected=\"${Number(day)===item.day}\"><span>${item.short}</span>${today===item.day?`<small>Today</small>`:\"\"}</button>`).join(\"\")}</div><div class=\"skincare-selected-day\"><span>${meta.label}${dayLabel?` · ${escapeHTML(dayLabel)}`:\"\"}</span>${today===Number(day)?`<strong>Today</strong>`:\"\"}</div>${periodSwitch}<div class=\"skincare-period-grid skincare-period-grid-${period}\">${visibleSections}</div>`;
+}"""
+app = app[:view_start] + new_view + app[view_end:]
+
+open_pattern = re.compile(r'^function openSkincareRoutineModal\(noteId="", options=\{\}\).*$', re.M)
+open_new = """function openSkincareRoutineModal(noteId=\"\", options={}) {
+  clearTemplateDraftBanner(\"skincareRoutineModal\");
+  const note=noteId?state.notes.find(item=>item.id===noteId):null,edit=Boolean(options.edit||!note);
+  activeSkincareViewDay=Number.isInteger(options.day)?options.day:new Date().getDay();
+  activeSkincareViewPeriod=[\"am\",\"pm\",\"all\"].includes(options.period)?options.period:\"all\";
+  const modal=document.getElementById(\"skincareRoutineModal\");if(modal)modal.dataset.noteId=note?.id||\"\";
+  document.getElementById(\"skincarePlannerTitle\").textContent=note?.title||\"Weekly skincare planner\";
+  document.getElementById(\"skincareViewMode\").classList.toggle(\"hidden\",edit);
+  document.getElementById(\"skincareEditMode\").classList.toggle(\"hidden\",!edit);
+  document.getElementById(\"skincarePlannerEditButton\").classList.toggle(\"hidden\",edit||!note);
+  document.getElementById(\"skincarePlannerSettingsButton\").classList.toggle(\"hidden\",edit||!note);
+  document.getElementById(\"skincarePlannerBackToView\").classList.toggle(\"hidden\",!edit||!note);
+  if(edit)populateSkincareEditor(note,activeSkincareViewDay);else renderSkincareRoutineView(note,activeSkincareViewDay);
+  openModal(\"skincareRoutineModal\");
+}"""
+app, count = open_pattern.subn(open_new, app, count=1)
+if count != 1:
+    raise SystemExit(f"openSkincareRoutineModal: expected 1 match, got {count}")
+
+app = replace_once(app, "  renderQuickAccess();", "  renderQuickAccess();\n  refreshSkincareQuickButton();", "render shortcut refresh")
+
+old_click = '  const openSkincare=event.target.closest("[data-open-skincare]");if(openSkincare){openSkincareRoutineModal(openSkincare.dataset.openSkincare,{edit:false});return;}'
+new_click = '''  if(event.target.closest("[data-open-today-skincare]")){openTodaysSkincareRoutine();return;}
+  const openSkincare=event.target.closest("[data-open-skincare]");if(openSkincare){openSkincareRoutineModal(openSkincare.dataset.openSkincare,{edit:false});return;}'''
+app = replace_once(app, old_click, new_click, "today skincare click")
+
+old_day = '  const skincareDay=event.target.closest("[data-skincare-view-day]");if(skincareDay){activeSkincareViewDay=Number(skincareDay.dataset.skincareViewDay);const id=document.getElementById("skincareEditId")?.value||document.getElementById("skincareRoutineModal")?.dataset.noteId||"";const note=state.notes.find(item=>item.id===id);if(note)renderSkincareRoutineView(note,activeSkincareViewDay);return;}'
+new_day = '''  const skincarePeriod=event.target.closest("[data-skincare-view-period]");if(skincarePeriod){activeSkincareViewPeriod=["am","pm","all"].includes(skincarePeriod.dataset.skincareViewPeriod)?skincarePeriod.dataset.skincareViewPeriod:"all";const id=document.getElementById("skincareEditId")?.value||document.getElementById("skincareRoutineModal")?.dataset.noteId||"";const note=state.notes.find(item=>item.id===id);if(note)renderSkincareRoutineView(note,activeSkincareViewDay);return;}
+  const skincareDay=event.target.closest("[data-skincare-view-day]");if(skincareDay){activeSkincareViewDay=Number(skincareDay.dataset.skincareViewDay);const id=document.getElementById("skincareEditId")?.value||document.getElementById("skincareRoutineModal")?.dataset.noteId||"";const note=state.notes.find(item=>item.id===id);if(note)renderSkincareRoutineView(note,activeSkincareViewDay);return;}'''
+app = replace_once(app, old_day, new_day, "skincare period click")
+
+header_button = '''        <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>
+        <button id="skincareQuickButton" class="icon-button skincare-quick-header-button hidden" type="button" data-open-today-skincare aria-label="Open today's skincare routine" title="Today's skincare routine"><span aria-hidden="true">🧴</span><small id="skincareQuickPeriodIcon" aria-hidden="true">☀️</small></button>'''
+html = replace_once(html, '        <button id="globalSearchButton" class="icon-button" aria-label="Search Hana" title="Search Hana">🔎</button>', header_button, "header skincare button")
+html = re.sub(r'<meta name="hana-app-version" content="[^"]+" />', '<meta name="hana-app-version" content="2.0.32" />', html, count=1)
+html = html.replace("style.css?v=2.0.31", "style.css?v=2.0.32").replace("app.js?v=2.0.31", "app.js?v=2.0.32")
+
+css = css.rstrip() + """
+
+/* ================= SKINCARE TODAY SHORTCUT v2.0.32 ================= */
+.skincare-quick-header-button{position:relative;background:linear-gradient(145deg,var(--pink-50),var(--white));border-color:var(--pink-150)}
+.skincare-quick-header-button>span{font-size:18px;line-height:1}.skincare-quick-header-button>small{position:absolute;right:-3px;bottom:-4px;width:18px;height:18px;display:grid;place-items:center;border-radius:999px;background:var(--white);border:1px solid var(--pink-150);box-shadow:var(--shadow-sm);font-size:10px;line-height:1}
+.skincare-period-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:4px;margin:2px 0 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface-soft)}
+.skincare-period-switch button{min-width:0;padding:9px 7px;border-radius:12px;background:transparent;color:var(--text-soft);font-size:9px;font-weight:850;white-space:nowrap}.skincare-period-switch button.active{background:var(--surface);color:var(--pink-dark);box-shadow:var(--shadow-sm);border:1px solid var(--border)}
+.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr 1fr}
+@media(max-width:520px){.skincare-period-switch button{font-size:8px;padding-inline:5px}.skincare-period-grid-am,.skincare-period-grid-pm{grid-template-columns:1fr}}
+"""
+
+sw = re.sub(r"HANA 🌸 Service Worker v\d+", "HANA 🌸 Service Worker v65", sw, count=1)
+sw = re.sub(r'const CACHE_NAME = "hana-shell-v\d+";', 'const CACHE_NAME = "hana-shell-v65";', sw, count=1)
+sw = sw.replace("style.css?v=2.0.31", "style.css?v=2.0.32").replace("app.js?v=2.0.31", "app.js?v=2.0.32")
+
+app_path.write_text(app, encoding="utf-8")
+html_path.write_text(html, encoding="utf-8")
+css_path.write_text(css.rstrip() + "\n", encoding="utf-8")
+sw_path.write_text(sw, encoding="utf-8")
