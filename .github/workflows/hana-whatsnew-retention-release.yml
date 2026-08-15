@@ -1,0 +1,63 @@
+name: Hana What’s New retention release
+on:
+  push:
+    paths:
+      - .github/workflows/hana-whatsnew-retention-release.yml
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply What’s New release-key patch
+        run: python3 .github/scripts/hana_whatsnew_patch.py
+      - name: Static safety and retention checks
+        run: |
+          node --check app.js
+          node --check intelligence.js
+          node --check recovery-safety.js
+          node --check smart-templates.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'const HANA_WHATS_NEW_KEY = "hana-v1-2026-08-16-intelligence-stability"' app.js
+          grep -q 'lastSeenWhatsNewKey' app.js
+          grep -q 'Hana got smarter 🌸' app.js
+          grep -q 'hana-shell-v1-whats-new-1' service-worker.js
+          grep -q 'POMODORO_STORAGE_KEY' app.js
+          grep -q 'parseSkincareRoutineFirstText' app.js
+          grep -q 'activePackingShortcut' app.js
+          grep -q 'smartMixedDocumentPlan' app.js
+          grep -q 'CLOUD_AUTO_BACKUP_HOUR = 8' app.js
+          grep -q 'SMART_PACKING_CATEGORY_ORDER' app.js
+          grep -q 'function importBrainDumpFile' app.js
+          grep -q 'meeting-decision-card' app.js
+          grep -q 'HANA_SMART_TEMPLATE_CATALOG' smart-templates.js
+          grep -q 'nonDestructiveAuthCleanup' recovery-safety.js
+          grep -q 'window.HanaIntelligence' intelligence.js
+          git diff --check
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-retention-pw --no-save --package-lock=false playwright-core
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 >/tmp/hana-retention-http.log 2>&1 &
+          sleep 2
+      - name: Existing-user popup and feature-retention QA
+        env:
+          NODE_PATH: /tmp/hana-retention-pw/node_modules
+        run: node .github/scripts/hana_feature_retention_qa.js
+      - name: Commit tested runtime patch
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js service-worker.js
+          git diff --check --cached
+          if ! git diff --cached --quiet; then
+            git commit -m "Restore meaningful What’s New prompts in Hana v1"
+            git push origin HEAD:main
+          fi
