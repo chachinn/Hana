@@ -2,16 +2,18 @@
    HANA 🌸 Service Worker v1 · data-safety revision 1
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v1-data-safe-3";
+const CACHE_NAME = "hana-shell-v1-intelligence-1";
 const CORE_SHELL = [
   "./",
   "./index.html",
   "./style.css?v=1.0.0",
   "./smart-templates.css?v=1.0.0",
+  "./intelligence.css?v=1.0.0",
   "./app.js?v=1.0.0",
   "./firebase-bridge.js?v=1.0.0",
   "./recovery-safety.js?v=1.0.0-data-safe-1",
-  "./smart-templates.js?v=1.0.0"
+  "./smart-templates.js?v=1.0.0",
+  "./intelligence.js?v=1.0.0"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",
