@@ -37,10 +37,14 @@ jobs:
           grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
           grep -q 'intelligence.js?v=1.0.0' index.html
           grep -q 'intelligence.css?v=1.0.0' index.html
-          grep -q 'const CACHE_NAME = "hana-shell-v1-intelligence-2"' service-worker.js
+          grep -q 'const CACHE_NAME = "hana-shell-v1-intelligence-3"' service-worker.js
           grep -q 'function dailyPlan' intelligence.js
           grep -q 'function dependencyCandidates' intelligence.js
           grep -q 'function conversionProposal' intelligence.js
+          grep -q 'function scorePreparedQuery' intelligence.js
+          grep -q 'function semanticSearch(query,limit=MAX_RESULTS,all=corpus())' intelligence.js
+          grep -q 'status:()=>{const all=corpus()' intelligence.js
+          ! grep -Eq -- '--surface|--surface-soft|--pink-dark|--pink-soft' intelligence.css
           grep -q 'ADAPTIVE SKINCARE ROUTINE SIZING' style.css
           git diff --check
 
@@ -83,6 +87,12 @@ jobs:
             const intelligence=await page.evaluate(()=>{const space=state.spaces[0]?.id||'personal';state.tasks=[{id:'ai-a',title:'Submit visa application',notes:'after passport photo',space,dueDate:todayISO(),done:false,estimatedMinutes:60,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-b',title:'Get passport photo',space,done:false,estimatedMinutes:15,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-c',title:'Write Japan itinerary',space,done:false,estimatedMinutes:30,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-d',title:'Review Japan food list',space,done:false,estimatedMinutes:20,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-e',title:'Book Japan hotel',space,done:false,estimatedMinutes:20,createdAt:Date.now(),updatedAt:Date.now()}];state.notes=[normalizeNote({id:'ai-n',title:'Japan itinerary ideas',content:'Asakusa and Kagurazaka',space,createdAt:Date.now(),updatedAt:Date.now()})];state.projects=[];state.events=[];state.reminders=[];const answer=HanaIntelligence.ask('What do I still need to do for Japan?');const date=HanaIntelligence.naturalDate('Renew passport tomorrow');const pocket=HanaIntelligence.timePocket(45);const daily=HanaIntelligence.dailyPlan();const deps=HanaIntelligence.dependencies();const projects=HanaIntelligence.projectCandidates();const conv=HanaIntelligence.conversionProposal('Japan itinerary ideas');HanaIntelligence.learn('preferred planning style','compact');HanaIntelligence.open();return{answer:answer.answer,date:date?.date,pocket:pocket.items.length,daily:daily.items.length,deps:deps.length,projects:projects.length,conv:conv.options.length,remember:HanaIntelligence.recall('preferred planning style'),button:!!document.getElementById('askHanaButton'),modal:!document.getElementById('hanaIntelligenceModal').classList.contains('hidden'),dayAnswer:HanaIntelligence.ask('plan my day').answer,pocketAnswer:HanaIntelligence.ask('what can i do in 45 minutes').answer};});
             if(!intelligence.answer.includes('Japan')||!intelligence.date||intelligence.pocket<1||intelligence.daily<1||intelligence.deps<1||intelligence.projects<1||intelligence.conv<1||intelligence.remember!=='compact'||!intelligence.button||!intelligence.modal||!/Today’s local plan/.test(intelligence.dayAnswer)||!/45 minutes/.test(intelligence.pocketAnswer))throw new Error('Intelligence regressed '+JSON.stringify(intelligence));
 
+            const conversion=await page.evaluate(()=>{state.notes=[normalizeNote({id:'tokyo-conversion',title:'Tokyo itinerary note',content:'Kagurazaka and Asakusa',space:state.spaces[0]?.id||'personal',createdAt:Date.now(),updatedAt:Date.now()})];return HanaIntelligence.ask('convert Tokyo itinerary note into checklist').answer;});
+            if(!conversion.includes('Tokyo itinerary note')||!conversion.includes('proposal only'))throw new Error('Conversion query scrub regressed '+conversion);
+
+            const mobile=await page.evaluate(()=>{HanaIntelligence.open();document.getElementById('skincareQuickButton')?.classList.remove('hidden');document.getElementById('packingQuickButton')?.classList.remove('hidden');const header=document.querySelector('.app-header'),modal=document.querySelector('.hana-ai-modal'),badge=getComputedStyle(document.querySelector('.hana-ask-button'),'::after');return{noX:document.documentElement.scrollWidth<=innerWidth+2,headerFits:header.scrollWidth<=innerWidth+2,modalFits:modal.getBoundingClientRect().width<=innerWidth-8,badgeColor:badge.color,badgeBg:badge.backgroundColor};});
+            if(!mobile.noX||!mobile.headerFits||!mobile.modalFits||mobile.badgeColor==='rgba(0, 0, 0, 0)'||mobile.badgeBg==='rgba(0, 0, 0, 0)')throw new Error('Ask Hana mobile styling regressed '+JSON.stringify(mobile));
+
             const smart=await page.evaluate(()=>({wedding:smartStructuredCaptureKind('Wedding Planner\nVenue:\nBook venue'),hair:smartStructuredCaptureKind('Haircare Schedule\nMonday:\nShampoo | Test'),trip:smartStructuredCaptureKind('Trip Prep\nDocuments:\nPassport'),packing:smartStructuredCaptureKind('Travel packing\nTop\nShoes\nPassport\nCharger'),skincare:skincareTextLooksStructured('Morning Routine\nDaily\nCleanser → Sample\nToner → Sample\nMoisturizer → Sample\nSunscreen → Sample',{allowSingleDay:false})}));
             if(smart.wedding!=='wedding-planner'||smart.hair!=='haircare'||smart.trip!=='trip-prep'||smart.packing!=='packing'||!smart.skincare)throw new Error('Smart capture regressed '+JSON.stringify(smart));
 
@@ -96,7 +106,7 @@ jobs:
             if(longSkincare.count!==8||longSkincare.font>12||longSkincare.font<10.5||longSkincare.row>45||!longSkincare.noScroll||!longSkincare.noX)throw new Error('Adaptive skincare regressed '+JSON.stringify(longSkincare));
 
             if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('Hana Version 1 permanent QA passed',JSON.stringify({identity,recovery,intelligence,smart,packing,skincare,longSkincare}));
+            console.log('Hana Version 1 permanent QA passed',JSON.stringify({identity,recovery,intelligence,mobile,smart,packing,skincare,longSkincare}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
