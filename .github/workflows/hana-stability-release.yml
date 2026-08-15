@@ -1,0 +1,53 @@
+name: Hana stability release QA
+on:
+  push:
+    paths:
+      - .github/workflows/hana-stability-release.yml
+permissions:
+  contents: write
+jobs:
+  stability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply stability patch
+        run: python3 .github/scripts/hana_stability_patch.py
+      - name: Static safety checks
+        run: |
+          node --check app.js
+          node --check intelligence.js
+          node --check recovery-safety.js
+          node --check smart-templates.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'hana-shell-v1-intelligence-3' service-worker.js
+          grep -q 'function scorePreparedQuery' intelligence.js
+          grep -q 'function semanticSearch(query,limit=MAX_RESULTS,all=corpus())' intelligence.js
+          grep -q 'status:()=>{const all=corpus()' intelligence.js
+          ! grep -Eq -- '--surface|--surface-soft|--pink-dark|--pink-soft' intelligence.css
+          git diff --check
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-stability-pw --no-save --package-lock=false playwright-core
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 >/tmp/hana-stability-http.log 2>&1 &
+          sleep 2
+      - name: iPhone stress and regression QA
+        env:
+          NODE_PATH: /tmp/hana-stability-pw/node_modules
+        run: node .github/scripts/hana_stability_qa.js
+      - name: Commit tested stability patch
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add intelligence.js intelligence.css service-worker.js .github/workflows/hana-runtime-smoke.yml
+          git diff --check --cached
+          if ! git diff --cached --quiet; then
+            git commit -m "Harden Ask Hana performance and mobile styling"
+            git push origin HEAD:main
+          fi
