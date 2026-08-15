@@ -5130,3 +5130,13 @@ body.modal-open{overflow:hidden}
   #skincareViewMode .skincare-day-tabs button { font-size: 11px; padding-inline: 1px; }
   #skincareViewMode .skincare-view-step strong { font-size: 12px; }
 }
+
+/* Skincare view owns its safe-area box instead of inheriting bottom-sheet anchoring. */
+#skincareRoutineModal {
+  align-items: center;
+  padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+}
+#skincareRoutineModal .skincare-planner-modal {
+  height: 100%;
+  max-height: 100%;
+}
