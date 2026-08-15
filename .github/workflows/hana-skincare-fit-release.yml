@@ -1,0 +1,311 @@
+name: Hana skincare routine fit QA
+
+on:
+  push:
+    branches:
+      - fix/skincare-routine-fit
+    paths:
+      - .github/workflows/hana-skincare-fit-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  skincare-fit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/skincare-routine-fit
+          fetch-depth: 0
+
+      - name: Apply compact readable skincare view
+        run: |
+          cat >> style.css <<'CSS'
+
+          /* ================= SKINCARE ROUTINE FIT VIEW · v1 =================
+             Readable one-screen routine view for iPhone. Edit mode keeps its
+             existing scrollable planner behavior.
+             ================================================================ */
+          #skincareRoutineModal .skincare-planner-modal {
+            width: min(calc(100vw - 18px), 760px);
+            height: min(calc(100dvh - max(18px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom))), 900px);
+            max-height: none;
+            padding: 16px;
+            overflow-y: auto;
+          }
+          #skincareRoutineModal .skincare-planner-header {
+            padding: 0 0 8px;
+            margin-bottom: 0;
+          }
+          #skincareRoutineModal .skincare-planner-header .eyebrow { margin-bottom: 2px; }
+          #skincareRoutineModal .skincare-planner-header h2 {
+            margin: 0;
+            font-size: clamp(23px, 6vw, 30px);
+            line-height: 1.05;
+            letter-spacing: -.6px;
+          }
+          #skincareViewMode:not(.hidden) {
+            min-height: calc(100% - 58px);
+            display: flex;
+            flex-direction: column;
+          }
+          #skincareViewMode:not(.hidden) #skincareViewBody {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+          }
+          #skincareViewMode .skincare-focus-card {
+            padding: 8px 10px;
+            margin-bottom: 7px;
+            border-radius: 13px;
+          }
+          #skincareViewMode .skincare-focus-card p { font-size: 12px; line-height: 1.3; margin-top: 3px; }
+          #skincareViewMode .skincare-day-tabs {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 4px;
+            overflow: visible;
+            padding: 1px 0 6px;
+          }
+          #skincareViewMode .skincare-day-tabs button {
+            min-width: 0;
+            width: 100%;
+            min-height: 42px;
+            padding: 6px 2px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1;
+          }
+          #skincareViewMode .skincare-day-tabs button small {
+            font-size: 6px;
+            line-height: 1;
+            min-height: 6px;
+          }
+          #skincareViewMode .skincare-selected-day {
+            margin: 1px 2px 6px;
+            min-height: 24px;
+          }
+          #skincareViewMode .skincare-selected-day span {
+            font-size: 17px;
+            line-height: 1.1;
+          }
+          #skincareViewMode .skincare-selected-day strong { font-size: 8px; padding: 3px 7px; }
+          #skincareViewMode .skincare-period-switch {
+            gap: 4px;
+            padding: 3px;
+            margin: 0 0 7px;
+            border-radius: 14px;
+          }
+          #skincareViewMode .skincare-period-switch button {
+            min-height: 36px;
+            padding: 6px 4px;
+            font-size: 10px;
+            border-radius: 11px;
+          }
+          #skincareViewMode .skincare-period-grid,
+          #skincareViewMode .skincare-period-grid-am,
+          #skincareViewMode .skincare-period-grid-pm {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 7px;
+            min-height: 0;
+          }
+          #skincareViewMode .skincare-period-grid-all {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          #skincareViewMode .skincare-routine-period {
+            padding: 9px 10px;
+            border-radius: 16px;
+            min-height: 0;
+          }
+          #skincareViewMode .skincare-period-title {
+            gap: 7px;
+            margin-bottom: 6px;
+          }
+          #skincareViewMode .skincare-period-title > span { font-size: 20px; }
+          #skincareViewMode .skincare-period-title strong { font-size: 14px; line-height: 1.1; }
+          #skincareViewMode .skincare-period-title small { font-size: 9px; }
+          #skincareViewMode .skincare-view-step-list {
+            counter-reset: hana-skincare-step;
+            gap: 5px;
+          }
+          #skincareViewMode .skincare-view-step {
+            counter-increment: hana-skincare-step;
+            display: grid;
+            grid-template-columns: 25px minmax(0, 1fr);
+            column-gap: 8px;
+            align-items: center;
+            padding: 7px 9px;
+            min-height: 47px;
+            border-radius: 12px;
+          }
+          #skincareViewMode .skincare-view-step::before {
+            content: counter(hana-skincare-step);
+            width: 24px;
+            height: 24px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            background: var(--pink-soft);
+            color: var(--pink-dark);
+            font-size: 10px;
+            font-weight: 900;
+          }
+          #skincareViewMode .skincare-view-step > div {
+            min-width: 0;
+            gap: 1px;
+          }
+          #skincareViewMode .skincare-category-pill {
+            font-size: 8px;
+            line-height: 1.05;
+            letter-spacing: .06em;
+          }
+          #skincareViewMode .skincare-view-step strong {
+            font-size: 13px;
+            line-height: 1.18;
+            letter-spacing: -.1px;
+            overflow-wrap: anywhere;
+          }
+          #skincareViewMode .skincare-view-step > small {
+            grid-column: 2;
+            margin-top: 2px;
+            font-size: 9px;
+            line-height: 1.2;
+          }
+          #skincareViewMode .skincare-view-actions {
+            position: static;
+            display: grid;
+            grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
+            gap: 8px;
+            margin-top: 8px;
+            padding: 0 0 env(safe-area-inset-bottom);
+            background: transparent;
+            backdrop-filter: none;
+          }
+          #skincareViewMode .skincare-view-actions .modal-action-spacer { display: none; }
+          #skincareViewMode .skincare-view-actions button {
+            width: 100%;
+            min-height: 44px;
+            padding: 0 10px;
+            font-size: 12px;
+            border-radius: 13px;
+          }
+          @media (max-width: 520px) {
+            #skincareRoutineModal { padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); }
+            #skincareRoutineModal .skincare-planner-modal { padding: 14px; }
+            #skincareViewMode .skincare-period-grid-all { grid-template-columns: 1fr 1fr; }
+          }
+          @media (max-width: 390px) {
+            #skincareRoutineModal .skincare-planner-modal { padding: 12px; }
+            #skincareViewMode .skincare-day-tabs { gap: 3px; }
+            #skincareViewMode .skincare-day-tabs button { font-size: 11px; padding-inline: 1px; }
+            #skincareViewMode .skincare-view-step strong { font-size: 12px; }
+          }
+          CSS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          sw = Path('service-worker.js')
+          text = sw.read_text()
+          old = 'const CACHE_NAME = "hana-shell-v1-data-safe-1";'
+          new = 'const CACHE_NAME = "hana-shell-v1-data-safe-2";'
+          if old not in text:
+              raise SystemExit('Expected current data-safe cache marker was not found')
+          sw.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Static safety checks
+        run: |
+          node --check app.js
+          node --check recovery-safety.js
+          node --check smart-templates.js
+          node --check service-worker.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'hana-shell-v1-data-safe-2' service-worker.js
+          grep -q 'SKINCARE ROUTINE FIT VIEW' style.css
+          git diff --check
+
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-skincare-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-skincare-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone skincare fit behavioral QA
+        env:
+          NODE_PATH: /tmp/hana-skincare-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright-core');
+          const fs = require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if(!executablePath) throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block',userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage();
+            const errors=[]; page.on('pageerror',e=>errors.push(String(e.stack||e)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(1100);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+            const created=await page.evaluate(()=>{
+              const text=`Saturday\nPM Routine\nCleanser → LION Pair Acne Creamy Foam\nToner → Numbuzin NAD+ PDRN Glow Boosting Toner\nSerum → iUNIK Beta-Glucan Power Moisture Serum\nMoisturizer → Centellian24 Madeca Mela Capture Ampoule Capsule Cream\nEye Serum / Cream → Seoul 1988 Eye Cream: Retinal Liposome 4% + Fermented Bean`;
+              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
+              if(!note) return null;
+              openSkincareRoutineModal(note.id,{edit:false,day:6,period:'pm'});
+              return {id:note.id,title:note.title};
+            });
+            if(!created) throw new Error('Could not create skincare QA routine');
+            await page.waitForTimeout(100);
+            const metrics=await page.evaluate(()=>{
+              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
+              const view=document.getElementById('skincareViewMode');
+              const dayTabs=document.querySelector('.skincare-day-tabs');
+              const steps=[...document.querySelectorAll('.skincare-view-step')];
+              const product=steps[0]?.querySelector('strong');
+              const rect=modal.getBoundingClientRect();
+              return {
+                modalTop:rect.top,modalBottom:rect.bottom,viewportHeight:innerHeight,
+                modalScrollHeight:modal.scrollHeight,modalClientHeight:modal.clientHeight,
+                bodyScrollWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,
+                dayTabsScrollWidth:dayTabs?.scrollWidth||0,dayTabsClientWidth:dayTabs?.clientWidth||0,
+                stepCount:steps.length,
+                productFont:parseFloat(getComputedStyle(product).fontSize||'0'),
+                actionCount:view.querySelectorAll('.skincare-view-actions button').length,
+                hidden:view.classList.contains('hidden')
+              };
+            });
+            if(metrics.hidden) throw new Error('Skincare view is hidden');
+            if(metrics.stepCount!==5) throw new Error('Expected 5 visible PM steps: '+JSON.stringify(metrics));
+            if(metrics.productFont<13) throw new Error('Routine product text is still too small: '+JSON.stringify(metrics));
+            if(metrics.dayTabsScrollWidth>metrics.dayTabsClientWidth+2) throw new Error('Day selector still requires horizontal swipe: '+JSON.stringify(metrics));
+            if(metrics.bodyScrollWidth>metrics.viewportWidth+2) throw new Error('Skincare modal causes horizontal page overflow: '+JSON.stringify(metrics));
+            if(metrics.modalBottom>metrics.viewportHeight+1||metrics.modalTop<0) throw new Error('Modal does not fit viewport: '+JSON.stringify(metrics));
+            if(metrics.modalScrollHeight>metrics.modalClientHeight+2) throw new Error('Five-step PM routine still requires modal scrolling: '+JSON.stringify(metrics));
+            if(metrics.actionCount!==2) throw new Error('Routine actions regressed');
+            const identity=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,storage:STORAGE_KEY,recovery:window.HanaRecoveryAudit?.status?.()}));
+            if(identity.app!=='1.0.0'||identity.display!=='1'||identity.storage!=='hana_app_v1'||!identity.recovery?.nonDestructiveAuthCleanup) throw new Error('Version/data-safety identity regressed '+JSON.stringify(identity));
+            if(errors.length) throw new Error('Runtime errors: '+errors.join(' | '));
+            console.log('Hana skincare fit QA passed',JSON.stringify({created,metrics,identity}));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit tested skincare fit to branch
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add style.css service-worker.js
+          git diff --check --cached
+          if git diff --cached --quiet; then
+            echo "No production changes to commit"
+          else
+            git commit -m "Improve skincare routine one-screen view"
+            git push origin HEAD:fix/skincare-routine-fit
+          fi
