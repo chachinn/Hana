@@ -1,0 +1,223 @@
+name: Hana adaptive skincare sizing QA
+
+on:
+  push:
+    branches:
+      - fix/skincare-adaptive-sizing
+    paths:
+      - .github/workflows/hana-skincare-adaptive-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  adaptive-skincare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/skincare-adaptive-sizing
+          fetch-depth: 0
+
+      - name: Apply adaptive skincare sizing
+        run: |
+          cat >> style.css <<'CSS'
+
+          /* ================= ADAPTIVE SKINCARE ROUTINE SIZING · v1 =================
+             Give short routines more breathing room and automatically tighten
+             longer routines so the active view stays on one iPhone screen.
+             ======================================================================= */
+          #skincareViewMode .skincare-view-step-list {
+            gap: 6px;
+          }
+          #skincareViewMode .skincare-view-step {
+            grid-template-columns: 29px minmax(0, 1fr);
+            column-gap: 10px;
+            min-height: 54px;
+            padding: 9px 11px;
+          }
+          #skincareViewMode .skincare-view-step::before {
+            width: 27px;
+            height: 27px;
+            font-size: 11px;
+          }
+          #skincareViewMode .skincare-category-pill {
+            font-size: 9px;
+            line-height: 1.05;
+          }
+          #skincareViewMode .skincare-view-step strong {
+            font-size: 15px;
+            line-height: 1.16;
+            letter-spacing: -.12px;
+          }
+          #skincareViewMode .skincare-view-step > small {
+            font-size: 9.5px;
+          }
+
+          /* 6+ steps: compact a little, but keep text comfortably readable. */
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(6)) {
+            gap: 4px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(6)) .skincare-view-step {
+            grid-template-columns: 25px minmax(0, 1fr);
+            column-gap: 8px;
+            min-height: 46px;
+            padding: 6px 8px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(6)) .skincare-view-step::before {
+            width: 23px;
+            height: 23px;
+            font-size: 10px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(6)) .skincare-category-pill { font-size: 8px; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(6)) .skincare-view-step strong { font-size: 13.5px; line-height: 1.13; }
+
+          /* 7+ steps: trade spacing before readability. */
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(7)) {
+            padding: 7px 8px;
+          }
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(7)) .skincare-period-title {
+            margin-bottom: 4px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(7)) {
+            gap: 3px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(7)) .skincare-view-step {
+            min-height: 40px;
+            padding: 4px 7px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(7)) .skincare-view-step strong { font-size: 12.5px; line-height: 1.1; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(7)) .skincare-category-pill { font-size: 7.5px; }
+
+          /* 8+ steps: dense mode to keep the routine visible without scrolling. */
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(8)) {
+            padding: 6px 7px;
+          }
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(8)) .skincare-period-title {
+            gap: 5px;
+            margin-bottom: 3px;
+          }
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(8)) .skincare-period-title > span { font-size: 17px; }
+          #skincareViewMode .skincare-routine-period:has(.skincare-view-step:nth-child(8)) .skincare-period-title strong { font-size: 12px; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) {
+            gap: 2px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) .skincare-view-step {
+            grid-template-columns: 22px minmax(0, 1fr);
+            column-gap: 6px;
+            min-height: 35px;
+            padding: 3px 6px;
+            border-radius: 10px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) .skincare-view-step::before {
+            width: 20px;
+            height: 20px;
+            font-size: 9px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) .skincare-view-step strong { font-size: 11.5px; line-height: 1.08; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) .skincare-category-pill { font-size: 7px; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(8)) .skincare-view-step > small { font-size: 8px; line-height: 1.05; }
+
+          /* 10+ steps: emergency fit mode, still readable but intentionally dense. */
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(10)) .skincare-view-step {
+            min-height: 31px;
+            padding-block: 2px;
+          }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(10)) .skincare-view-step strong { font-size: 10.5px; line-height: 1.05; }
+          #skincareViewMode .skincare-view-step-list:has(.skincare-view-step:nth-child(10)) .skincare-category-pill { font-size: 6.5px; }
+          CSS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          sw=Path('service-worker.js')
+          text=sw.read_text()
+          old='const CACHE_NAME = "hana-shell-v1-data-safe-2";'
+          new='const CACHE_NAME = "hana-shell-v1-data-safe-3";'
+          if old not in text:
+              raise SystemExit('Expected current cache marker not found')
+          sw.write_text(text.replace(old,new,1))
+
+          wf=Path('.github/workflows/hana-runtime-smoke.yml')
+          text=wf.read_text()
+          text=text.replace('const CACHE_NAME = "hana-shell-v1-data-safe-2"','const CACHE_NAME = "hana-shell-v1-data-safe-3"')
+          text=text.replace("if(skincare.stepCount!==5||skincare.font<13||!skincare.tabsFit||!skincare.noScroll||!skincare.noX)","if(skincare.stepCount!==5||skincare.font<15||!skincare.tabsFit||!skincare.noScroll||!skincare.noX)")
+          wf.write_text(text)
+          PY
+
+      - name: Static safety
+        run: |
+          node --check app.js
+          node --check recovery-safety.js
+          node --check smart-templates.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'hana-shell-v1-data-safe-3' service-worker.js
+          grep -q 'ADAPTIVE SKINCARE ROUTINE SIZING' style.css
+          git diff --check
+
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-adaptive-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-adaptive-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone adaptive skincare QA
+        env:
+          NODE_PATH: /tmp/hana-adaptive-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium }=require('playwright-core');
+          const fs=require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if(!executablePath) throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block',userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(String(e.stack||e)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'}); await page.waitForTimeout(1100);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+
+            const five=await page.evaluate(()=>{
+              const text=`Saturday\nPM Routine\nCleanser → LION Pair Acne Creamy Foam\nToner → Numbuzin NAD+ PDRN Glow Boosting Toner\nSerum → iUNIK Beta-Glucan Power Moisture Serum\nMoisturizer → Centellian24 Madeca Mela Capture Ampoule Capsule Cream\nEye Serum / Cream → Seoul 1988 Eye Cream: Retinal Liposome 4% + Fermented Bean`;
+              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
+              openSkincareRoutineModal(note.id,{edit:false,day:6,period:'pm'});
+              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
+              const steps=[...document.querySelectorAll('.skincare-view-step')];
+              return {count:steps.length,font:parseFloat(getComputedStyle(steps[0].querySelector('strong')).fontSize),row:steps[0].getBoundingClientRect().height,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
+            });
+            if(five.count!==5||five.font<15||five.row<50||!five.noScroll||!five.noX) throw new Error('Five-step sizing failed '+JSON.stringify(five));
+
+            const eight=await page.evaluate(()=>{
+              closeModal('skincareRoutineModal');
+              const text=`Sunday\nPM Routine\nCleanser → Gentle Foaming Cleanser\nToner → Hydrating Toner\nEssence → Fermented Essence Treatment\nSerum → Barrier Support Serum With Ceramides\nTreatment → Azelaic Acid Treatment\nMoisturizer → Rich Barrier Repair Moisturizer\nEye Serum / Cream → Retinal Eye Cream\nSleeping Mask → Overnight Recovery Sleeping Mask`;
+              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
+              openSkincareRoutineModal(note.id,{edit:false,day:0,period:'pm'});
+              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
+              const steps=[...document.querySelectorAll('.skincare-view-step')];
+              return {count:steps.length,font:parseFloat(getComputedStyle(steps[0].querySelector('strong')).fontSize),row:steps[0].getBoundingClientRect().height,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
+            });
+            if(eight.count!==8||eight.font>12||eight.font<10.5||eight.row>45||!eight.noScroll||!eight.noX) throw new Error('Eight-step adaptive sizing failed '+JSON.stringify(eight));
+
+            const safe=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,storage:STORAGE_KEY,recovery:window.HanaRecoveryAudit?.status?.()}));
+            if(safe.app!=='1.0.0'||safe.display!=='1'||safe.storage!=='hana_app_v1'||!safe.recovery?.nonDestructiveAuthCleanup) throw new Error('Safety identity regressed '+JSON.stringify(safe));
+            if(errors.length) throw new Error(errors.join(' | '));
+            console.log('Hana adaptive skincare QA passed',JSON.stringify({five,eight,safe}));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit tested adaptive sizing
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add style.css service-worker.js .github/workflows/hana-runtime-smoke.yml
+          git diff --check --cached
+          if ! git diff --cached --quiet; then
+            git commit -m "Make skincare routine sizing adaptive"
+            git push origin HEAD:fix/skincare-adaptive-sizing
+          fi
