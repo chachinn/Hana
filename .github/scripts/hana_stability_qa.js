@@ -1,0 +1,33 @@
+const { chromium }=require('playwright-core');
+const fs=require('fs');
+const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+if(!executablePath)throw new Error('No browser executable');
+(async()=>{
+  const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+  const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e.stack||e)));
+  await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(1000);await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+  const result=await page.evaluate(()=>{
+    const space=state.spaces[0]?.id||'personal',now=Date.now();
+    state.tasks=Array.from({length:800},(_,i)=>({id:`stress-${i}`,title:`Japan prep item ${i%80}`,notes:i%9===0?'waiting for travel reply tomorrow':'travel planning task',space,done:false,estimatedMinutes:15+(i%4)*15,createdAt:now-i*1000,updatedAt:now-i*1000}));
+    state.notes=Array.from({length:120},(_,i)=>normalizeNote({id:`stress-note-${i}`,title:i===0?'Tokyo itinerary note':`Japan reference ${i}`,content:`hotel food itinerary reference ${i}`,space,createdAt:now-i*2000,updatedAt:now-i*2000}));
+    state.lists=[];state.tables=[];state.projects=[];state.events=[];state.reminders=[];state.pins=[];
+    const t0=performance.now(),answer=HanaIntelligence.ask('what do i still need to do for Japan?'),askMs=performance.now()-t0;
+    const t1=performance.now(),review=HanaIntelligence.suggestions(),reviewMs=performance.now()-t1;
+    const t2=performance.now(),status=HanaIntelligence.status(),statusMs=performance.now()-t2;
+    const conversion=HanaIntelligence.ask('convert Tokyo itinerary note into checklist');
+    HanaIntelligence.open();
+    document.getElementById('skincareQuickButton')?.classList.remove('hidden');document.getElementById('packingQuickButton')?.classList.remove('hidden');
+    const header=document.querySelector('.app-header'),modal=document.querySelector('.hana-ai-modal'),aiBadge=getComputedStyle(document.querySelector('.hana-ask-button'),'::after');
+    return{app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,storage:STORAGE_KEY,recovery:HanaRecoveryAudit.status().nonDestructiveAuthCleanup,askMs,reviewMs,statusMs,answerCount:answer.results?.length||0,reviewCount:review.length,corpus:status.corpus,conversion:conversion.answer,noX:document.documentElement.scrollWidth<=innerWidth+2,headerFits:header.scrollWidth<=innerWidth+2,modalFits:modal.getBoundingClientRect().width<=innerWidth-8,badgeColor:aiBadge.color,badgeBg:aiBadge.backgroundColor};
+  });
+  if(result.app!=='1.0.0'||result.display!=='1'||result.storage!=='hana_app_v1'||!result.recovery)throw new Error('Identity/recovery regression '+JSON.stringify(result));
+  if(result.answerCount<1||result.reviewCount<1||result.corpus<800)throw new Error('Intelligence content regression '+JSON.stringify(result));
+  if(result.askMs>1200||result.reviewMs>1800||result.statusMs>1800)throw new Error('Performance regression '+JSON.stringify(result));
+  if(!result.conversion.includes('Tokyo itinerary note'))throw new Error('Conversion query scrub regression '+JSON.stringify(result));
+  if(!result.noX||!result.headerFits||!result.modalFits)throw new Error('iPhone overflow regression '+JSON.stringify(result));
+  if(result.badgeColor==='rgba(0, 0, 0, 0)'||result.badgeBg==='rgba(0, 0, 0, 0)')throw new Error('Ask Hana theme regression '+JSON.stringify(result));
+  if(errors.length)throw new Error('Runtime errors: '+errors.join(' | '));
+  console.log('Hana stability QA passed',JSON.stringify(result));
+  await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
