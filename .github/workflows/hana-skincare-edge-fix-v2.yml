@@ -1,0 +1,103 @@
+name: Hana skincare centered safe-area QA
+
+on:
+  push:
+    branches:
+      - fix/skincare-safe-edge
+    paths:
+      - .github/workflows/hana-skincare-edge-fix-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  safe-edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/skincare-safe-edge
+          fetch-depth: 0
+
+      - name: Center skincare view inside safe area
+        run: |
+          cat >> style.css <<'CSS'
+
+          /* Skincare view owns its safe-area box instead of inheriting bottom-sheet anchoring. */
+          #skincareRoutineModal {
+            align-items: center;
+            padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+          }
+          #skincareRoutineModal .skincare-planner-modal {
+            height: 100%;
+            max-height: 100%;
+          }
+          CSS
+
+      - name: Static safety
+        run: |
+          node --check app.js
+          node --check recovery-safety.js
+          node --check smart-templates.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'hana-shell-v1-data-safe-2' service-worker.js
+          grep -q '#skincareRoutineModal {' style.css
+          git diff --check
+
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-edge2-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-edge2-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone centered skincare fit QA
+        env:
+          NODE_PATH: /tmp/hana-edge2-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium }=require('playwright-core');
+          const fs=require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if(!executablePath) throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block',userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(String(e.stack||e)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'}); await page.waitForTimeout(1100);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+            await page.evaluate(()=>{
+              const text=`Saturday\nPM Routine\nCleanser → LION Pair Acne Creamy Foam\nToner → Numbuzin NAD+ PDRN Glow Boosting Toner\nSerum → iUNIK Beta-Glucan Power Moisture Serum\nMoisturizer → Centellian24 Madeca Mela Capture Ampoule Capsule Cream\nEye Serum / Cream → Seoul 1988 Eye Cream: Retinal Liposome 4% + Fermented Bean`;
+              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
+              openSkincareRoutineModal(note.id,{edit:false,day:6,period:'pm'});
+            });
+            await page.waitForTimeout(80);
+            const metrics=await page.evaluate(()=>{
+              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
+              const tabs=document.querySelector('.skincare-day-tabs');
+              const steps=[...document.querySelectorAll('.skincare-view-step')];
+              const r=modal.getBoundingClientRect();
+              return {top:r.top,bottom:r.bottom,height:innerHeight,stepCount:steps.length,font:parseFloat(getComputedStyle(steps[0].querySelector('strong')).fontSize),tabsFit:tabs.scrollWidth<=tabs.clientWidth+2,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
+            });
+            if(metrics.top<0||metrics.bottom>metrics.height+1||metrics.stepCount!==5||metrics.font<13||!metrics.tabsFit||!metrics.noScroll||!metrics.noX) throw new Error('Centered fit failed '+JSON.stringify(metrics));
+            const safe=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,storage:STORAGE_KEY,recovery:window.HanaRecoveryAudit?.status?.()}));
+            if(safe.app!=='1.0.0'||safe.display!=='1'||safe.storage!=='hana_app_v1'||!safe.recovery?.nonDestructiveAuthCleanup) throw new Error('Safety identity regressed '+JSON.stringify(safe));
+            if(errors.length) throw new Error(errors.join(' | '));
+            console.log('Hana skincare centered safe-area QA passed',JSON.stringify({metrics,safe}));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit tested centered fit
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add style.css
+          git diff --check --cached
+          if ! git diff --cached --quiet; then
+            git commit -m "Center skincare routine inside iPhone safe area"
+            git push origin HEAD:fix/skincare-safe-edge
+          fi
