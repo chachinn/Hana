@@ -82,11 +82,11 @@ if(!executablePath) throw new Error('No browser executable found');
     state.settings.packingCategoryMemory={};
     rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');
     const recipeKind=smartStructuredCaptureKind('Recipe\nIngredients:\n1 cup rice\n1 cup water\nSteps:\nCook rice until done');
-    const meetingHTML=meetingDecisionItemHTML({topic:'Budget',discussion:'Discussed',decision:'Approved',action:'Send memo',owner:'Cha',dueDate:'2026-08-20'});
+    const meetingHTML=meetingDecisionItemRowHTML({topic:'Budget',discussion:'Discussed',decision:'Approved',action:'Send memo',owner:'Cha',dueDate:'2026-08-20'});
     return {
       pomodoro: typeof pomodoroCardHTML==='function' && POMODORO_STORAGE_KEY==='hana-pomodoro-v1' && pomodoroCardHTML().includes('Pomodoro'),
       tableMobile: typeof openTableRowModal==='function' && typeof tableGesture==='object' && typeof lastTableTap==='object',
-      meetingStructured: meetingHTML.includes('Discussion summary') && meetingHTML.includes('Decision / agreed outcome') && meetingHTML.includes('Action / next step'),
+      meetingStructured: typeof meetingDecisionItemRowHTML==='function' && meetingHTML.includes('Discussion summary') && meetingHTML.includes('Decision / agreed outcome') && meetingHTML.includes('Action / next step'),
       skincareImport: Boolean(skincare && skincare.dayCount===7 && skincare.stepCount>=7),
       skincareCutoff: skincarePeriodForTime(new Date('2026-08-16T01:30:00'))==='pm' && skincarePeriodForTime(new Date('2026-08-16T02:00:00'))==='am' && skincarePeriodForTime(new Date('2026-08-16T17:59:00'))==='am' && skincarePeriodForTime(new Date('2026-08-16T18:00:00'))==='pm',
       tripPacking: packingActive,
