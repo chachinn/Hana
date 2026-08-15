@@ -51,12 +51,11 @@ if(!executablePath) throw new Error('No browser executable found');
   const noRepeat = await page.evaluate(()=>document.getElementById('whatsNewModal')?.classList.contains('hidden'));
   if(!noRepeat) throw new Error('What’s New repeated after release key was marked seen');
 
-  // Manual What’s New remains available even after it was seen.
   const manual = await page.evaluate(()=>{openWhatsNew({markSeen:false});return !document.getElementById('whatsNewModal')?.classList.contains('hidden');});
   if(!manual) throw new Error('Manual What’s New no longer opens');
   await page.evaluate(()=>closeModal('whatsNewModal'));
 
-  // First-run tutorial must still take precedence over release notes.
+  // A genuinely new user gets the tutorial first, not two overlays competing at startup.
   await page.evaluate(()=>{
     state.settings.tutorialCompleted=false;
     state.settings.lastSeenWhatsNewKey='';
@@ -75,14 +74,30 @@ if(!executablePath) throw new Error('No browser executable found');
   const retained = await page.evaluate(()=>{
     const routineText=`Morning Routine\nDaily\nCleanser → Gentle Cleanser\nToner → Hydrating Toner\nMoisturizer → Barrier Cream\nSunscreen → SPF 50\n\nNight Routine\nDaily\nCleanser → Gentle Cleanser\nSerum → Barrier Serum\nMoisturizer → Barrier Cream`;
     const skincare=parseSkincareRoutineText(routineText,{allowSingleDay:true});
-    const before=state.lists;
+
+    const listBackup=state.lists;
     state.lists=[normalizeList({id:'audit-pack',name:'Audit Packing',icon:'🧳',space:preferredSpace(),templateType:'packing',tripStartAt:'2026-08-16T12:00',items:[],createdAt:Date.now(),updatedAt:Date.now()})];
     const packingActive=activePackingShortcut(new Date('2026-08-10T12:00:00'))?.list?.id==='audit-pack';
-    state.lists=before;
+    state.lists=listBackup;
+
     state.settings.packingCategoryMemory={};
     rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');
     const recipeKind=smartStructuredCaptureKind('Recipe\nIngredients:\n1 cup rice\n1 cup water\nSteps:\nCook rice until done');
     const meetingHTML=meetingDecisionItemRowHTML({topic:'Budget',discussion:'Discussed',decision:'Approved',action:'Send memo',owner:'Cha',dueDate:'2026-08-20'});
+
+    const rootsBackup={tasks:state.tasks,notes:state.notes,lists:state.lists,tables:state.tables,projects:state.projects,events:state.events,reminders:state.reminders};
+    const space=preferredSpace();
+    state.tasks=[{id:'thread-task',title:'Thread task',space}];
+    state.notes=[{id:'thread-note',title:'Thread note',space}];
+    state.lists=[{id:'thread-list',name:'Thread list',icon:'☑️',space,items:[]}];
+    state.tables=[{id:'thread-table',name:'Thread table',space,rows:[]}];
+    state.projects=[{id:'thread-project',name:'Thread project',emoji:'🌷',space}];
+    state.events=[{id:'thread-event',title:'Thread event',space,date:'2026-08-20',startTime:'10:00'}];
+    state.reminders=[{id:'thread-reminder',title:'Thread reminder',space,date:'2026-08-20'}];
+    const threadTypes=new Set(getThreadableItems().map(item=>item.type));
+    const threadSupport=['task','note','list','table','project','event','reminder'].every(type=>threadTypes.has(type));
+    Object.assign(state,rootsBackup);
+
     return {
       pomodoro: typeof pomodoroCardHTML==='function' && POMODORO_STORAGE_KEY==='hana-pomodoro-v1' && pomodoroCardHTML().includes('Pomodoro'),
       tableMobile: typeof openTableRowModal==='function' && typeof tableGesture==='object' && typeof lastTableTap==='object',
@@ -94,7 +109,7 @@ if(!executablePath) throw new Error('No browser executable found');
       fileImport: typeof importBrainDumpFile==='function',
       templates: STARTER_TEMPLATES.length>=25,
       mixed: typeof smartMixedDocumentPlan==='function' && typeof createSmartMixedDocument==='function',
-      threads: typeof getThreadableItems==='function' && getThreadableItems().some(x=>['task','note','list','tracker','project','event','reminder'].includes(x.type)),
+      threads: threadSupport,
       cloud8am: CLOUD_AUTO_BACKUP_HOUR===8 && typeof maybeRunAutomaticCloudBackup==='function',
       packing21: SMART_PACKING_CATEGORY_ORDER.length===21,
       packingLearning: smartPackingCategory('Cloud Nine Wand (travel size)')==='💇 Hair Care & Styling',
