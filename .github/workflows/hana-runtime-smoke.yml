@@ -8,6 +8,8 @@ on:
       - style.css
       - smart-templates.js
       - smart-templates.css
+      - intelligence.js
+      - intelligence.css
       - recovery-safety.js
       - service-worker.js
       - .github/workflows/hana-runtime-smoke.yml
@@ -26,16 +28,18 @@ jobs:
         run: |
           node --check app.js
           node --check smart-templates.js
+          node --check intelligence.js
           node --check recovery-safety.js
           node --check service-worker.js
-          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
-          grep -q 'const CACHE_NAME = "hana-shell-v1-data-safe-3"' service-worker.js
-          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' service-worker.js
-          grep -q 'SKINCARE ROUTINE FIT VIEW' style.css
-          grep -q 'ADAPTIVE SKINCARE ROUTINE SIZING' style.css
           grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
           grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
           grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
+          grep -q 'intelligence.js?v=1.0.0' index.html
+          grep -q 'intelligence.css?v=1.0.0' index.html
+          grep -q 'const CACHE_NAME = "hana-shell-v1-intelligence-1"' service-worker.js
+          grep -q 'ADAPTIVE SKINCARE ROUTINE SIZING' style.css
+          git diff --check
 
       - name: Install lightweight browser driver
         run: npm install --prefix /tmp/hana-pw --no-save --package-lock=false playwright-core
@@ -45,110 +49,47 @@ jobs:
           python3 -m http.server 4173 > /tmp/hana-http.log 2>&1 &
           sleep 2
 
-      - name: iPhone runtime, recovery, smart features and skincare fit
+      - name: iPhone runtime, recovery, intelligence and feature regressions
         env:
           NODE_PATH: /tmp/hana-pw/node_modules
         run: |
           node <<'NODE'
-          const { chromium } = require('playwright-core');
-          const fs = require('fs');
+          const { chromium }=require('playwright-core');
+          const fs=require('fs');
           const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
-          if(!executablePath) throw new Error('No browser executable found');
-
+          if(!executablePath)throw new Error('No browser executable found');
           (async()=>{
             const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
-            const context=await browser.newContext({
-              viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block',
-              userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
-            });
-            const page=await context.newPage();
-            const errors=[]; page.on('pageerror',error=>errors.push(String(error.stack||error)));
-            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
-            await page.waitForTimeout(1200);
-            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block',userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'});
+            const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e.stack||e)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(1200);await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
 
-            const identity=await page.evaluate(()=>({
-              app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,release:HANA_RELEASE_NOTES.version,
-              meta:document.querySelector('meta[name="hana-app-version"]')?.content||'',storage:STORAGE_KEY,
-              backupDb:BACKUP_DB_NAME,backupMeta:BACKUP_META_KEY,catalog:window.HANA_SMART_TEMPLATE_CATALOG?.length||0,
-              profiles:Object.keys(window.HANA_EXPANDED_SMART_PROFILES||{}).length,recovery:window.HanaRecoveryAudit?.status?.()||null
-            }));
-            if(identity.app!=='1.0.0'||identity.display!=='1'||identity.release!=='1'||identity.meta!=='1.0.0') throw new Error('Version 1 identity regressed '+JSON.stringify(identity));
-            if(identity.storage!=='hana_app_v1'||identity.backupDb!=='hana_safety_backups_v1'||identity.backupMeta!=='hana_backup_meta_v1') throw new Error('Storage identity regressed '+JSON.stringify(identity));
-            if(!identity.recovery?.hooksInstalled||!identity.recovery?.nonDestructiveAuthCleanup) throw new Error('Recovery guard regressed '+JSON.stringify(identity));
-            if(identity.catalog<45||identity.profiles<20) throw new Error('Smart Template Garden regressed '+JSON.stringify(identity));
+            const identity=await page.evaluate(()=>({app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,release:HANA_RELEASE_NOTES.version,storage:STORAGE_KEY,backupDb:BACKUP_DB_NAME,backupMeta:BACKUP_META_KEY,recovery:window.HanaRecoveryAudit?.status?.(),intelligence:window.HanaIntelligence?.status?.(),catalog:window.HANA_SMART_TEMPLATE_CATALOG?.length||0,profiles:Object.keys(window.HANA_EXPANDED_SMART_PROFILES||{}).length}));
+            if(identity.app!=='1.0.0'||identity.display!=='1'||identity.release!=='1')throw new Error('Version identity regressed '+JSON.stringify(identity));
+            if(identity.storage!=='hana_app_v1'||identity.backupDb!=='hana_safety_backups_v1'||identity.backupMeta!=='hana_backup_meta_v1')throw new Error('Storage identity regressed '+JSON.stringify(identity));
+            if(!identity.recovery?.hooksInstalled||!identity.recovery?.nonDestructiveAuthCleanup)throw new Error('Recovery guard regressed '+JSON.stringify(identity));
+            if(!identity.intelligence?.localOnly)throw new Error('Local intelligence missing '+JSON.stringify(identity));
+            if(identity.catalog<45||identity.profiles<20)throw new Error('Smart Template Garden regressed '+JSON.stringify(identity));
 
-            const recovery=await page.evaluate(async()=>{
-              const space=state.spaces[0]?.id||'personal';
-              state.notes=(state.notes||[]).filter(note=>!['runtime-shared-note','runtime-missing-note'].includes(note.id));
-              state.notes.push(normalizeNote({id:'runtime-shared-note',title:'Partner note must survive auth loss',content:'shared local copy',space,sharedWithPartner:true,sharedLinkId:'runtime-link'}));
-              state.currentMode='shared';
-              await cleanupSharedLocalForSignedOut();
-              const sharedSurvived=state.notes.some(note=>note.id==='runtime-shared-note'&&note.sharedWithPartner===true);
-              const modeSafe=state.currentMode==='all';
-              const snapshotState=clone(state);
-              snapshotState.notes.push(normalizeNote({id:'runtime-missing-note',title:'Runtime missing note candidate',content:'recoverable runtime text',space,sharedWithPartner:true,sharedLinkId:'runtime-link'}));
-              await createSafetySnapshot('pre-account-signout',JSON.stringify(snapshotState),{force:true});
-              const before=JSON.stringify(state.notes);
-              const report=await window.HanaRecoveryAudit.scanMissingNotes();
-              return {sharedSurvived,modeSafe,scanReadOnly:before===JSON.stringify(state.notes),found:report.candidates.some(entry=>entry.note?.id==='runtime-missing-note')};
-            });
-            if(!recovery.sharedSurvived||!recovery.modeSafe||!recovery.scanReadOnly||!recovery.found) throw new Error('Recovery behavior regressed '+JSON.stringify(recovery));
+            const recovery=await page.evaluate(async()=>{const space=state.spaces[0]?.id||'personal';state.notes=(state.notes||[]).filter(n=>!['runtime-shared-note','runtime-missing-note'].includes(n.id));state.notes.push(normalizeNote({id:'runtime-shared-note',title:'Partner note must survive auth loss',content:'shared local copy',space,sharedWithPartner:true,sharedLinkId:'runtime-link'}));state.currentMode='shared';await cleanupSharedLocalForSignedOut();const survived=state.notes.some(n=>n.id==='runtime-shared-note'&&n.sharedWithPartner);const mode=state.currentMode==='all';const snapshot=clone(state);snapshot.notes.push(normalizeNote({id:'runtime-missing-note',title:'Runtime missing note candidate',content:'recoverable runtime text',space,sharedWithPartner:true,sharedLinkId:'runtime-link'}));await createSafetySnapshot('pre-account-signout',JSON.stringify(snapshot),{force:true});const before=JSON.stringify(state.notes);const report=await HanaRecoveryAudit.scanMissingNotes();return{survived,mode,readOnly:before===JSON.stringify(state.notes),found:report.candidates.some(x=>x.note?.id==='runtime-missing-note')};});
+            if(!recovery.survived||!recovery.mode||!recovery.readOnly||!recovery.found)throw new Error('Recovery behavior regressed '+JSON.stringify(recovery));
 
-            const pages=[['today','Focus Bouquet'],['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];
-            for(const [name,marker] of pages){
-              await page.evaluate(pageName=>changePage(pageName),name); await page.waitForTimeout(60);
-              const text=await page.locator('#pageContent').innerText(); if(!text.includes(marker)) throw new Error(`${name} failed to render`);
-            }
-            if(await page.locator('#hanaRecoveryAuditButton').count()!==1) throw new Error('Recovery audit button missing');
+            const pages=[['today','Focus Bouquet'],['tasks','Tasks'],['lists','Lists'],['calendar','Calendar'],['notes','Notes'],['tables','Trackers'],['projects','Projects'],['inbox','Brain Dump'],['templates','Templates'],['settings','Settings']];for(const [name,marker] of pages){await page.evaluate(n=>changePage(n),name);await page.waitForTimeout(50);const text=await page.locator('#pageContent').innerText();if(!text.includes(marker))throw new Error(name+' failed to render');}
 
-            const smart=await page.evaluate(()=>({
-              wedding:smartStructuredCaptureKind('Wedding Planner\nVenue:\nBook venue'),
-              hair:smartStructuredCaptureKind('Haircare Schedule\nMonday:\nShampoo | Test'),
-              trip:smartStructuredCaptureKind('Trip Prep\nDocuments:\nPassport'),
-              bills:smartStructuredCaptureKind('Bills Schedule\nInternet | 1000 | 2026-08-25'),
-              medical:smartStructuredCaptureKind('Medical Appointment Prep\nQuestions:\nAsk about test'),
-              packing:smartStructuredCaptureKind('Travel packing\nTop\nShoes\nPassport\nCharger'),
-              skincare:skincareTextLooksStructured('Morning Routine\nDaily\nCleanser → Sample\nToner → Sample\nMoisturizer → Sample\nSunscreen → Sample',{allowSingleDay:false})
-            }));
-            const expected={wedding:'wedding-planner',hair:'haircare',trip:'trip-prep',bills:'bills-schedule',medical:'medical-prep',packing:'packing'};
-            for(const [key,value] of Object.entries(expected)) if(smart[key]!==value) throw new Error(`Smart ${key} regressed: ${smart[key]}`);
-            if(!smart.skincare) throw new Error('Skincare recognition regressed');
+            const intelligence=await page.evaluate(()=>{const space=state.spaces[0]?.id||'personal';state.tasks=[];state.projects=[];state.events=[];state.reminders=[];state.projects.push({id:'ai-p1',name:'Japan Trip',space,createdAt:Date.now(),updatedAt:Date.now()});state.tasks.push({id:'ai-t1',title:'Renew passport tomorrow',space,project:'Japan Trip',done:false,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-t2',title:'Buy adapter',space,project:'Japan Trip',done:false,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-t3',title:'Buy adapter',space,done:false,createdAt:Date.now(),updatedAt:Date.now()});const answer=HanaIntelligence.ask('What do I still need to do for Japan?');const dup=HanaIntelligence.duplicates();const date=HanaIntelligence.naturalDate('Renew passport tomorrow');const rel=HanaIntelligence.relationships();const sug=HanaIntelligence.suggestions();HanaIntelligence.open();return{answer:answer.answer,dup:dup.length,date:date?.date,rel:rel.length,sug:sug.length,button:!!document.getElementById('askHanaButton'),modal:!document.getElementById('hanaIntelligenceModal').classList.contains('hidden')};});
+            if(!intelligence.answer.includes('Renew passport')||intelligence.dup<1||!intelligence.date||intelligence.rel<1||intelligence.sug<1||!intelligence.button||!intelligence.modal)throw new Error('Intelligence regressed '+JSON.stringify(intelligence));
 
-            const packing=await page.evaluate(()=>{
-              state.settings.packingCategoryMemory={}; rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');
-              return {count:SMART_PACKING_CATEGORY_ORDER.length,learned:smartPackingCategory('Cloud Nine Wand (travel size)'),passport:smartPackingCategory('Passport'),sunscreen:smartPackingCategory('Sunscreen')};
-            });
-            if(packing.count!==21||packing.learned!=='💇 Hair Care & Styling'||packing.passport!=='🪪 Documents & Money'||packing.sunscreen!=='✨ Skincare & Sun Care') throw new Error('Packing regression '+JSON.stringify(packing));
+            const smart=await page.evaluate(()=>({wedding:smartStructuredCaptureKind('Wedding Planner\nVenue:\nBook venue'),hair:smartStructuredCaptureKind('Haircare Schedule\nMonday:\nShampoo | Test'),trip:smartStructuredCaptureKind('Trip Prep\nDocuments:\nPassport'),packing:smartStructuredCaptureKind('Travel packing\nTop\nShoes\nPassport\nCharger'),skincare:skincareTextLooksStructured('Morning Routine\nDaily\nCleanser → Sample\nToner → Sample\nMoisturizer → Sample\nSunscreen → Sample',{allowSingleDay:false})}));
+            if(smart.wedding!=='wedding-planner'||smart.hair!=='haircare'||smart.trip!=='trip-prep'||smart.packing!=='packing'||!smart.skincare)throw new Error('Smart capture regressed '+JSON.stringify(smart));
 
-            const skincare=await page.evaluate(()=>{
-              const text=`Saturday\nPM Routine\nCleanser → LION Pair Acne Creamy Foam\nToner → Numbuzin NAD+ PDRN Glow Boosting Toner\nSerum → iUNIK Beta-Glucan Power Moisture Serum\nMoisturizer → Centellian24 Madeca Mela Capture Ampoule Capsule Cream\nEye Serum / Cream → Seoul 1988 Eye Cream: Retinal Liposome 4% + Fermented Bean`;
-              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
-              openSkincareRoutineModal(note.id,{edit:false,day:6,period:'pm'});
-              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
-              const tabs=document.querySelector('.skincare-day-tabs');
-              const steps=[...document.querySelectorAll('.skincare-view-step')];
-              return {stepCount:steps.length,font:parseFloat(getComputedStyle(steps[0]?.querySelector('strong')).fontSize||'0'),row:steps[0]?.getBoundingClientRect().height||0,tabsFit:tabs.scrollWidth<=tabs.clientWidth+2,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
-            });
-            if(skincare.stepCount!==5||skincare.font<15||skincare.row<50||!skincare.tabsFit||!skincare.noScroll||!skincare.noX) throw new Error('Skincare fit regressed '+JSON.stringify(skincare));
+            const packing=await page.evaluate(()=>{state.settings.packingCategoryMemory={};rememberPackingCategory('Cloud Nine Wand','💇 Hair Care & Styling');return{count:SMART_PACKING_CATEGORY_ORDER.length,learned:smartPackingCategory('Cloud Nine Wand (travel size)'),passport:smartPackingCategory('Passport'),sunscreen:smartPackingCategory('Sunscreen')};});
+            if(packing.count!==21||packing.learned!=='💇 Hair Care & Styling'||packing.passport!=='🪪 Documents & Money'||packing.sunscreen!=='✨ Skincare & Sun Care')throw new Error('Packing regressed '+JSON.stringify(packing));
 
-            const longSkincare=await page.evaluate(()=>{
-              closeModal('skincareRoutineModal');
-              const text=`Sunday\nPM Routine\nCleanser → Gentle Foaming Cleanser\nToner → Hydrating Toner\nEssence → Fermented Essence Treatment\nSerum → Barrier Support Serum With Ceramides\nTreatment → Azelaic Acid Treatment\nMoisturizer → Rich Barrier Repair Moisturizer\nEye Serum / Cream → Retinal Eye Cream\nSleeping Mask → Overnight Recovery Sleeping Mask`;
-              const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});
-              openSkincareRoutineModal(note.id,{edit:false,day:0,period:'pm'});
-              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
-              const steps=[...document.querySelectorAll('.skincare-view-step')];
-              return {stepCount:steps.length,font:parseFloat(getComputedStyle(steps[0]?.querySelector('strong')).fontSize||'0'),row:steps[0]?.getBoundingClientRect().height||0,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
-            });
-            if(longSkincare.stepCount!==8||longSkincare.font>12||longSkincare.font<10.5||longSkincare.row>45||!longSkincare.noScroll||!longSkincare.noX) throw new Error('Adaptive skincare fit regressed '+JSON.stringify(longSkincare));
+            const skincare=await page.evaluate(()=>{const text=`Saturday\nPM Routine\nCleanser → LION Pair Acne Creamy Foam\nToner → Numbuzin NAD+ PDRN Glow Boosting Toner\nSerum → iUNIK Beta-Glucan Power Moisture Serum\nMoisturizer → Centellian24 Madeca Mela Capture Ampoule Capsule Cream\nEye Serum / Cream → Seoul 1988 Eye Cream: Retinal Liposome 4% + Fermented Bean`;const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});openSkincareRoutineModal(note.id,{edit:false,day:6,period:'pm'});const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');const tabs=document.querySelector('.skincare-day-tabs');const steps=[...document.querySelectorAll('.skincare-view-step')];return{count:steps.length,font:parseFloat(getComputedStyle(steps[0].querySelector('strong')).fontSize),row:steps[0].getBoundingClientRect().height,tabs:tabs.scrollWidth<=tabs.clientWidth+2,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};});
+            if(skincare.count!==5||skincare.font<15||skincare.row<50||!skincare.tabs||!skincare.noScroll||!skincare.noX)throw new Error('Skincare fit regressed '+JSON.stringify(skincare));
+            const longSkincare=await page.evaluate(()=>{closeModal('skincareRoutineModal');const text=`Sunday\nPM Routine\nCleanser → Gentle Foaming Cleanser\nToner → Hydrating Toner\nEssence → Fermented Essence Treatment\nSerum → Barrier Support Serum With Ceramides\nTreatment → Azelaic Acid Treatment\nMoisturizer → Rich Barrier Repair Moisturizer\nEye Serum / Cream → Retinal Eye Cream\nSleeping Mask → Overnight Recovery Sleeping Mask`;const note=createSkincareRoutineNoteFromText(text,preferredSpace(),{allowSingleDay:true,open:false,quiet:true});openSkincareRoutineModal(note.id,{edit:false,day:0,period:'pm'});const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');const steps=[...document.querySelectorAll('.skincare-view-step')];return{count:steps.length,font:parseFloat(getComputedStyle(steps[0].querySelector('strong')).fontSize),row:steps[0].getBoundingClientRect().height,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};});
+            if(longSkincare.count!==8||longSkincare.font>12||longSkincare.font<10.5||longSkincare.row>45||!longSkincare.noScroll||!longSkincare.noX)throw new Error('Adaptive skincare regressed '+JSON.stringify(longSkincare));
 
-            await page.evaluate(()=>openSmartTemplateTutorial()); await page.waitForTimeout(60);
-            const guide=await page.evaluate(()=>({cards:document.querySelectorAll('[data-smart-paste-card]').length,values:[...document.querySelectorAll('#smartTemplateTutorialModal input,#smartTemplateTutorialModal textarea')].map(el=>el.value).filter(Boolean)}));
-            if(guide.cards<45||guide.values.length) throw new Error('Smart Paste Guide regressed '+JSON.stringify(guide));
-
-            if(errors.length) throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('Hana Version 1 permanent iPhone QA passed',JSON.stringify({identity,recovery,smart,packing,skincare,longSkincare,guide}));
-            await browser.close();
-          })().catch(error=>{console.error(error);process.exit(1)});
+            if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));console.log('Hana Version 1 permanent QA passed',JSON.stringify({identity,recovery,intelligence,smart,packing,skincare,longSkincare}));await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
           NODE
