@@ -22,11 +22,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: JavaScript syntax
+      - name: JavaScript and service-worker syntax
         run: |
           node --check app.js
           node --check smart-templates.js
           node --check recovery-safety.js
+          node --check service-worker.js
+          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
+          grep -q 'const CACHE_NAME = "hana-shell-v1-data-safe-1"' service-worker.js
+          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' service-worker.js
 
       - name: Install lightweight browser driver
         run: npm install --prefix /tmp/hana-pw --no-save --package-lock=false playwright-core
@@ -48,8 +52,11 @@ jobs:
 
           (async()=>{
             const browser = await chromium.launch({headless:true, executablePath, args:['--no-sandbox']});
+            // Runtime behavior is tested independently of service-worker lifecycle.
+            // service-worker.js is syntax/cache-checked above so an intentional
+            // controllerchange reload cannot destroy this test's JS context.
             const context = await browser.newContext({
-              viewport:{width:430,height:932}, deviceScaleFactor:3, isMobile:true, hasTouch:true,
+              viewport:{width:430,height:932}, deviceScaleFactor:3, isMobile:true, hasTouch:true, serviceWorkers:'block',
               userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
             });
             const page = await context.newPage();
