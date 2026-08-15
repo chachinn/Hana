@@ -2,7 +2,7 @@
    HANA 🌸 Service Worker v1 · data-safety revision 1
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v1-intelligence-1";
+const CACHE_NAME = "hana-shell-v1-intelligence-2";
 const CORE_SHELL = [
   "./",
   "./index.html",
