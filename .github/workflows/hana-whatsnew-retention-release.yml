@@ -1,4 +1,4 @@
-# retry after correcting meeting retention assertion
+# retry after validating representative Memory Thread roots
 name: Hana What’s New retention release
 on:
   push:
