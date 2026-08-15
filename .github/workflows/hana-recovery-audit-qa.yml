@@ -1,0 +1,417 @@
+name: Hana recovery safety QA
+
+on:
+  push:
+    branches:
+      - agent/hana-recovery-audit
+    paths:
+      - .github/workflows/hana-recovery-audit-qa.yml
+
+permissions:
+  contents: write
+
+jobs:
+  recovery-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/hana-recovery-audit
+          fetch-depth: 0
+
+      - name: Add non-destructive auth guard and read-only recovery audit
+        run: |
+          cat > recovery-safety.js <<'JS'
+          /* =====================================================
+             HANA 🌸 Version 1 · recovery/data-safety guard
+             Public app version remains 1.0.0.
+             ===================================================== */
+          (() => {
+            const SAFETY_BUILD = "v1-data-safe-1";
+            let firebaseBootstrapComplete = false;
+            let hooksInstalled = false;
+            let lastRecoveryReport = null;
+
+            const publicUser = user => user ? {
+              uid: user.uid,
+              email: user.email || "",
+              displayName: user.displayName || "",
+              photoURL: user.photoURL || "",
+              providerId: user.providerData?.[0]?.providerId || ""
+            } : null;
+
+            // The Firebase bridge can briefly emit null before persisted auth has
+            // finished hydrating on an installed PWA. Do not let that startup-only
+            // null reach Hana's account handler; the settled state is handled below.
+            window.addEventListener("hana:auth-changed", event => {
+              if (!firebaseBootstrapComplete && !event.detail) event.stopImmediatePropagation();
+            });
+
+            function seedSettledFirebaseUser() {
+              const fb = window.HanaFirebase;
+              const current = fb?.auth?.currentUser || null;
+              if (current) fb.user = publicUser(current);
+            }
+
+            function escapeRecoveryHTML(value) {
+              return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+            }
+
+            function recoveryNoteKey(note = {}) {
+              const id = String(note.id || "").trim();
+              if (id) return `id:${id}`;
+              return `content:${String(note.title || "").trim()}\u0000${String(note.content || "").trim()}\u0000${String(note.structuredType || "")}`;
+            }
+
+            function recoveryNoteText(note = {}) {
+              const lines = [];
+              if (note.title) lines.push(String(note.title));
+              if (note.content) lines.push(String(note.content));
+              if (Array.isArray(note.checklist) && note.checklist.length) {
+                lines.push("", ...note.checklist.map(item => `${item?.completed ? "[x]" : "[ ]"} ${String(item?.text || item?.title || "").trim()}`.trim()));
+              }
+              return lines.join("\n").trim() || "Untitled Hana note";
+            }
+
+            async function scanMissingNotes() {
+              if (typeof getSafetySnapshots !== "function" || typeof state === "undefined") {
+                return { build: SAFETY_BUILD, snapshotCount: 0, preSignoutCount: 0, currentNoteCount: 0, candidates: [], error: "Recovery storage is not ready yet." };
+              }
+              const snapshots = await getSafetySnapshots().catch(() => []);
+              const currentNotes = Array.isArray(state.notes) ? state.notes : [];
+              const currentKeys = new Set(currentNotes.map(recoveryNoteKey));
+              const seen = new Set();
+              const candidates = [];
+              let preSignoutCount = 0;
+
+              for (const snapshot of snapshots) {
+                if (snapshot?.reason === "pre-account-signout") preSignoutCount += 1;
+                let parsed = null;
+                try { parsed = JSON.parse(snapshot?.stateJson || ""); } catch {}
+                const notes = Array.isArray(parsed?.notes) ? parsed.notes : [];
+                for (const note of notes) {
+                  if (!note || typeof note !== "object") continue;
+                  const key = recoveryNoteKey(note);
+                  if (currentKeys.has(key) || seen.has(key)) continue;
+                  seen.add(key);
+                  candidates.push({
+                    key,
+                    note,
+                    snapshotAt: Number(snapshot?.createdAt || 0),
+                    reason: String(snapshot?.reason || "safety copy"),
+                    sharedWithPartner: Boolean(note.sharedWithPartner)
+                  });
+                  if (candidates.length >= 100) break;
+                }
+                if (candidates.length >= 100) break;
+              }
+
+              lastRecoveryReport = {
+                build: SAFETY_BUILD,
+                snapshotCount: snapshots.length,
+                preSignoutCount,
+                currentNoteCount: currentNotes.length,
+                candidates
+              };
+              return lastRecoveryReport;
+            }
+
+            function ensureRecoveryModal() {
+              let modal = document.getElementById("hanaRecoveryAuditModal");
+              if (modal) return modal;
+              modal = document.createElement("div");
+              modal.id = "hanaRecoveryAuditModal";
+              modal.className = "modal-overlay hidden";
+              modal.innerHTML = `
+                <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="hanaRecoveryAuditTitle">
+                  <div class="modal-header">
+                    <div><p class="eyebrow">RECOVERY ONLY · READ-ONLY</p><h2 id="hanaRecoveryAuditTitle">Recovery audit 🌸</h2></div>
+                    <button type="button" class="modal-close" data-hana-recovery-close aria-label="Close">×</button>
+                  </div>
+                  <div class="modal-content">
+                    <div class="settings-card">
+                      <h3>Nothing is restored automatically</h3>
+                      <p>This audit only reads Hana's existing on-device safety copies and compares their Notes with what is in Hana now. It does not overwrite, delete, restore, sign in, sign out, connect, or disconnect anything.</p>
+                    </div>
+                    <div id="hanaRecoveryAuditStatus" class="settings-card"><p>Checking safety copies…</p></div>
+                    <div id="hanaRecoveryAuditResults"></div>
+                  </div>
+                </div>`;
+              document.body.appendChild(modal);
+              modal.addEventListener("click", event => {
+                if (event.target === modal || event.target.closest("[data-hana-recovery-close]")) modal.classList.add("hidden");
+              });
+              return modal;
+            }
+
+            async function openRecoveryAudit() {
+              const modal = ensureRecoveryModal();
+              modal.classList.remove("hidden");
+              const status = document.getElementById("hanaRecoveryAuditStatus");
+              const results = document.getElementById("hanaRecoveryAuditResults");
+              status.innerHTML = "<p>Checking safety copies…</p>";
+              results.innerHTML = "";
+
+              const report = await scanMissingNotes();
+              const fbUser = window.HanaFirebase?.user || null;
+              const partner = typeof hanaPartnerState !== "undefined" ? hanaPartnerState : null;
+              status.innerHTML = `<div class="backup-status-grid">
+                <div><span>Hana account</span><strong>${fbUser ? "Signed in" : "No active session"}</strong></div>
+                <div><span>Partner Link</span><strong>${partner?.connected ? `Connected to ${escapeRecoveryHTML(partner.partnerName || "partner")}` : (partner?.inviteCode ? "Invite pending" : "Not active in this session")}</strong></div>
+                <div><span>Safety copies checked</span><strong>${report.snapshotCount}</strong></div>
+                <div><span>Pre-sign-out safety copies</span><strong>${report.preSignoutCount}</strong></div>
+              </div>`;
+
+              if (report.error) {
+                results.innerHTML = `<div class="settings-card"><strong>Audit unavailable</strong><p>${escapeRecoveryHTML(report.error)}</p></div>`;
+                return report;
+              }
+              if (!report.candidates.length) {
+                results.innerHTML = `<div class="settings-card"><h3>No missing-note candidates found locally</h3><p>None of the Notes in Hana's retained on-device safety copies are absent from your current Notes. This does not inspect an older cloud backup or Partner Firestore history.</p></div>`;
+                return report;
+              }
+
+              results.innerHTML = `<div class="settings-card"><h3>${report.candidates.length} note${report.candidates.length === 1 ? "" : "s"} found in safety copies but not in current Notes</h3><p>Review these carefully: older safety copies can also contain notes you intentionally deleted. Copying a note is safe and does not change Hana.</p></div>${report.candidates.map((entry, index) => {
+                const note = entry.note || {};
+                const when = entry.snapshotAt ? new Date(entry.snapshotAt).toLocaleString() : "Unknown time";
+                const preview = String(note.content || "").replace(/\s+/g, " ").trim().slice(0, 180);
+                return `<article class="settings-card" data-recovery-note-card="${index}"><div class="section-header"><h3>${escapeRecoveryHTML(note.title || "Untitled note")}</h3>${entry.sharedWithPartner ? "<span class=\"badge\">Partner-shared</span>" : ""}</div><small>${escapeRecoveryHTML(entry.reason)} · ${escapeRecoveryHTML(when)}</small>${preview ? `<p>${escapeRecoveryHTML(preview)}${String(note.content || "").length > 180 ? "…" : ""}</p>` : ""}<button type="button" class="secondary-button" data-copy-recovery-note="${index}">Copy note text</button></article>`;
+              }).join("")}`;
+              return report;
+            }
+
+            async function copyRecoveryNote(index) {
+              const entry = lastRecoveryReport?.candidates?.[Number(index)];
+              if (!entry) return;
+              const text = recoveryNoteText(entry.note);
+              try {
+                await navigator.clipboard.writeText(text);
+                if (typeof showToast === "function") showToast("Recovery note copied. Hana was not changed.");
+              } catch {
+                window.prompt("Copy this recovered note text", text);
+              }
+            }
+
+            function injectRecoveryAuditButton() {
+              const backupCard = document.querySelector(".backup-card");
+              const actions = backupCard?.querySelector(".backup-actions");
+              if (!actions || document.getElementById("hanaRecoveryAuditButton")) return;
+              const button = document.createElement("button");
+              button.id = "hanaRecoveryAuditButton";
+              button.type = "button";
+              button.className = "secondary-button";
+              button.textContent = "Recovery audit";
+              actions.appendChild(button);
+              if (!backupCard.querySelector("[data-hana-recovery-help]")) {
+                const help = document.createElement("small");
+                help.className = "field-help";
+                help.dataset.hanaRecoveryHelp = "true";
+                help.textContent = "Recovery audit is read-only: it can look for notes in safety copies without restoring or replacing your current Hana.";
+                backupCard.appendChild(help);
+              }
+            }
+
+            function installAppSafetyHooks() {
+              if (hooksInstalled) return true;
+              if (typeof window.cleanupSharedLocalForSignedOut !== "function" || typeof window.getSafetySnapshots !== "function") return false;
+
+              // Auth/session loss must never delete local content. Partner-shared
+              // entries remain cached locally and simply stop realtime syncing until
+              // the authenticated Partner Link session returns.
+              window.cleanupSharedLocalForSignedOut = async function hanaNonDestructiveSignedOutCleanup() {
+                const modeChanged = typeof state !== "undefined" && state.currentMode === "shared";
+                if (modeChanged) state.currentMode = "all";
+                return modeChanged;
+              };
+              window.cleanupSharedLocalForSignedOut.__hanaNonDestructive = true;
+
+              const page = document.getElementById("pageContent");
+              if (page) {
+                const observer = new MutationObserver(() => injectRecoveryAuditButton());
+                observer.observe(page, { childList: true, subtree: true });
+              }
+              document.addEventListener("click", event => {
+                if (event.target.closest("#hanaRecoveryAuditButton")) { openRecoveryAudit(); return; }
+                const copy = event.target.closest("[data-copy-recovery-note]");
+                if (copy) copyRecoveryNote(copy.dataset.copyRecoveryNote);
+              });
+              injectRecoveryAuditButton();
+              hooksInstalled = true;
+              return true;
+            }
+
+            async function waitForAppSafetyHooks() {
+              for (let attempt = 0; attempt < 400; attempt += 1) {
+                if (installAppSafetyHooks()) return true;
+                await new Promise(resolve => setTimeout(resolve, 10));
+              }
+              return false;
+            }
+
+            const fb = window.HanaFirebase;
+            if (fb?.ready?.then) {
+              const originalReady = fb.ready;
+              fb.ready = (async () => {
+                const value = await originalReady;
+                seedSettledFirebaseUser();
+                await waitForAppSafetyHooks();
+                firebaseBootstrapComplete = true;
+                return value;
+              })();
+            } else {
+              setTimeout(async () => {
+                await waitForAppSafetyHooks();
+                firebaseBootstrapComplete = true;
+              }, 0);
+            }
+
+            window.addEventListener("hana:firebase-ready", seedSettledFirebaseUser, { once: true });
+            window.HanaRecoveryAudit = {
+              build: SAFETY_BUILD,
+              scanMissingNotes,
+              open: openRecoveryAudit,
+              status: () => ({ firebaseBootstrapComplete, hooksInstalled, nonDestructiveAuthCleanup: Boolean(window.cleanupSharedLocalForSignedOut?.__hanaNonDestructive) })
+            };
+          })();
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index = Path('index.html')
+          text = index.read_text()
+          old = '  <script src="firebase-bridge.js?v=1.0.0"></script>\n  <script src="app.js?v=1.0.0"></script>'
+          new = '  <script src="firebase-bridge.js?v=1.0.0"></script>\n  <script src="recovery-safety.js?v=1.0.0-data-safe-1"></script>\n  <script src="app.js?v=1.0.0"></script>'
+          if old not in text:
+              raise SystemExit('Expected Version 1 script block not found')
+          index.write_text(text.replace(old, new, 1))
+
+          sw = Path('service-worker.js')
+          text = sw.read_text()
+          swaps = [
+              ('HANA 🌸 Service Worker v1 · Version 1 baseline', 'HANA 🌸 Service Worker v1 · data-safety revision 1'),
+              ('const CACHE_NAME = "hana-shell-v1";', 'const CACHE_NAME = "hana-shell-v1-data-safe-1";'),
+              ('  "./firebase-bridge.js?v=1.0.0",\n  "./smart-templates.js?v=1.0.0"', '  "./firebase-bridge.js?v=1.0.0",\n  "./recovery-safety.js?v=1.0.0-data-safe-1",\n  "./smart-templates.js?v=1.0.0"')
+          ]
+          for old, new in swaps:
+              if old not in text:
+                  raise SystemExit(f'Service worker marker missing: {old}')
+              text = text.replace(old, new, 1)
+          sw.write_text(text)
+          PY
+
+      - name: Static data-safety QA
+        run: |
+          node --check app.js
+          node --check smart-templates.js
+          node --check firebase-bridge.js
+          node --check recovery-safety.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
+          grep -q 'const CACHE_NAME = "hana-shell-v1-data-safe-1"' service-worker.js
+          grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' service-worker.js
+          grep -q '__hanaNonDestructive' recovery-safety.js
+          grep -q 'stopImmediatePropagation' recovery-safety.js
+          git diff --check
+
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-recovery-pw --no-save --package-lock=false playwright-core
+
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 > /tmp/hana-recovery-http.log 2>&1 &
+          sleep 2
+
+      - name: iPhone-sized non-destructive recovery QA
+        env:
+          NODE_PATH: /tmp/hana-recovery-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright-core');
+          const fs = require('fs');
+          const executablePath = ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if (!executablePath) throw new Error('No browser executable found');
+
+          (async()=>{
+            const browser = await chromium.launch({headless:true, executablePath, args:['--no-sandbox']});
+            const context = await browser.newContext({
+              viewport:{width:430,height:932}, deviceScaleFactor:3, isMobile:true, hasTouch:true,
+              userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1'
+            });
+            const page = await context.newPage();
+            const errors=[];
+            page.on('pageerror', error=>errors.push(String(error.stack||error)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(1400);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){}});
+
+            const identity = await page.evaluate(()=>({
+              app:HANA_APP_VERSION,
+              display:HANA_DISPLAY_VERSION,
+              storage:STORAGE_KEY,
+              backupDb:BACKUP_DB_NAME,
+              recovery:window.HanaRecoveryAudit?.status?.() || null
+            }));
+            if(identity.app!=='1.0.0'||identity.display!=='1'||identity.storage!=='hana_app_v1'||identity.backupDb!=='hana_safety_backups_v1') throw new Error('Version/storage identity changed '+JSON.stringify(identity));
+            if(!identity.recovery?.hooksInstalled||!identity.recovery?.nonDestructiveAuthCleanup) throw new Error('Recovery safety hook not installed '+JSON.stringify(identity));
+
+            const safety = await page.evaluate(async()=>{
+              const space=state.spaces[0]?.id||'personal';
+              const shared=normalizeNote({id:'qa-shared-note',title:'Partner note must survive auth loss',content:'shared local copy',space,sharedWithPartner:true,sharedLinkId:'qa-link'});
+              state.notes=(state.notes||[]).filter(note=>!['qa-shared-note','qa-missing-note'].includes(note.id));
+              state.notes.push(shared);
+              state.currentMode='shared';
+              const cleanupResult=await cleanupSharedLocalForSignedOut();
+              const sharedSurvived=state.notes.some(note=>note.id==='qa-shared-note'&&note.sharedWithPartner===true);
+              const modeSafe=state.currentMode==='all';
+
+              const snapshotState=clone(state);
+              snapshotState.notes.push(normalizeNote({id:'qa-missing-note',title:'Missing note from safety copy',content:'recoverable text',space,sharedWithPartner:true,sharedLinkId:'qa-link'}));
+              await createSafetySnapshot('pre-account-signout',JSON.stringify(snapshotState),{force:true});
+              const beforeScan=JSON.stringify(state.notes);
+              const report=await window.HanaRecoveryAudit.scanMissingNotes();
+              const afterScan=JSON.stringify(state.notes);
+              return {
+                cleanupResult,
+                sharedSurvived,
+                modeSafe,
+                scanReadOnly:beforeScan===afterScan,
+                snapshotCount:report.snapshotCount,
+                preSignoutCount:report.preSignoutCount,
+                found:report.candidates.some(entry=>entry.note?.id==='qa-missing-note'&&entry.note?.content==='recoverable text')
+              };
+            });
+            if(!safety.sharedSurvived||!safety.modeSafe||!safety.scanReadOnly||!safety.found||safety.preSignoutCount<1) throw new Error('Recovery behavior failed '+JSON.stringify(safety));
+
+            await page.evaluate(()=>window.HanaRecoveryAudit.open());
+            await page.waitForTimeout(100);
+            const auditText=await page.locator('#hanaRecoveryAuditModal').innerText();
+            if(!auditText.includes('Missing note from safety copy')||!auditText.includes('Nothing is restored automatically')) throw new Error('Recovery audit UI failed');
+
+            await page.evaluate(()=>changePage('settings'));
+            await page.waitForTimeout(100);
+            if(await page.locator('#hanaRecoveryAuditButton').count()!==1) throw new Error('Recovery audit button missing from Settings');
+
+            const pages=[['today','Today'],['tasks','Tasks'],['notes','Notes'],['lists','Lists'],['settings','Settings']];
+            for(const [name,marker] of pages){await page.evaluate(p=>changePage(p),name);await page.waitForTimeout(60);const text=await page.locator('#pageContent').innerText();if(!text.includes(marker))throw new Error(`${name} failed to render`);}
+            if(errors.length) throw new Error('Browser runtime errors: '+errors.join(' | '));
+            await browser.close();
+            console.log('Hana recovery safety QA passed',JSON.stringify({identity,safety}));
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+
+      - name: Commit recovery safety update to QA branch
+        run: |
+          git config user.name "Hana Recovery Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add recovery-safety.js index.html service-worker.js
+          git diff --check --cached
+          git commit -m "Hana: make auth transitions non-destructive"
+          git push origin HEAD:agent/hana-recovery-audit
