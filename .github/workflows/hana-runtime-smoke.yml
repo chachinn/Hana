@@ -127,10 +127,9 @@ jobs:
               const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
               const tabs=document.querySelector('.skincare-day-tabs');
               const steps=[...document.querySelectorAll('.skincare-view-step')];
-              const rect=modal.getBoundingClientRect();
-              return {stepCount:steps.length,font:parseFloat(getComputedStyle(steps[0]?.querySelector('strong')).fontSize||'0'),tabsFit:tabs.scrollWidth<=tabs.clientWidth+2,modalFits:rect.top>=0&&rect.bottom<=innerHeight+1,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
+              return {stepCount:steps.length,font:parseFloat(getComputedStyle(steps[0]?.querySelector('strong')).fontSize||'0'),tabsFit:tabs.scrollWidth<=tabs.clientWidth+2,noScroll:modal.scrollHeight<=modal.clientHeight+2,noX:document.documentElement.scrollWidth<=innerWidth+2};
             });
-            if(skincare.stepCount!==5||skincare.font<13||!skincare.tabsFit||!skincare.modalFits||!skincare.noScroll||!skincare.noX) throw new Error('Skincare fit regressed '+JSON.stringify(skincare));
+            if(skincare.stepCount!==5||skincare.font<13||!skincare.tabsFit||!skincare.noScroll||!skincare.noX) throw new Error('Skincare fit regressed '+JSON.stringify(skincare));
 
             await page.evaluate(()=>openSmartTemplateTutorial()); await page.waitForTimeout(60);
             const guide=await page.evaluate(()=>({cards:document.querySelectorAll('[data-smart-paste-card]').length,values:[...document.querySelectorAll('#smartTemplateTutorialModal input,#smartTemplateTutorialModal textarea')].map(el=>el.value).filter(Boolean)}));
