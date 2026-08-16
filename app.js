@@ -42,6 +42,13 @@ function nextWorkdayISO(from = new Date()) {
   return localDateISO(d);
 }
 
+function nextWeekendISO(dateString = todayISO(), includeCurrent = false) {
+  const d = new Date(`${dateString || todayISO()}T12:00:00`);
+  if (includeCurrent && [0, 6].includes(d.getDay())) return localDateISO(d);
+  do { d.setDate(d.getDate() + 1); } while (![0, 6].includes(d.getDay()));
+  return localDateISO(d);
+}
+
 function clone(value) {
   return typeof structuredClone === "function"
     ? structuredClone(value)
@@ -777,7 +784,7 @@ function normalizeReminder(reminder = {}) {
     space: String(reminder.space || "personal"),
     date: reminder.date || "",
     time: reminder.time || "09:00",
-    repeatType: ["none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"].includes(repeatType) ? repeatType : "none",
+    repeatType: ["none", "daily", "weekdays", "weekends", "weekly", "monthly", "yearly", "custom"].includes(repeatType) ? repeatType : "none",
     repeatInterval: Math.max(1, Number(reminder.repeatInterval || 1)),
     completed: Boolean(reminder.completed),
     notified: Boolean(reminder.notified),
@@ -1125,13 +1132,14 @@ const HANA_APP_VERSION = "1.0.0";
 const HANA_DISPLAY_VERSION = "1";
 // Public Version 1 stays 1.0.0 while Hana is unreleased. This separate key lets
 // meaningful pre-release updates show once without changing storage/version identity.
-const HANA_WHATS_NEW_KEY = "hana-v1-2026-08-16-intelligence-stability";
+const HANA_WHATS_NEW_KEY = "hana-v1-2026-08-16-weekend-reminders";
 const HANA_RELEASE_NOTES = {
   version: HANA_DISPLAY_VERSION,
   date: "August 16, 2026",
   title: "Hana got smarter 🌸",
   intro: "A lot changed inside Version 1. Hana can understand more of what you save, help you review and plan it, keep routines easier to read, and protect your data more carefully—without changing Hana’s public Version 1 / 1.0.0 identity.",
   items: [
+    { icon:"🔔", title:"Weekend reminders", text:"Choose Weekends to repeat only on Saturday and Sunday. If the selected start date is Monday through Friday, Hana moves the first occurrence to the next Saturday so it never fires on a weekday." },
     { icon:"🧠", title:"Ask Hana & Smart Review", text:"Ask about your own tasks, notes, lists, projects, reminders and routines. Hana can find related things, unfinished work, possible duplicates, natural dates, follow-ups, conflicts and weekly-review items locally on your device." },
     { icon:"⏱️", title:"Smarter daily planning", text:"Time Pockets, priority suggestions, Rescue My Day, dependency checks, project clustering and safe conversion proposals help turn a busy Hana into a realistic plan without silently changing your data." },
     { icon:"✨", title:"A much bigger Smart Template Garden", text:"The Smart Paste Guide now covers 51 formats, including travel, recipes, medication, study, bills, cleaning, events, routines, health, home, projects and Life Reset—while examples stay placeholders only." },
@@ -3172,15 +3180,17 @@ function updateReminderConditionalFields(){document.getElementById("reminderRepe
 function saveReminder() {
   const id=document.getElementById("reminderEditId").value; const old=id?state.reminders.find(r=>r.id===id):null; const title=document.getElementById("reminderTitle").value.trim(); const date=document.getElementById("reminderDate").value;
   if(!title)return showToast("What should Hana remind you about?"); if(!date)return showToast("Choose a reminder date 🌸");
-  const r=normalizeReminder({...(old||{}),id:id||createId(),title,space:document.getElementById("reminderSpace").value,date,time:document.getElementById("reminderTime").value||"09:00",repeatType:document.getElementById("reminderRepeat").value,repeatInterval:Number(document.getElementById("reminderRepeatInterval").value||1),chainEnabled:document.getElementById("reminderChainEnabled").checked,notified:false,chainNotified:[],completed:false,...shareMetaFromControl("reminder",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
-  if(old)state.reminders[state.reminders.findIndex(x=>x.id===id)]=r;else state.reminders.push(r);closeModal("reminderModal");showToast(old?"Reminder updated 🔔":"Reminder planted 🔔");render();
+  const repeatType=document.getElementById("reminderRepeat").value;
+  const normalizedDate=repeatType==="weekends"?nextWeekendISO(date,true):date;
+  const r=normalizeReminder({...(old||{}),id:id||createId(),title,space:document.getElementById("reminderSpace").value,date:normalizedDate,time:document.getElementById("reminderTime").value||"09:00",repeatType,repeatInterval:Number(document.getElementById("reminderRepeatInterval").value||1),chainEnabled:document.getElementById("reminderChainEnabled").checked,notified:false,chainNotified:[],completed:false,...shareMetaFromControl("reminder",old),createdAt:old?.createdAt||Date.now(),updatedAt:Date.now()});
+  if(old)state.reminders[state.reminders.findIndex(x=>x.id===id)]=r;else state.reminders.push(r);closeModal("reminderModal");showToast(normalizedDate!==date?`Weekend repeat starts ${formatFullDate(normalizedDate)} 🔔`:(old?"Reminder updated 🔔":"Reminder planted 🔔"));render();
 }
 
 function deleteReminder(id){const reminder=state.reminders.find(r=>r.id===id);if(!reminder||!canDeleteSharedRoot(reminder,"reminder")||!confirm("Move this reminder to Trash?"))return;moveToTrash("reminder",reminder);state.reminders=state.reminders.filter(r=>r.id!==id);closeModal("reminderModal");render();}
 
 function completeReminder(id){const r=state.reminders.find(r=>r.id===id);if(!r)return;if(r.linkedTaskId){const t=state.tasks.find(t=>t.id===r.linkedTaskId);if(t&&!t.completed)showToast("Reminder cleared; task is still open.");} if(r.repeatType!=="none"&&!r.linkedTaskId){advanceReminder(r);}else r.completed=true;render();}
 
-function advanceReminder(r){if(r.repeatType==="monthly"){r.date=addMonthsClamped(r.date,1);}else if(r.repeatType==="yearly"){r.date=addYearsClamped(r.date,1);}else{const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}r.date=localDateISO(base);}r.notified=false;r.chainNotified=[];r.completed=false;}
+function advanceReminder(r){if(r.repeatType==="monthly"){r.date=addMonthsClamped(r.date,1);}else if(r.repeatType==="yearly"){r.date=addYearsClamped(r.date,1);}else if(r.repeatType==="weekends"){r.date=nextWeekendISO(r.date,false);}else{const base=new Date(`${r.date}T12:00:00`);if(r.repeatType==="daily")base.setDate(base.getDate()+1);if(r.repeatType==="custom")base.setDate(base.getDate()+r.repeatInterval);if(r.repeatType==="weekly")base.setDate(base.getDate()+7);if(r.repeatType==="weekdays"){do{base.setDate(base.getDate()+1)}while([0,6].includes(base.getDay()));}r.date=localDateISO(base);}r.notified=false;r.chainNotified=[];r.completed=false;}
 
 function snoozeReminder(id,type){const r=state.reminders.find(r=>r.id===id);if(!r)return;const now=new Date();if(type==="tonight"){r.date=todayISO();r.time="19:00";}if(type==="tomorrow"){r.date=addDaysISO(todayISO(),1);r.time="08:00";}if(type==="workday"){r.date=nextWorkdayISO(now);r.time="09:00";}if(type==="week"){r.date=addDaysISO(todayISO(),7);r.time="09:00";}r.notified=false;r.chainNotified=[];showToast("Reminder snoozed 🌙");render();}
 
