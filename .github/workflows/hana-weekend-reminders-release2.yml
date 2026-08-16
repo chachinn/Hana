@@ -1,0 +1,39 @@
+name: Hana weekend reminders release retry
+on:
+  push:
+    paths:
+      - .github/workflows/hana-weekend-reminders-release2.yml
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply tested weekend reminder patch
+        run: python3 .github/scripts/hana_weekend_reminders_patch.py
+      - name: Recheck runtime files
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'const HANA_WHATS_NEW_KEY = "hana-v1-2026-08-16-weekend-reminders"' app.js
+          grep -q 'title:"Weekend reminders"' app.js
+          grep -q 'function nextWeekendISO' app.js
+          grep -q 'option value="weekends">Weekends</option>' index.html
+          grep -q 'const CACHE_NAME = "hana-shell-v1-weekend-reminders-1"' service-worker.js
+          git diff --check app.js index.html service-worker.js
+      - name: Commit runtime files only
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add app.js index.html service-worker.js
+          git diff --check --cached
+          git diff --cached --quiet && { echo 'No runtime changes to commit'; exit 1; }
+          git commit -m "Hana: add weekend-only reminder repeats"
+          git push origin HEAD:main
