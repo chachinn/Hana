@@ -11,6 +11,8 @@ on:
       - intelligence.js
       - intelligence.css
       - recovery-safety.js
+      - skincare-step-sync.js
+      - list-scroll-memory.js
       - service-worker.js
       - .github/workflows/hana-runtime-smoke.yml
   workflow_dispatch:
@@ -30,6 +32,8 @@ jobs:
           node --check smart-templates.js
           node --check intelligence.js
           node --check recovery-safety.js
+          node --check skincare-step-sync.js
+          node --check list-scroll-memory.js
           node --check service-worker.js
           grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
           grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
@@ -40,8 +44,13 @@ jobs:
           grep -q 'recovery-safety.js?v=1.0.0-data-safe-1' index.html
           grep -q 'intelligence.js?v=1.0.0' index.html
           grep -q 'intelligence.css?v=1.0.0' index.html
+          grep -q 'skincare-step-sync.js?v=1.0.0' index.html
+          grep -q 'list-scroll-memory.js?v=1.0.0' index.html
           grep -q 'option value="weekends">Weekends</option>' index.html
-          grep -q 'const CACHE_NAME = "hana-shell-v1-weekend-reminders-1"' service-worker.js
+          grep -q 'const CACHE_NAME = "hana-shell-v1-list-column-scroll-1"' service-worker.js
+          grep -q 'list-scroll-memory.js?v=1.0.0' service-worker.js
+          grep -q 'hana-v1-2026-08-16-list-column-scroll' list-scroll-memory.js
+          grep -q 'Lists stay where you’re working' list-scroll-memory.js
           grep -q 'function nextWeekendISO' app.js
           grep -q 'repeatType==="weekends"' app.js
           grep -q 'function dailyPlan' intelligence.js
@@ -94,6 +103,7 @@ jobs:
               app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,release:HANA_RELEASE_NOTES.version,
               releaseKey:HANA_WHATS_NEW_KEY,storage:STORAGE_KEY,backupDb:BACKUP_DB_NAME,backupMeta:BACKUP_META_KEY,
               recovery:HanaRecoveryAudit?.status?.(),intelligence:HanaIntelligence?.status?.(),
+              listScroll:HanaListScrollMemory?.featureKey||'',
               catalog:HANA_SMART_TEMPLATE_CATALOG?.length||0,profiles:Object.keys(HANA_EXPANDED_SMART_PROFILES||{}).length
             }));
             if(identity.app!=='1.0.0'||identity.display!=='1'||identity.release!=='1')throw new Error('Version identity regressed '+JSON.stringify(identity));
@@ -101,6 +111,7 @@ jobs:
             if(identity.storage!=='hana_app_v1'||identity.backupDb!=='hana_safety_backups_v1'||identity.backupMeta!=='hana_backup_meta_v1')throw new Error('Storage identity regressed '+JSON.stringify(identity));
             if(!identity.recovery?.hooksInstalled||!identity.recovery?.nonDestructiveAuthCleanup)throw new Error('Recovery guard regressed '+JSON.stringify(identity));
             if(!identity.intelligence?.localOnly||!identity.intelligence?.planning)throw new Error('Local intelligence missing '+JSON.stringify(identity));
+            if(identity.listScroll!=='hana-v1-2026-08-16-list-column-scroll')throw new Error('List scroll guard missing '+JSON.stringify(identity));
             if(identity.catalog<51||identity.profiles<27)throw new Error('Smart Template Garden regressed '+JSON.stringify(identity));
 
             const whatsNew=await page.evaluate(async()=>{
@@ -108,15 +119,16 @@ jobs:
               state.settings.tutorialCompleted=true;
               state.settings.lastSeenUpdateVersion='1.0.0';
               state.settings.lastSeenWhatsNewKey='hana-v1-2026-08-16-intelligence-stability';
+              state.settings.lastSeenListColumnScrollKey='';
               maybeOpenUpdateNote();
-              await new Promise(r=>setTimeout(r,360));
-              const first={open:!document.getElementById('whatsNewModal').classList.contains('hidden'),title:document.getElementById('whatsNewTitle')?.textContent||'',seen:state.settings.lastSeenWhatsNewKey||'',hasWeekend:HANA_RELEASE_NOTES.items.some(item=>item.title==='Weekend reminders')};
+              await new Promise(r=>setTimeout(r,420));
+              const first={open:!document.getElementById('whatsNewModal').classList.contains('hidden'),title:document.getElementById('whatsNewTitle')?.textContent||'',seen:state.settings.lastSeenWhatsNewKey||'',listSeen:state.settings.lastSeenListColumnScrollKey||'',hasWeekend:HANA_RELEASE_NOTES.items.some(item=>item.title==='Weekend reminders'),hasListScroll:HANA_RELEASE_NOTES.items.some(item=>item.title==='Lists stay where you’re working')};
               closeModal('whatsNewModal');
               maybeOpenUpdateNote();
-              await new Promise(r=>setTimeout(r,360));
+              await new Promise(r=>setTimeout(r,420));
               return{first,noRepeat:document.getElementById('whatsNewModal').classList.contains('hidden'),version:state.settings.lastSeenUpdateVersion};
             });
-            if(!whatsNew.first.open||whatsNew.first.title!=='Hana got smarter 🌸'||whatsNew.first.seen!==identity.releaseKey||!whatsNew.first.hasWeekend||!whatsNew.noRepeat||whatsNew.version!=='1.0.0')throw new Error('What’s New regression '+JSON.stringify(whatsNew));
+            if(!whatsNew.first.open||whatsNew.first.title!=='Hana got smarter 🌸'||whatsNew.first.seen!==identity.releaseKey||whatsNew.first.listSeen!==identity.listScroll||!whatsNew.first.hasWeekend||!whatsNew.first.hasListScroll||!whatsNew.noRepeat||whatsNew.version!=='1.0.0')throw new Error('What’s New regression '+JSON.stringify(whatsNew));
 
             const recovery=await page.evaluate(async()=>{
               const space=state.spaces[0]?.id||'personal';
@@ -160,6 +172,27 @@ jobs:
             });
             if(weekendReminder.label!=='Weekends'||weekendReminder.helper.monday!=='2026-08-22'||weekendReminder.helper.saturdayKeep!=='2026-08-22'||weekendReminder.helper.saturdayNext!=='2026-08-23'||weekendReminder.helper.sundayNext!=='2026-08-29'||weekendReminder.normalized!=='weekends'||weekendReminder.afterSaturday!=='2026-08-23'||weekendReminder.afterSunday!=='2026-08-29')throw new Error('Weekend reminder recurrence regressed '+JSON.stringify(weekendReminder));
 
+            const listScroll=await page.evaluate(async()=>{
+              const list={id:'permanent-four-column-list',name:'Permanent column QA',icon:'☑️',space:'personal',columnMode:true,columnCount:4,columnLabels:{partner:'Cha',me:'Martin',both:'Both',column4:'Supermart',column5:'Column 5'},resettable:true,templateType:'',createdAt:Date.now(),updatedAt:Date.now(),items:[
+                {id:'lc1',title:'Column one',lane:'partner',completed:false,quantity:'',detail:'',createdAt:Date.now(),updatedAt:Date.now()},
+                {id:'lc2',title:'Column two',lane:'me',completed:false,quantity:'',detail:'',createdAt:Date.now(),updatedAt:Date.now()},
+                {id:'lc3',title:'Column three',lane:'both',completed:false,quantity:'',detail:'',createdAt:Date.now(),updatedAt:Date.now()},
+                {id:'lc4',title:'Wet wipes',lane:'column4',completed:false,quantity:'',detail:'',createdAt:Date.now(),updatedAt:Date.now()},
+                {id:'lc4b',title:'Yakisoba',lane:'column4',completed:false,quantity:'',detail:'',createdAt:Date.now(),updatedAt:Date.now()}
+              ]};
+              state.currentPage='lists';state.activeListId=list.id;state.lists=[list];render();
+              await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+              let board=document.querySelector('.list-column-board');
+              const max=Math.max(0,board.scrollWidth-board.clientWidth);board.scrollLeft=max;
+              await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+              const before=board.scrollLeft;
+              board.querySelector('.list-lane-column[data-list-lane="column4"] [data-toggle-list-item="lc4"]').click();
+              await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+              board=document.querySelector('.list-column-board');
+              return{max,before,after:board?.scrollLeft||0,completed:state.lists[0].items.find(item=>item.id==='lc4')?.completed===true,tagged:board?.dataset.hanaListScrollId||'',noPageX:document.documentElement.scrollWidth<=innerWidth+2};
+            });
+            if(listScroll.max<80||listScroll.before<60||Math.abs(listScroll.after-listScroll.before)>3||!listScroll.completed||listScroll.tagged!=='permanent-four-column-list'||!listScroll.noPageX)throw new Error('List column scroll regressed '+JSON.stringify(listScroll));
+
             const intelligence=await page.evaluate(()=>{
               const space=state.spaces[0]?.id||'personal';
               state.tasks=[{id:'ai-a',title:'Submit visa application',notes:'after passport photo',space,dueDate:todayISO(),done:false,estimatedMinutes:60,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-b',title:'Get passport photo',space,done:false,estimatedMinutes:15,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-c',title:'Write Japan itinerary',space,done:false,estimatedMinutes:30,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-d',title:'Review Japan food list',space,done:false,estimatedMinutes:20,createdAt:Date.now(),updatedAt:Date.now()},{id:'ai-e',title:'Book Japan hotel',space,done:false,estimatedMinutes:20,createdAt:Date.now(),updatedAt:Date.now()}];
@@ -183,7 +216,7 @@ jobs:
             if(longSkincare.count!==8||longSkincare.font>12||longSkincare.font<10.5||longSkincare.row>45||!longSkincare.noScroll||!longSkincare.noX)throw new Error('Adaptive skincare regressed '+JSON.stringify(longSkincare));
 
             if(errors.length)throw new Error('Browser runtime errors: '+errors.join(' | '));
-            console.log('Hana Version 1 permanent QA passed',JSON.stringify({identity,whatsNew,recovery,retained,weekendReminder,intelligence,smart,packing,skincare,longSkincare}));
+            console.log('Hana Version 1 permanent QA passed',JSON.stringify({identity,whatsNew,recovery,retained,weekendReminder,listScroll,intelligence,smart,packing,skincare,longSkincare}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           NODE
