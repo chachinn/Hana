@@ -9,11 +9,13 @@ const CORE_SHELL = [
   "./style.css?v=1.0.0",
   "./smart-templates.css?v=1.0.0",
   "./intelligence.css?v=1.0.0",
+  "./skincare-step-sync.css?v=1.0.0",
   "./app.js?v=1.0.0",
   "./firebase-bridge.js?v=1.0.0",
   "./recovery-safety.js?v=1.0.0-data-safe-1",
   "./smart-templates.js?v=1.0.0",
-  "./intelligence.js?v=1.0.0"
+  "./intelligence.js?v=1.0.0",
+  "./skincare-step-sync.js?v=1.0.0"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",
