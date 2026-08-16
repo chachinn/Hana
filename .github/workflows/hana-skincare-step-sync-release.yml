@@ -1,0 +1,155 @@
+name: Hana skincare step sync release
+on:
+  push:
+    branches:
+      - fix/skincare-step-sync
+    paths:
+      - .github/workflows/hana-skincare-step-sync-release.yml
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/skincare-step-sync
+          fetch-depth: 0
+      - name: Wire skincare step sync into Hana
+        run: python3 .github/scripts/hana_skincare_step_sync_wire.py
+      - name: Static safety checks
+        run: |
+          node --check app.js
+          node --check skincare-step-sync.js
+          node --check smart-templates.js
+          node --check intelligence.js
+          node --check recovery-safety.js
+          node --check service-worker.js
+          grep -q 'const HANA_APP_VERSION = "1.0.0"' app.js
+          grep -q 'const HANA_DISPLAY_VERSION = "1"' app.js
+          grep -q 'const STORAGE_KEY = "hana_app_v1"' app.js
+          grep -q 'skincare-step-sync.css?v=1.0.0' index.html
+          grep -q 'skincare-step-sync.js?v=1.0.0' index.html
+          grep -q 'skincare-step-sync.css?v=1.0.0' service-worker.js
+          grep -q 'skincare-step-sync.js?v=1.0.0' service-worker.js
+          grep -q 'Apply to other days' skincare-step-sync.js
+          grep -q 'Skincare step-by-step syncing' skincare-step-sync.js
+          git diff --check
+      - name: Install browser driver
+        run: npm install --prefix /tmp/hana-skincare-pw --no-save --package-lock=false playwright-core
+      - name: Start Hana locally
+        run: |
+          python3 -m http.server 4173 >/tmp/hana-skincare.log 2>&1 &
+          sleep 2
+      - name: iPhone skincare step-sync QA
+        env:
+          NODE_PATH: /tmp/hana-skincare-pw/node_modules
+        run: |
+          node <<'NODE'
+          const { chromium }=require('playwright-core');
+          const fs=require('fs');
+          const executablePath=['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(fs.existsSync);
+          if(!executablePath)throw new Error('No browser executable found');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox']});
+            const context=await browser.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,hasTouch:true,serviceWorkers:'block'});
+            const page=await context.newPage();
+            const errors=[];page.on('pageerror',e=>errors.push(String(e.stack||e)));
+            await page.goto('http://127.0.0.1:4173/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(1000);
+            await page.evaluate(()=>{try{closeModal('accountWelcomeModal')}catch(_){};try{closeModal('tutorialModal')}catch(_){};try{closeModal('whatsNewModal')}catch(_){}});
+
+            const result=await page.evaluate(async()=>{
+              const space=preferredSpace();
+              const mk=(day,category,product,order)=>({id:createId(),category,product,days:[day],times:['am'],variant:'primary',routineLabel:'AM Routine',notes:`${product} note`,order});
+              const steps=[];
+              const products={
+                1:['Mon Cleanser','Mon Toner','Mon SPF'],
+                2:['Tue Cleanser','Tue Toner','Tue SPF'],
+                3:['Wed Cleanser','Wed Toner','Wed SPF'],
+                4:['Thu Cleanser','Thu Toner','Thu SPF']
+              };
+              [1,2,3,4].forEach(day=>{
+                steps.push(mk(day,'Cleanser',products[day][0],0));
+                steps.push(mk(day,'Toner',products[day][1],1));
+                steps.push(mk(day,'Sunscreen',products[day][2],2));
+              });
+              const note=normalizeNote({id:'qa-step-sync',title:'QA Weekly Skincare',space,structuredType:'skincare-weekly',skincareRoutine:{focus:'QA',dayLabels:{1:'Monday label',2:'Tuesday label',3:'Wednesday label',4:'Thursday label'},steps},createdAt:Date.now(),updatedAt:Date.now()});
+              state.notes=state.notes.filter(n=>n.id!==note.id);state.notes.push(note);
+              openSkincareRoutineModal(note.id,{edit:true,day:1});
+              await new Promise(r=>setTimeout(r,80));
+
+              const rows=[...document.querySelectorAll('#skincareStepsEditor [data-skincare-step-row]')];
+              const sunscreenRow=rows.find(row=>row.querySelector('[data-skincare-category]')?.value==='Sunscreen');
+              if(!sunscreenRow)throw new Error('Monday sunscreen row missing');
+              sunscreenRow.querySelector('[data-skincare-product]').value='New SPF 50';
+              sunscreenRow.querySelector('[data-skincare-notes]').value='Updated SPF only';
+              sunscreenRow.querySelector('[data-skincare-step-sync-open]').click();
+              await new Promise(r=>setTimeout(r,30));
+              document.querySelector('[data-skincare-step-sync-day="2"]').click();
+              document.querySelector('[data-skincare-step-sync-day="3"]').click();
+              document.querySelector('[data-skincare-step-sync-apply]').click();
+              await new Promise(r=>setTimeout(r,40));
+
+              const afterEdit={
+                tue:clone(skincareEditorDraft.days[2]),
+                wed:clone(skincareEditorDraft.days[3]),
+                thu:clone(skincareEditorDraft.days[4]),
+                labels:clone(skincareEditorDraft.dayLabels)
+              };
+
+              addSkincareEditorStep('am','primary');
+              await new Promise(r=>setTimeout(r,30));
+              const newRows=[...document.querySelectorAll('#skincareStepsEditor [data-skincare-step-row]')];
+              const blank=newRows[newRows.length-1];
+              const category=blank.querySelector('[data-skincare-category]');
+              category.value='Serum';
+              blank.querySelector('[data-skincare-product]').value='New Morning Serum';
+              blank.querySelector('[data-skincare-notes]').value='New step';
+              blank.querySelector('[data-skincare-step-sync-open]').click();
+              await new Promise(r=>setTimeout(r,30));
+              document.querySelector('[data-skincare-step-sync-day="2"]').click();
+              document.querySelector('[data-skincare-step-sync-apply]').click();
+              await new Promise(r=>setTimeout(r,30));
+              const afterAdd={tue:clone(skincareEditorDraft.days[2]),wed:clone(skincareEditorDraft.days[3])};
+
+              saveSkincareRoutine();
+              const saved=state.notes.find(n=>n.id==='qa-step-sync');
+              const savedDay=day=>saved.skincareRoutine.steps.filter(s=>s.days.includes(day));
+              const modal=document.querySelector('#skincareRoutineModal .skincare-planner-modal');
+              return{
+                app:HANA_APP_VERSION,display:HANA_DISPLAY_VERSION,storage:STORAGE_KEY,
+                feature:window.HanaSkincareStepSync?.featureKey||'',
+                releaseItem:HANA_RELEASE_NOTES.items.some(item=>item.title==='Skincare step-by-step syncing'),
+                afterEdit,afterAdd,
+                savedTue:savedDay(2),savedWed:savedDay(3),savedThu:savedDay(4),
+                noX:document.documentElement.scrollWidth<=innerWidth+2,
+                modalFits:modal?modal.getBoundingClientRect().width<=innerWidth-8:true,
+                recovery:HanaRecoveryAudit?.status?.().nonDestructiveAuthCleanup===true,
+                weekend:[...document.getElementById('reminderRepeat').options].some(o=>o.value==='weekends')
+              };
+            });
+
+            const product=(rows,cat)=>rows.find(x=>x.category===cat)?.product;
+            if(result.app!=='1.0.0'||result.display!=='1'||result.storage!=='hana_app_v1')throw new Error('Version/storage changed '+JSON.stringify(result));
+            if(result.feature!=='hana-v1-2026-08-16-skincare-step-sync'||!result.releaseItem)throw new Error('Feature/What’s New missing '+JSON.stringify(result));
+            if(product(result.afterEdit.tue,'Sunscreen')!=='New SPF 50'||product(result.afterEdit.wed,'Sunscreen')!=='New SPF 50'||product(result.afterEdit.thu,'Sunscreen')!=='Thu SPF')throw new Error('Sunscreen propagation failed '+JSON.stringify(result));
+            if(product(result.afterEdit.tue,'Cleanser')!=='Tue Cleanser'||product(result.afterEdit.tue,'Toner')!=='Tue Toner'||product(result.afterEdit.wed,'Cleanser')!=='Wed Cleanser'||product(result.afterEdit.wed,'Toner')!=='Wed Toner')throw new Error('Unedited steps changed '+JSON.stringify(result));
+            if(result.afterEdit.labels[2]!=='Tuesday label'||result.afterEdit.labels[3]!=='Wednesday label'||result.afterEdit.labels[4]!=='Thursday label')throw new Error('Day labels changed '+JSON.stringify(result));
+            if(product(result.afterAdd.tue,'Serum')!=='New Morning Serum'||product(result.afterAdd.wed,'Serum'))throw new Error('New-step propagation failed '+JSON.stringify(result));
+            if(product(result.savedTue,'Sunscreen')!=='New SPF 50'||product(result.savedTue,'Serum')!=='New Morning Serum'||product(result.savedTue,'Cleanser')!=='Tue Cleanser'||product(result.savedWed,'Sunscreen')!=='New SPF 50'||product(result.savedWed,'Cleanser')!=='Wed Cleanser'||product(result.savedThu,'Sunscreen')!=='Thu SPF')throw new Error('Saved routine integrity failed '+JSON.stringify(result));
+            if(!result.noX||!result.modalFits||!result.recovery||!result.weekend)throw new Error('Mobile/retention regression '+JSON.stringify(result));
+            if(errors.length)throw new Error('Runtime errors '+errors.join(' | '));
+            console.log('Hana skincare step sync QA passed',JSON.stringify(result));
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Commit tested shell wiring
+        run: |
+          git config user.name "Hana QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html service-worker.js
+          git diff --check --cached
+          if ! git diff --cached --quiet; then
+            git commit -m "Wire per-step skincare sync into Hana"
+            git push origin HEAD:fix/skincare-step-sync
+          fi
