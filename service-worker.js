@@ -2,7 +2,7 @@
    HANA 🌸 Service Worker v1 · data-safety revision 1
    ===================================================== */
 
-const CACHE_NAME = "hana-shell-v1-weekend-reminders-1";
+const CACHE_NAME = "hana-shell-v1-list-column-scroll-1";
 const CORE_SHELL = [
   "./",
   "./index.html",
@@ -15,7 +15,8 @@ const CORE_SHELL = [
   "./recovery-safety.js?v=1.0.0-data-safe-1",
   "./smart-templates.js?v=1.0.0",
   "./intelligence.js?v=1.0.0",
-  "./skincare-step-sync.js?v=1.0.0"
+  "./skincare-step-sync.js?v=1.0.0",
+  "./list-scroll-memory.js?v=1.0.0"
 ];
 const OPTIONAL_SHELL = [
   "./manifest.json",
